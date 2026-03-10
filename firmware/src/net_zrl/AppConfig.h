@@ -20,22 +20,17 @@
 // Private Zugangsdaten stehen in Secrets.h (nicht im Repo).
 // ============================================================
 
-constexpr char DEVICE_ID[]   = "NET-ZRL-001";
-constexpr char DEVICE_NAME[] = "NET-ZRL Platzhalter";
+constexpr char DEVICE_ID[]   = "net_zrl_01";
+constexpr char DEVICE_NAME[] = "NET-ZRL Base";
 constexpr char FW_VARIANT[]  = "net_zrl_base";
 constexpr bool DEVICE_DEBUG_AKTIV = true;
 
-// Meldeintervall für periodischen STATE (ms).
+constexpr unsigned long HELLO_RETRY_INTERVAL_MS = 5000UL;
+constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000UL;
 constexpr unsigned long STATE_INTERVAL_MS = 30000UL;
-
-// Entprellzeit lokaler Taster (ms).
-constexpr unsigned long BUTTON_DEBOUNCE_MS = 50UL;
-
-// ACK-Timeout (ms).
-constexpr unsigned long ACK_TIMEOUT_MS = 250UL;
-
-// Maximale Retries.
-constexpr uint8_t MAX_RETRIES = 3;
+constexpr int WLAN_KANAL = 6;
+constexpr bool RELAY_1_DEFAULT_ON_BOOT = false;
+constexpr bool RELAY_2_DEFAULT_ON_BOOT = false;
 
 // Sperrzeit nach Richtungswechsel (ms).
 // Nur im Rolladenmodus relevant.
@@ -51,3 +46,4 @@ constexpr unsigned long COVER_REVERSE_LOCK_MS = 500UL;
 //   - beide Relais sind unabhängig schaltbar
 //   - geeignet für Licht, Doppelschaltaktor, zwei Stromkreise
 constexpr bool COVER_MODUS_AKTIV = false;
+constexpr unsigned long LOOP_INTERVAL_MS = 10UL;

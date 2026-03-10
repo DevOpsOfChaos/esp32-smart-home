@@ -1,0 +1,49 @@
+Beta-Version: beta06
+Titel: Reeller Bring-up-Test der Minimalstrecke mit master und net_erl
+Datum: [Datum eintragen]
+
+Ziel
+Die zuvor nur kompilierend vorbereitete Minimalstrecke zwischen master und net_erl sollte auf echter Hardware kontrolliert überprüft werden. Schwerpunkt war nicht der Ausbau neuer Funktionen, sondern der Nachweis, dass Build, Upload und Grundkommunikation im Realbetrieb funktionieren.
+
+Ausgangslage
+Vor dem Test war die Firmware-Struktur für master und net_erl vorbereitet. Die relevanten Geräte bauten erfolgreich in PlatformIO, jedoch fehlte noch der reale Nachweis auf echter Hardware. Damit war die Minimalstrecke zwar architektonisch vorbereitet, aber noch nicht praktisch belegt.
+
+Durchgeführte Arbeiten
+- master kontrolliert gebaut
+- net_erl kontrolliert gebaut
+- Upload auf die Zielhardware durchgeführt
+- Geräte einzeln und nicht blind über unklare Ports geflasht
+- Start- und Laufverhalten über serielle Ausgaben geprüft
+- Funktionsfähigkeit der Minimalstrecke zwischen master und net_erl praktisch überprüft
+
+Ergebnis
+Der reale Bring-up-Test von master und net_erl war erfolgreich. Damit ist die Minimalstrecke nicht mehr nur als kompilierender Entwicklungsstand vorhanden, sondern als praktisch getestete Teilfunktion nachgewiesen.
+
+Fachliche Bedeutung
+Dieser Schritt ist für die Technikerarbeit wesentlich, weil damit erstmals eine reale Kopplung der neuen Architektur auf echter Hardware bestätigt wurde. Die Entscheidung, die Neubasis mit klar getrennten Rollen für Node und Master umzusetzen, wurde damit technisch gestützt.
+
+Verbesserungseffekt
+- Reduktion des Projektrisikos im Firmware-Kern
+- Höhere Glaubwürdigkeit der Architektur gegenüber einer rein theoretischen oder nur kompilierenden Umsetzung
+- Belastbarere Grundlage für den nächsten Schritt der Systemintegration mit MQTT und Server
+
+Trade-offs / Grenzen
+- Der erfolgreiche Bring-up-Test beweist nicht automatisch die vollständige Systemintegration
+- Nicht jeder denkbare Betriebsfall ist damit bereits validiert
+- Ein realer End-to-End-Nachweis bis in den Server ist weiterhin separat zu führen
+- Weitere Nachweise, z. B. Offline-Timeout oder vollständige Aktorreaktion, sind je nach Teststand gesondert zu dokumentieren
+
+Test / Nachweis
+Real durchgeführt:
+- Build von master erfolgreich
+- Build von net_erl erfolgreich
+- Upload auf reale Hardware erfolgreich
+- Start und Grundfunktion im Realtest erfolgreich
+
+Noch offen bzw. separat zu dokumentieren:
+- vollständiger MQTT-End-to-End-Nachweis gegen die Serverbasis
+- vollständiger Relais-Schaltnachweis, falls noch nicht separat protokolliert
+- realer Offline-Timeout-Nachweis am Gesamtsystem
+
+Lehrerblick (Eigenleistung vs. „geklaut”)
+Der Schritt zeigt nachvollziehbare Eigenleistung, weil nicht nur Quellcode erzeugt, sondern eine reale Minimalstrecke geplant, gebaut, geflasht und praktisch getestet wurde. Für die Projektdokumentation ist dieser Übergang von der Architekturidee zum realen Funktionsnachweis deutlich wertvoller als bloße Codeerstellung.

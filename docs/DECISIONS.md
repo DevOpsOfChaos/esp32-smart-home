@@ -77,5 +77,33 @@ Wetter wird als servereigene Kontextquelle unter `smarthome/server/weather/...` 
 Grund:
 Wetterdaten kommen nicht ueber den Master und duerfen die Geraete-Registry nicht verwaessern.
 
+## D-012 Server-Wetterprovider ist in V1 Open-Meteo
+Entscheidung:
+Der verbindliche Wetterprovider fuer die erste Server-Basis ist Open-Meteo.
+
+Grund:
+Open-Meteo erlaubt eine schlanke, servereigene Wetterintegration ohne zusaetzliche Plattformabhaengigkeit.
+
+## D-013 Influx-Retention betraegt in V1 365 Tage
+Entscheidung:
+Die Start-Retention fuer den Influx-Bucket liegt bei 365 Tagen.
+
+Grund:
+Damit bleibt genug Verlauf fuer das Projekt erhalten, ohne fuer V1 schon eine komplexe Archivstrategie einzufuehren.
+
+## D-014 Es gibt in V1 keinen Alert- oder Benachrichtigungskanal
+Entscheidung:
+Alarm- und Benachrichtigungskanaele werden in V1 bewusst nicht eingebaut.
+
+Grund:
+Die Basis muss zuerst Ingest, Registry, State-Store und Historisierung sauber liefern, bevor Folgekanal-Logik dazukommt.
+
+## D-015 Forecast und Szenen sind nicht Teil der ersten UI-Stufe
+Entscheidung:
+Forecast-Ansichten und Szenen bekommen in V1 keine eigene UI-Stufe.
+
+Grund:
+Die erste UI-Stufe soll nur die notwendige Betriebsbasis zeigen und nicht wieder zu frueh in Komfortflaeche ausufern.
+
 ## Pflegehinweis
 Neue Architektur- oder Arbeitsentscheidungen hier kurz mit Entscheidung und Grund ergaenzen. Keine langen Rechtfertigungen, nur belastbare Regeln.

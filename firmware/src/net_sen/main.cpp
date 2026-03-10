@@ -1,177 +1,413 @@
 /*
 ====================================================================
  Projekt   : SmartHome ESP32
- Gerät     : NET-SEN (Netzbetrieben, Sensor-Node)
+ Geraet    : NET-SEN (Netzbetrieben, Sensor-Basis)
  Datei     : main.cpp
- Version   : 0.2.0
+ Version   : 0.2.2
  Stand     : 2026-03-10
 
  Funktion:
- Netzbetriebener Sensor-Node ohne Relais.
- Erfasst periodisch Klimawerte und meldet relevante Änderungen
- sofort als STATE, Präsenzereignisse als EVENT.
-
- Hardware (Basisvariante):
- - ESP32-C3 SuperMini
- - I2C-Sensorbus (AHT20/ENS160/VEML7700 je nach Bestückung)
- - optionaler PIR/Radar-Sensor
- - optionaler WS2812-Ring
-
- Architekturebene: A – Node
- Sicherheitsverhalten bei Masterverlust:
- - Messung läuft weiter
- - Events werden im Puffer gehalten und beim nächsten
-   Verbindungsaufbau gesendet (Platzhalter)
+ Allgemeine netzbetriebene Sensor-Basis in derselben ESP-NOW-Linie
+ wie NET-ERL.
+ - feste node_id net_sen_01
+ - HELLO beim Start
+ - HEARTBEAT zyklisch
+ - STATE_REPORT mit generischen Sensorfeldern
+ - optionales Motion-EVENT bei konfiguriertem PIR-Pin
 ====================================================================
 */
 
 #include <Arduino.h>
+#include <WiFi.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+#include <stdarg.h>
+#include <string.h>
+#include <limits.h>
+
+#if __has_include(<esp_arduino_version.h>)
+  #include <esp_arduino_version.h>
+#endif
+
+#ifndef ESP_ARDUINO_VERSION_MAJOR
+  #define ESP_ARDUINO_VERSION_MAJOR 2
+#endif
+
 #include "AppConfig.h"
 #include "PinConfig.h"
 #include "../../include/ProjectVersion.h"
-#include "../../include/BuildConfig.h"
 #include "../../include/DebugConfig.h"
 #include "../../lib/ShProtocol/src/Protocol.h"
 #include "../../lib/ShProtocol/src/DeviceTypes.h"
 
-constexpr char DATEI_GERAET[]  = "NET-SEN";
-constexpr char DATEI_VERSION[] = "0.2.0";
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
-
-constexpr unsigned long LOOP_INTERVAL_MS  = 50UL;
-constexpr unsigned long HELLO_INTERVAL_MS = 300000UL;
-
-// Messwerte (ungültige Startwerte)
-struct SensorWerte {
-    int16_t  temp_01c   = INT16_MIN;  // INT16_MIN = noch nie gemessen
-    uint16_t hum_01pct  = 0xFFFF;     // 0xFFFF = ungültig
-    uint16_t lux        = 0;
-    uint16_t aqi        = 0;
-    bool     motion     = false;
-};
+constexpr char DATEI_GERAET[] = "NET-SEN";
+constexpr char DATEI_VERSION[] = "0.2.2";
+const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 struct NodeState {
-    bool masterBekannt;
-    SensorWerte aktuell;
-    SensorWerte letzteGemeldet;
-    bool hatNeueMesswerte;
-    unsigned long letzteMessungMs;
-    unsigned long letzteStateMeldungMs;
-    unsigned long letztesHelloMs;
-    unsigned long letzteSchleifeMs;
-    uint8_t seq_zaehler;
+    bool master_bekannt;
+    bool master_mac_gueltig;
+    bool fault;
+    bool motion;
+    bool state_report_offen;
+    int16_t temp_01c;
+    uint16_t hum_01pct;
+    uint16_t lux;
+    unsigned long letztes_hello_ms;
+    unsigned long letzter_heartbeat_ms;
+    unsigned long letzter_state_ms;
+    uint8_t master_mac[6];
+    uint8_t naechste_seq;
 };
 
 NodeState nodeStatus = {};
 
-void debugInfo(const char* t) { if(DEBUG_LOKAL_AKTIV){Serial.print("[INFO] ");Serial.println(t);} }
-void debugWarn(const char* t) { if(DEBUG_LOKAL_AKTIV){Serial.print("[WARN] ");Serial.println(t);} }
+void logf(const char* level, const char* format, ...) {
+    if (!DEBUG_LOKAL_AKTIV) return;
 
-void initialisiereHardware() {
-    if (PIN_STATUS_LED >= 0) { pinMode(PIN_STATUS_LED, OUTPUT); digitalWrite(PIN_STATUS_LED, LOW); }
-    if (PIN_PIR >= 0) pinMode(PIN_PIR, INPUT);
-    // Fester Hardwarestandard: SDA = GPIO0, SCL = GPIO1.
-    // Wire.begin(PIN_SENSOR_SDA, PIN_SENSOR_SCL);
+    char message[192];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(message, sizeof(message), format, args);
+    va_end(args);
+
+    Serial.print("[");
+    Serial.print(level);
+    Serial.print("] ");
+    Serial.println(message);
 }
 
-void initialisiereEspNow() {
-    debugInfo("ESP-NOW: Node-Initialisierung (Platzhalter)");
-}
-
-void sendeHello() {
-    nodeStatus.letztesHelloMs = millis();
-    debugInfo("HELLO: gesendet (Platzhalter)");
-}
-
-void sendeState() {
-    nodeStatus.letzteStateMeldungMs = millis();
-    nodeStatus.hatNeueMesswerte = false;
-    nodeStatus.letzteGemeldet = nodeStatus.aktuell;
-    debugInfo("STATE: gesendet (Platzhalter)");
-}
-
-void sendeEvent(uint8_t event_type) {
-    (void)event_type;
-    debugInfo("EVENT: gesendet (Platzhalter)");
-}
-
-/**
- * Prüft, ob eine sofortige STATE-Meldung nötig ist
- * (Messwert-Differenz überschreitet Schwellwert).
- */
-bool sofortMeldungNoetig() {
-    const SensorWerte& a = nodeStatus.aktuell;
-    const SensorWerte& g = nodeStatus.letzteGemeldet;
-    if (a.temp_01c != INT16_MIN && g.temp_01c != INT16_MIN) {
-        if (abs((int)a.temp_01c - (int)g.temp_01c) >= TEMP_DELTA_01C) return true;
+void copyText(char* target, size_t targetSize, const char* source) {
+    if (!target || targetSize == 0U) return;
+    if (!source) {
+        target[0] = '\0';
+        return;
     }
-    if (a.hum_01pct != 0xFFFF && g.hum_01pct != 0xFFFF) {
-        if (abs((int)a.hum_01pct - (int)g.hum_01pct) >= HUM_DELTA_01PCT) return true;
+
+    strncpy(target, source, targetSize - 1U);
+    target[targetSize - 1U] = '\0';
+}
+
+void logMac(const char* prefix, const uint8_t* mac) {
+    char macText[18] = {0};
+    SmartHome::macToString(mac, macText);
+    logf("INFO", "%s%s", prefix, macText);
+}
+
+uint16_t ermittleCaps() {
+    uint16_t caps = SH_CAP_TEMP | SH_CAP_HUM | SH_CAP_LUX;
+    if (PIN_PIR >= 0) {
+        caps |= SH_CAP_MOTION;
     }
-    if (abs((int)a.lux - (int)g.lux) >= (int)LUX_DELTA) return true;
+    return caps;
+}
+
+bool stellePeerSicher(const uint8_t* mac) {
+    if (mac == nullptr || !SmartHome::isValidMac(mac)) return false;
+    if (esp_now_is_peer_exist(mac)) return true;
+
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, mac, 6);
+    peerInfo.channel = (uint8_t)WLAN_KANAL;
+    peerInfo.encrypt = false;
+
+    esp_err_t err = esp_now_add_peer(&peerInfo);
+    if (err != ESP_OK) {
+        logf("WARN", "Peer konnte nicht angelegt werden (err=%d)", (int)err);
+        return false;
+    }
+
+    logMac("Peer angelegt: ", mac);
+    return true;
+}
+
+bool sendePaket(const uint8_t* zielMac, uint8_t msgType, const void* payload, size_t payloadLen, const char* label) {
+    if (zielMac == nullptr || payloadLen > SH_MAX_PAYLOAD_BYTES) return false;
+    if (!stellePeerSicher(zielMac)) return false;
+
+    uint8_t buffer[SH_ESPNOW_MAX_BYTES] = {0};
+    SmartHome::MsgHeader header = {};
+    SmartHome::fillHeader(header, msgType, nodeStatus.naechste_seq++, 0, (uint16_t)payloadLen);
+
+    uint8_t* payloadBuffer = buffer + SH_HEADER_SIZE;
+    if (payloadLen > 0U && payload != nullptr) {
+        memcpy(payloadBuffer, payload, payloadLen);
+    }
+
+    SmartHome::finalizePacketCrc(header, payloadBuffer);
+    memcpy(buffer, &header, sizeof(header));
+
+    esp_err_t err = esp_now_send(zielMac, buffer, SH_HEADER_SIZE + payloadLen);
+    if (err != ESP_OK) {
+        logf("WARN", "%s konnte nicht gesendet werden (err=%d)", label, (int)err);
+        return false;
+    }
+
+    logf("INFO", "%s gesendet", label);
+    return true;
+}
+
+bool sendeHello() {
+    SmartHome::HelloPayload payload = {};
+    copyText(payload.device_id, sizeof(payload.device_id), DEVICE_ID);
+    copyText(payload.device_name, sizeof(payload.device_name), DEVICE_NAME);
+    payload.device_class = SH_CLASS_NET_SEN;
+
+    uint16_t caps = ermittleCaps();
+    payload.caps_hi = (uint8_t)((caps >> 8) & 0xFFU);
+    payload.caps_lo = (uint8_t)(caps & 0xFFU);
+    payload.power_type = SH_POWER_MAINS;
+    payload.fw_version = 0;
+    payload.boot_counter = 1U;
+
+    nodeStatus.letztes_hello_ms = millis();
+    return sendePaket(BROADCAST_MAC, SH_MSG_HELLO, &payload, sizeof(payload), "HELLO");
+}
+
+bool sendeHeartbeat() {
+    if (!nodeStatus.master_mac_gueltig) {
+        logf("WARN", "HEARTBEAT verschoben: Master-MAC unbekannt");
+        return false;
+    }
+
+    SmartHome::HeartbeatPayload payload = {};
+    copyText(payload.node_id, sizeof(payload.node_id), DEVICE_ID);
+    payload.uptime_s = millis() / 1000UL;
+
+    if (sendePaket(nodeStatus.master_mac, SH_MSG_HEARTBEAT, &payload, sizeof(payload), "HEARTBEAT")) {
+        nodeStatus.letzter_heartbeat_ms = millis();
+        return true;
+    }
+
     return false;
 }
 
-/**
- * Sensormesswerte einlesen.
- * Platzhalter: echte Sensoransteuerung folgt in Phase 2.
- */
-void messeWerte() {
-    nodeStatus.letzteMessungMs = millis();
-    // Platzhalter: AHT20, ENS160, VEML7700 auslesen
-    // nodeStatus.aktuell.temp_01c = ...
-    // nodeStatus.aktuell.hum_01pct = ...
-    // nodeStatus.aktuell.lux = ...
-}
-
-/**
- * PIR oder Radar auslesen und EVENT senden bei Änderung.
- */
-void aktualisiereMotion() {
-    if (PIN_PIR < 0) return;
-    bool jetzt = (digitalRead(PIN_PIR) == HIGH);
-    if (jetzt && !nodeStatus.aktuell.motion) {
-        nodeStatus.aktuell.motion = true;
-        sendeEvent(SH_EVENT_MOTION_DETECTED);
-    } else if (!jetzt) {
-        nodeStatus.aktuell.motion = false;
+bool sendeStateReport() {
+    if (!nodeStatus.master_mac_gueltig) {
+        logf("WARN", "STATE_REPORT wartet auf HELLO_ACK");
+        return false;
     }
+
+    SmartHome::SensorStateReportPayload payload = {};
+    copyText(payload.node_id, sizeof(payload.node_id), DEVICE_ID);
+    payload.temp_01c = nodeStatus.temp_01c;
+    payload.hum_01pct = nodeStatus.hum_01pct;
+    payload.lux = nodeStatus.lux;
+    payload.motion = nodeStatus.motion ? 1U : 0U;
+    payload.fault = nodeStatus.fault ? 1U : 0U;
+
+    if (sendePaket(nodeStatus.master_mac, SH_MSG_STATE, &payload, sizeof(payload), "STATE_REPORT")) {
+        nodeStatus.state_report_offen = false;
+        nodeStatus.letzter_state_ms = millis();
+        return true;
+    }
+
+    return false;
 }
 
-void aktualisiereKommunikation() { /* Platzhalter */ }
+bool sendeEvent(uint8_t eventType, uint8_t trigger, uint8_t param1, uint16_t param2) {
+    if (!nodeStatus.master_mac_gueltig) {
+        return false;
+    }
 
-void verarbeiteEingehendesEspNowPaket(const uint8_t* mac, const uint8_t* daten, int laenge) {
-    (void)mac; if (laenge < (int)SH_HEADER_SIZE) return;
-    const SmartHome::MsgHeader* h = reinterpret_cast<const SmartHome::MsgHeader*>(daten);
-    if (!SmartHome::isValidHeader(*h)) return;
-    if (h->msg_type == SH_MSG_HELLO_ACK) nodeStatus.masterBekannt = true;
+    SmartHome::EventReportPayload payload = {};
+    copyText(payload.node_id, sizeof(payload.node_id), DEVICE_ID);
+    payload.event_type = eventType;
+    payload.trigger = trigger;
+    payload.param1 = param1;
+    payload.param2 = param2;
+
+    return sendePaket(nodeStatus.master_mac, SH_MSG_EVENT, &payload, sizeof(payload), "EVENT");
+}
+
+void initialisiereHardware() {
+    if (PIN_STATUS_LED >= 0) {
+        pinMode(PIN_STATUS_LED, OUTPUT);
+        digitalWrite(PIN_STATUS_LED, LOW);
+    }
+    if (PIN_PIR >= 0) {
+        pinMode(PIN_PIR, INPUT);
+    }
+
+    nodeStatus.temp_01c = INT16_MIN;
+    nodeStatus.hum_01pct = 0xFFFFU;
+    nodeStatus.lux = 0xFFFFU;
+    nodeStatus.motion = false;
+    nodeStatus.fault = false;
+    nodeStatus.state_report_offen = false;
+}
+
+void initialisiereFunk() {
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    WiFi.setSleep(false);
+
+    esp_err_t kanalErr = esp_wifi_set_channel((uint8_t)WLAN_KANAL, WIFI_SECOND_CHAN_NONE);
+    if (kanalErr != ESP_OK) {
+        logf("WARN", "WLAN-Kanal %d konnte nicht gesetzt werden (err=%d)", WLAN_KANAL, (int)kanalErr);
+    }
+
+    if (esp_now_init() != ESP_OK) {
+        logf("WARN", "ESP-NOW Initialisierung fehlgeschlagen");
+        return;
+    }
+
+    stellePeerSicher(BROADCAST_MAC);
+    logf("INFO", "ESP-NOW bereit auf Kanal %d", WLAN_KANAL);
 }
 
 void gibStartmeldungAus() {
     if (!DEBUG_LOKAL_AKTIV) return;
+
     Serial.println("================================");
-    Serial.print(DATEI_GERAET); Serial.print(" v"); Serial.println(DATEI_VERSION);
-    Serial.print("ID: "); Serial.println(DEVICE_ID);
+    Serial.println(PROJECT_NAME);
+    Serial.print(DATEI_GERAET);
+    Serial.print(" v");
+    Serial.println(DATEI_VERSION);
+    Serial.print("Node-ID: ");
+    Serial.println(DEVICE_ID);
+    Serial.print("FW: ");
+    Serial.println(PROJECT_VERSION);
+    Serial.println("Sensor-Basis ohne feste Fachsensor-Treiber");
     Serial.println("================================");
 }
 
+void messeSensoren() {
+    // Generische Basis: Sensorwerte bleiben unbestueckt auf den
+    // dokumentierten Sentinel-Werten, bis konkrete Treiber aktiv sind.
+}
+
+void aktualisiereMotion() {
+    if (PIN_PIR < 0) return;
+
+    bool jetzt = (digitalRead(PIN_PIR) == HIGH);
+    if (jetzt != nodeStatus.motion) {
+        nodeStatus.motion = jetzt;
+        nodeStatus.state_report_offen = true;
+        if (jetzt) {
+            sendeEvent(SH_EVENT_MOTION_DETECTED, SH_TRIGGER_AUTO, 0U, 0U);
+        }
+    }
+}
+
+void verarbeiteHelloAck(const uint8_t* senderMac, const SmartHome::HelloAckPayload& payload) {
+    if (payload.ack_status != SH_ACK_OK) {
+        logf("WARN", "HELLO_ACK abgelehnt");
+        return;
+    }
+
+    memcpy(nodeStatus.master_mac, senderMac, 6);
+    nodeStatus.master_mac_gueltig = true;
+    nodeStatus.master_bekannt = true;
+    stellePeerSicher(nodeStatus.master_mac);
+    logf("INFO", "HELLO_ACK empfangen, Master-Kanal=%u", payload.channel);
+    logMac("Master-MAC: ", senderMac);
+    nodeStatus.state_report_offen = true;
+}
+
+void verarbeiteCmd(const SmartHome::CmdPayload& cmd) {
+    if (cmd.cmd_type == SH_CMD_STATE_REQUEST) {
+        nodeStatus.state_report_offen = true;
+        return;
+    }
+
+    logf("WARN", "CMD ignoriert (cmd=%u)", (unsigned)cmd.cmd_type);
+}
+
+void verarbeiteEspNowPaket(const uint8_t* senderMac, const uint8_t* daten, int laenge) {
+    if (senderMac == nullptr || daten == nullptr || laenge < (int)sizeof(SmartHome::MsgHeader)) {
+        logf("WARN", "ESP-NOW Paket verworfen: ungueltige Eingabe");
+        return;
+    }
+
+    if (!SmartHome::hasValidPacketCrc(daten, (size_t)laenge)) {
+        logf("WARN", "ESP-NOW Paket verworfen: CRC/Header ungueltig");
+        return;
+    }
+
+    const SmartHome::MsgHeader* header = reinterpret_cast<const SmartHome::MsgHeader*>(daten);
+    const uint8_t* payload = daten + SH_HEADER_SIZE;
+
+    switch (header->msg_type) {
+        case SH_MSG_HELLO_ACK:
+            if (header->payload_len == sizeof(SmartHome::HelloAckPayload)) {
+                verarbeiteHelloAck(senderMac, *reinterpret_cast<const SmartHome::HelloAckPayload*>(payload));
+            }
+            break;
+
+        case SH_MSG_CMD:
+            if (header->payload_len == sizeof(SmartHome::CmdPayload)) {
+                verarbeiteCmd(*reinterpret_cast<const SmartHome::CmdPayload*>(payload));
+            }
+            break;
+
+        default:
+            logf("WARN", "ESP-NOW Nachricht ignoriert (msg_type=%u)", (unsigned)header->msg_type);
+            break;
+    }
+}
+
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+void onEspNowReceive(const esp_now_recv_info_t* info, const uint8_t* daten, int laenge) {
+    if (info == nullptr) return;
+    verarbeiteEspNowPaket(info->src_addr, daten, laenge);
+}
+#else
+void onEspNowReceive(const uint8_t* senderMac, const uint8_t* daten, int laenge) {
+    verarbeiteEspNowPaket(senderMac, daten, laenge);
+}
+#endif
+
+void onEspNowSent(const uint8_t* mac, esp_now_send_status_t status) {
+    char macText[18] = {0};
+    if (mac != nullptr) {
+        SmartHome::macToString(mac, macText);
+    } else {
+        copyText(macText, sizeof(macText), "unbekannt");
+    }
+
+    logf(
+        status == ESP_NOW_SEND_SUCCESS ? "INFO" : "WARN",
+        "ESP-NOW Sendestatus an %s: %s",
+        macText,
+        status == ESP_NOW_SEND_SUCCESS ? "OK" : "FEHLER");
+}
+
 void setup() {
-    if (DEBUG_LOKAL_AKTIV) { Serial.begin(115200); delay(150); }
-    gibStartmeldungAus();
+    if (DEBUG_LOKAL_AKTIV) {
+        Serial.begin(115200);
+        delay(150);
+    }
+
     nodeStatus = {};
+    gibStartmeldungAus();
     initialisiereHardware();
-    initialisiereEspNow();
+    initialisiereFunk();
+
+    esp_now_register_send_cb(onEspNowSent);
+    esp_now_register_recv_cb(onEspNowReceive);
+
     sendeHello();
 }
 
 void loop() {
     unsigned long jetzt = millis();
-    aktualisiereKommunikation();
-    messeWerte();
+
+    messeSensoren();
     aktualisiereMotion();
-    bool istZeit = (jetzt - nodeStatus.letzteStateMeldungMs) >= STATE_INTERVAL_MS;
-    if (istZeit || sofortMeldungNoetig()) sendeState();
-    if ((jetzt - nodeStatus.letztesHelloMs) >= HELLO_INTERVAL_MS) sendeHello();
-    nodeStatus.letzteSchleifeMs = jetzt;
+
+    if (!nodeStatus.master_bekannt) {
+        if ((jetzt - nodeStatus.letztes_hello_ms) >= HELLO_RETRY_INTERVAL_MS) {
+            sendeHello();
+        }
+    } else if ((jetzt - nodeStatus.letzter_heartbeat_ms) >= HEARTBEAT_INTERVAL_MS) {
+        sendeHeartbeat();
+    }
+
+    if (nodeStatus.state_report_offen || (jetzt - nodeStatus.letzter_state_ms) >= STATE_INTERVAL_MS) {
+        sendeStateReport();
+    }
+
     delay(LOOP_INTERVAL_MS);
 }

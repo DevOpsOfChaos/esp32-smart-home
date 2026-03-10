@@ -5,7 +5,7 @@
  Projekt   : SmartHome ESP32
  Datei     : Protocol.h
  Modul     : ShProtocol
- Version   : 0.2.0
+ Version   : 0.2.2
  Stand     : 2026-03-10
 
  Funktion:
@@ -20,9 +20,10 @@
    Nachrichtentyp, Sequenznummer, Flags, Payload-Länge und CRC16.
  - Feste Payloads für stabile Verwaltungsnachrichten
    (HELLO, HELLO_ACK, CMD, CFG, ACK, TIME).
- - TLV-basierte Payloads für STATE und EVENT,
-   damit neue Sensorwerte und Ereignistypen ohne neue Paketlayouts
-   ergänzt werden können.
+ - Kompakte feste STATE-/EVENT-Payloads für die vier Basisgeräte.
+   Die reservierten TLV-Feld-IDs bleiben für spätere Ausbaustufen
+   definiert, sind in diesem Stand aber noch nicht die aktive
+   Laufzeitdarstellung.
  - Keine JSON-Payloads über ESP-NOW.
  - Einfaches Geräte-ID-Schema: NET-ERL-001, NET-ZRL-001 usw.
    Keine Sensorbestückung in der ID.
@@ -650,18 +651,92 @@ static_assert(sizeof(StateReportPayload) == 20,
     "StateReportPayload muss 20 Bytes groß sein");
 
 // ───────────────────────────────────────────────────────────────
-// TLV-Eintrag (STATE und EVENT)
+// NET-ZRL STATE_REPORT-Payload (feste Struktur, 22 Bytes)
 // ───────────────────────────────────────────────────────────────
 //
-// Jeder STATE- oder EVENT-Payload besteht aus einer Folge von
-// TLV-Einträgen bis zur Größe payload_len.
+// Minimale Zwei-Relais-Zustandsmeldung für die allgemeine NET-ZRL-Basis.
+// Cover-Felder bleiben nur dann fachlich relevant, wenn
+// COVER_MODUS_AKTIV in der Firmware gesetzt ist.
+
+typedef struct __attribute__((packed)) {
+    char     node_id[SH_DEVICE_ID_LEN];
+    uint8_t  relay_1;
+    uint8_t  relay_2;
+    uint8_t  cover_mode;
+    uint8_t  cover_state;
+    uint8_t  cover_position;
+    uint8_t  fault;
+} ZrlStateReportPayload;
+
+static_assert(sizeof(ZrlStateReportPayload) == 22,
+    "ZrlStateReportPayload muss 22 Bytes groß sein");
+
+// ───────────────────────────────────────────────────────────────
+// NET-SEN STATE_REPORT-Payload (feste Struktur, 24 Bytes)
+// ───────────────────────────────────────────────────────────────
 //
-// type   : Feld-ID (SH_TLV_STATE_* oder SH_TLV_EVENT_*)
-// length : Länge des Wertefelds in Bytes
-// value  : Rohe Bytes (little-endian für Multi-Byte-Typen)
+// Generische Sensormeldung für die aktuelle NET-SEN-Basis.
+// Nicht bestückte Sensoren verwenden die im Protokoll kommentierten
+// Sentinel-Werte (INT16_MIN / 0xFFFF).
+
+typedef struct __attribute__((packed)) {
+    char     node_id[SH_DEVICE_ID_LEN];
+    int16_t  temp_01c;
+    uint16_t hum_01pct;
+    uint16_t lux;
+    uint8_t  motion;
+    uint8_t  fault;
+} SensorStateReportPayload;
+
+static_assert(sizeof(SensorStateReportPayload) == 24,
+    "SensorStateReportPayload muss 24 Bytes groß sein");
+
+// ───────────────────────────────────────────────────────────────
+// BAT-SEN STATE_REPORT-Payload (feste Struktur, 24 Bytes)
+// ───────────────────────────────────────────────────────────────
 //
-// Hinweis: Diese Struktur wird im Code nicht direkt
-// serialisiert, sondern über Hilfsfunktionen befüllt.
+// Minimaler Batteriestatus und Event-nahe Zustände der BAT-SEN-Basis.
+// Nicht vorhandene Eingänge verwenden 0xFF / 0xFFFF als "n/a".
+
+typedef struct __attribute__((packed)) {
+    char     node_id[SH_DEVICE_ID_LEN];
+    uint8_t  battery_pct;
+    uint16_t battery_mv;
+    uint8_t  window_open;
+    uint16_t rain_raw;
+    uint8_t  button_flags;
+    uint8_t  fault;
+} BatteryStateReportPayload;
+
+static_assert(sizeof(BatteryStateReportPayload) == 24,
+    "BatteryStateReportPayload muss 24 Bytes groß sein");
+
+// ───────────────────────────────────────────────────────────────
+// EVENT_REPORT-Payload (feste Struktur, 22 Bytes)
+// ───────────────────────────────────────────────────────────────
+//
+// Allgemeine Event-Meldung für die Basisgeräte.
+// param1/param2 sind vom event_type abhängig und bleiben bewusst
+// klein, damit keine neue Spezialarchitektur entsteht.
+
+typedef struct __attribute__((packed)) {
+    char     node_id[SH_DEVICE_ID_LEN];
+    uint8_t  event_type;
+    uint8_t  trigger;
+    uint8_t  param1;
+    uint16_t param2;
+    uint8_t  _pad;
+} EventReportPayload;
+
+static_assert(sizeof(EventReportPayload) == 22,
+    "EventReportPayload muss 22 Bytes groß sein");
+
+// ───────────────────────────────────────────────────────────────
+// TLV-Eintrag (reserviert für spätere STATE/EVENT-Ausbaustufen)
+// ───────────────────────────────────────────────────────────────
+//
+// TLV-Felddefinitionen bleiben im Protokoll erhalten, werden in diesem
+// Firmware-Stand aber noch nicht als aktive Laufzeitnutzlast kodiert.
 
 typedef struct {
     uint8_t  type;

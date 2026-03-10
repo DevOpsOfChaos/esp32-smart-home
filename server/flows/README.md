@@ -1,33 +1,38 @@
-# Server – Flows
+# Server Flows V1
 
-Dieser Ordner enthält Node-RED-Flows für das SmartHome-System.
+Die technische Wahrheit fuer die laufende Node-RED-Basis liegt in:
 
-## Grundsatz
+- `server/nodered/build-flows.js`
 
-Diese Flows sind **Neuaufbau**, kein Altflow-Import.
-Die alte Flow-Struktur war an alte Geräte-IDs und veraltete JSON-Felder gebunden.
+Der Generator erzeugt die produktive `flows.json` beim Image-Build.
 
-## Zielstruktur
+Nicht Teil des versionierten Repo-Bestands:
 
-Die spaetere Flow-Struktur folgt funktionalen Modulen statt gewachsener Sammel-Tabs:
+- `server/nodered/_generated_v1_flows.tmp.json`
 
-| Bereich | Zweck |
-|---|---|
-| `10_ingest` | MQTT-Eingang validieren und normalisieren |
-| `20_registry` | `meta` und `status` in Registry uebernehmen |
-| `30_state_store` | aktuellen `status` und `state` in SQLite halten |
-| `40_time_series` | relevante Messwerte nach InfluxDB schreiben |
-| `50_automation` | serverseitige Regeln ausfuehren |
-| `60_dashboard` | FlowFuse-Dashboard-Daten und UI-Aktionen |
-| `70_weather` | Wetterdaten holen, normalisieren und publizieren |
-| `80_logging` | Audit, Fehlerbilder und Ereignisprotokolle |
+## V1-Bloecke
 
-## Regeln für neue Flows
+- MQTT-Ingest fuer `server/status`, `master/*` und `node/*`
+- automatische Registry in SQLite
+- getrennte Speicherung von `status`, `state`, `event` und `ack`
+- `cfg/report` nach SQLite
+- `cmd/set`, `cmd/get` und `cfg/set` als MQTT-Egress aus dem Dashboard
+- Sensorpunkte nach InfluxDB
+- Dashboard-Queries fuer Geraete, Raeume, Wetter, Automationen und Audit
 
-- Kein direkter Zugriff auf Nodes (nur über Master/MQTT)
-- MQTT-Schema immer mit `docs/04_mqtt_topics.md` abgleichen
-- Device-IDs kommen aus den MQTT-Topics, nie hardkodiert im Flow
-- Keine privaten Daten im Flow speichern (Passwörter über Umgebungsvariablen)
-- Jeder Flow-Tab bekommt einen beschreibenden Namen
-- FlowFuse Dashboard ist gesetzt; deprecated `node-red-dashboard` ist keine Option.
-- SQLite ist operative Datenhaltung, InfluxDB ist Zeitreihenspeicher.
+## Ingest-Semantik
+
+- `smarthome/server/status` schreibt nach `server_settings`
+- unbekannte Master und Nodes werden bei gueltigen MQTT-Nachrichten automatisch angelegt
+- `display_name` startet mit der MQTT-ID und wird nur durch echte Metadaten sinnvoll ersetzt
+- retained `event` und retained `ack` werden nur auditiert und nicht in Registry oder Last-State uebernommen
+- Influx bekommt nur numerische Sensorwerte aus `node/.../state`, bevorzugt aus `state.sensors`
+- reale Root-Felder wie `temp_01c`, `hum_01pct`, `battery_pct`, `battery_mv` und `rain_raw` werden ebenfalls als Zeitreihe erkannt
+- pro Messwert entsteht genau ein `smarthome_sensor`-Punkt mit `metric`-Tag und `value_num`
+- boolesche Aktorflags, Statusfelder und textuelle Werte werden verworfen
+
+## Grenzen
+
+- keine Home-Assistant-Abhaengigkeit
+- keine Fake-Command-Semantik pro Geraet
+- keine komplexen Automationsmonster in V1

@@ -3,20 +3,22 @@
  Projekt   : SmartHome ESP32
  Geraet    : Master (ESP32-C3)
  Datei     : main.cpp
- Version   : 0.2.1
+ Version   : 0.2.2
  Stand     : 2026-03-10
 
  Funktion:
- Erste lauffaehige Vertikalstrecke fuer genau ein Pilotgeraet:
- net_erl -> master -> MQTT -> master -> net_erl
+ Feste Firmware-Basis fuer vier bekannte Basisgeraete:
+ - net_erl_01
+ - net_zrl_01
+ - net_sen_01
+ - bat_sen_01
 
- Dieser Stand implementiert bewusst nur:
- - Empfang von HELLO, HEARTBEAT und STATE_REPORT via ESP-NOW
- - Verwaltung genau eines Nodes: net_erl_01
- - MQTT-Publish fuer Master-Status, Node-Status und Node-State
- - MQTT-Subscribe fuer set_relay
- - Weiterleitung COMMAND_SET_RELAY an den Pilot-Node
- - Offline-Timeout und klare Logs
+ Dieser Stand erweitert die reale Minimalstrecke kontrolliert:
+ - HELLO / HELLO_ACK / HEARTBEAT fuer alle vier Basisgeraete
+ - STATE_REPORT fuer Relais-, Sensor- und Batterie-Basis
+ - EVENT-Weitergabe fuer eventfaehige Basen
+ - MQTT Topics gemaess docs/04_mqtt_topics.md
+ - Keine offene Mehrgeraete-Architektur und keine Sonderlogik je Endgeraet
 ====================================================================
 */
 
@@ -28,6 +30,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
+#include <limits.h>
 
 #if __has_include(<esp_arduino_version.h>)
   #include <esp_arduino_version.h>
@@ -58,22 +62,45 @@
 
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "MASTER";
-constexpr char DATEI_VERSION[] = "0.2.1";
-constexpr char PILOT_NODE_ID[] = "net_erl_01";
-constexpr char PILOT_DEVICE_TYPE[] = "net_erl";
-constexpr char MQTT_TOPIC_MASTER_STATUS[] = "smarthome/master/status";
-constexpr char MQTT_TOPIC_NODE_STATUS[] = "smarthome/node/net_erl_01/status";
-constexpr char MQTT_TOPIC_NODE_STATE[] = "smarthome/node/net_erl_01/state";
-constexpr char MQTT_TOPIC_NODE_COMMAND[] = "smarthome/node/net_erl_01/command";
+constexpr char DATEI_VERSION[] = "0.2.2";
+constexpr char MQTT_TOPIC_CMD_SET_SUB[] = "smarthome/node/+/cmd/set";
+constexpr char MQTT_TOPIC_CMD_GET_SUB[] = "smarthome/node/+/cmd/get";
+constexpr uint8_t WINDOW_STATE_UNKNOWN = 0xFFU;
 
-struct PilotNodeState {
-    bool mac_bekannt;
+struct NodeDefinition {
+    const char* node_id;
+    const char* device_type;
+    uint8_t device_class;
+    uint8_t power_type;
+    unsigned long offline_timeout_ms;
+};
+
+struct NodeRuntime {
+    bool meta_bekannt;
     bool online;
     bool state_bekannt;
-    bool relay_1;
+    bool mac_bekannt;
     bool fault;
-    unsigned long letzter_kontakt_ms;
+    bool relay_1;
+    bool relay_2;
+    bool cover_mode;
+    uint8_t cover_state;
+    uint8_t cover_position;
+    int16_t temp_01c;
+    uint16_t hum_01pct;
+    uint16_t lux;
+    bool motion;
+    uint8_t battery_pct;
+    uint16_t battery_mv;
+    uint8_t window_open;
+    uint16_t rain_raw;
+    uint8_t button_flags;
+    uint32_t uptime_s;
+    uint16_t caps;
+    uint16_t fw_version;
+    char device_name[SH_DEVICE_NAME_LEN];
     uint8_t mac[6];
+    unsigned long letzter_kontakt_ms;
 };
 
 struct MasterState {
@@ -85,15 +112,24 @@ struct MasterState {
     uint8_t naechste_seq;
 };
 
+constexpr NodeDefinition NODE_DEFINITIONS[] = {
+    {"net_erl_01", "net_erl", SH_CLASS_NET_ERL, SH_POWER_MAINS, NODE_OFFLINE_TIMEOUT_MS},
+    {"net_zrl_01", "net_zrl", SH_CLASS_NET_ZRL, SH_POWER_MAINS, NODE_OFFLINE_TIMEOUT_MS},
+    {"net_sen_01", "net_sen", SH_CLASS_NET_SEN, SH_POWER_MAINS, NODE_OFFLINE_TIMEOUT_MS},
+    {"bat_sen_01", "bat_sen", SH_CLASS_BAT_SEN, SH_POWER_BATTERY, BATTERY_NODE_OFFLINE_TIMEOUT_MS},
+};
+
+constexpr size_t NODE_COUNT = sizeof(NODE_DEFINITIONS) / sizeof(NODE_DEFINITIONS[0]);
+
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
-PilotNodeState pilotNode = {};
 MasterState masterStatus = {};
+NodeRuntime nodeStates[NODE_COUNT] = {};
 
 void logf(const char* level, const char* format, ...) {
     if (!DEBUG_LOKAL_AKTIV) return;
 
-    char message[192];
+    char message[224];
     va_list args;
     va_start(args, format);
     vsnprintf(message, sizeof(message), format, args);
@@ -106,7 +142,7 @@ void logf(const char* level, const char* format, ...) {
 }
 
 void copyText(char* target, size_t targetSize, const char* source) {
-    if (!target || targetSize == 0) return;
+    if (!target || targetSize == 0U) return;
     if (!source) {
         target[0] = '\0';
         return;
@@ -117,7 +153,7 @@ void copyText(char* target, size_t targetSize, const char* source) {
 }
 
 void macText(const uint8_t* mac, char* buffer, size_t bufferSize) {
-    if (!buffer || bufferSize == 0) return;
+    if (!buffer || bufferSize == 0U) return;
     if (!mac) {
         copyText(buffer, bufferSize, "unbekannt");
         return;
@@ -128,8 +164,88 @@ void macText(const uint8_t* mac, char* buffer, size_t bufferSize) {
     copyText(buffer, bufferSize, local);
 }
 
-bool gleicheNodeId(const char* nodeId) {
-    return nodeId != nullptr && strncmp(nodeId, PILOT_NODE_ID, SH_DEVICE_ID_LEN) == 0;
+const char* powerTypeText(uint8_t powerType) {
+    return powerType == SH_POWER_BATTERY ? "battery" : "mains";
+}
+
+const char* eventTypeText(uint8_t eventType) {
+    switch (eventType) {
+        case SH_EVENT_BUTTON_PRESS: return "button_press";
+        case SH_EVENT_MOTION_DETECTED: return "motion_detected";
+        case SH_EVENT_WINDOW_OPENED: return "window_opened";
+        case SH_EVENT_WINDOW_CLOSED: return "window_closed";
+        case SH_EVENT_RAIN_DETECTED: return "rain_detected";
+        case SH_EVENT_RELAY_CHANGED: return "relay_changed";
+        case SH_EVENT_LIGHT_AUTO_ON: return "light_auto_on";
+        case SH_EVENT_LIGHT_AUTO_OFF: return "light_auto_off";
+        case SH_EVENT_COVER_UP: return "cover_up";
+        case SH_EVENT_COVER_DOWN: return "cover_down";
+        case SH_EVENT_COVER_STOP: return "cover_stop";
+        case SH_EVENT_NODE_BOOT: return "node_boot";
+        case SH_EVENT_SENSOR_FAULT: return "sensor_fault";
+        case SH_EVENT_COMM_FAULT: return "comm_fault";
+        default: return "unknown";
+    }
+}
+
+void schreibeIntOrNull(char* buffer, size_t bufferSize, long value, long invalidValue) {
+    if (value == invalidValue) {
+        copyText(buffer, bufferSize, "null");
+        return;
+    }
+    snprintf(buffer, bufferSize, "%ld", value);
+}
+
+void schreibeUIntOrNull(char* buffer, size_t bufferSize, unsigned long value, unsigned long invalidValue) {
+    if (value == invalidValue) {
+        copyText(buffer, bufferSize, "null");
+        return;
+    }
+    snprintf(buffer, bufferSize, "%lu", value);
+}
+
+void baueMasterTopic(char* buffer, size_t bufferSize) {
+    snprintf(buffer, bufferSize, "smarthome/master/%s/status", DEVICE_ID);
+}
+
+void baueNodeTopic(size_t nodeIndex, const char* suffix, char* buffer, size_t bufferSize) {
+    snprintf(buffer, bufferSize, "smarthome/node/%s/%s", NODE_DEFINITIONS[nodeIndex].node_id, suffix);
+}
+
+void initialisiereNodeStates() {
+    for (size_t i = 0; i < NODE_COUNT; ++i) {
+        nodeStates[i] = {};
+        nodeStates[i].cover_state = SH_COVER_STATE_STOPPED;
+        nodeStates[i].cover_position = 0xFFU;
+        nodeStates[i].temp_01c = INT16_MIN;
+        nodeStates[i].hum_01pct = 0xFFFFU;
+        nodeStates[i].lux = 0xFFFFU;
+        nodeStates[i].battery_pct = 0xFFU;
+        nodeStates[i].window_open = WINDOW_STATE_UNKNOWN;
+        nodeStates[i].rain_raw = 0xFFFFU;
+        copyText(nodeStates[i].device_name, sizeof(nodeStates[i].device_name), NODE_DEFINITIONS[i].device_type);
+    }
+}
+
+int findeNodeIndex(const char* nodeId) {
+    if (!nodeId) return -1;
+
+    for (size_t i = 0; i < NODE_COUNT; ++i) {
+        if (strncmp(nodeId, NODE_DEFINITIONS[i].node_id, SH_DEVICE_ID_LEN) == 0) {
+            return (int)i;
+        }
+    }
+
+    return -1;
+}
+
+bool istRelayNode(size_t nodeIndex) {
+    return NODE_DEFINITIONS[nodeIndex].device_class == SH_CLASS_NET_ERL ||
+           NODE_DEFINITIONS[nodeIndex].device_class == SH_CLASS_NET_ZRL;
+}
+
+uint16_t holeHelloCaps(const SmartHome::HelloPayload& payload) {
+    return (uint16_t)(((uint16_t)payload.caps_hi << 8) | payload.caps_lo);
 }
 
 bool stellePeerSicher(const uint8_t* mac) {
@@ -153,93 +269,6 @@ bool stellePeerSicher(const uint8_t* mac) {
     return true;
 }
 
-void baueNodeStatusJson(char* buffer, size_t bufferSize, bool online) {
-    snprintf(
-        buffer,
-        bufferSize,
-        "{\"node_id\":\"%s\",\"online\":%s,\"device_type\":\"%s\",\"fw\":\"%s\"}",
-        PILOT_NODE_ID,
-        online ? "true" : "false",
-        PILOT_DEVICE_TYPE,
-        PROJECT_VERSION);
-}
-
-void baueNodeStateJson(char* buffer, size_t bufferSize) {
-    snprintf(
-        buffer,
-        bufferSize,
-        "{\"node_id\":\"%s\",\"relay_1\":%s,\"fault\":%s}",
-        PILOT_NODE_ID,
-        pilotNode.relay_1 ? "true" : "false",
-        pilotNode.fault ? "true" : "false");
-}
-
-void baueMasterStatusJson(char* buffer, size_t bufferSize, bool online) {
-    snprintf(
-        buffer,
-        bufferSize,
-        "{\"online\":%s,\"wifi\":%s,\"mqtt\":%s,\"espnow\":%s,\"fw\":\"%s\"}",
-        online ? "true" : "false",
-        masterStatus.wlan_verbunden ? "true" : "false",
-        masterStatus.mqtt_verbunden ? "true" : "false",
-        masterStatus.espnow_bereit ? "true" : "false",
-        PROJECT_VERSION);
-}
-
-void publishRetained(const char* topic, const char* payload) {
-    if (!masterStatus.mqtt_verbunden) return;
-
-    if (!mqttClient.publish(topic, payload, true)) {
-        logf("WARN", "MQTT publish fehlgeschlagen: %s", topic);
-        return;
-    }
-
-    logf("INFO", "MQTT publish %s -> %s", topic, payload);
-}
-
-void publishMasterStatus() {
-    char payload[160] = {0};
-    baueMasterStatusJson(payload, sizeof(payload), true);
-    publishRetained(MQTT_TOPIC_MASTER_STATUS, payload);
-}
-
-void publishNodeStatus(bool online) {
-    char payload[160] = {0};
-    baueNodeStatusJson(payload, sizeof(payload), online);
-    publishRetained(MQTT_TOPIC_NODE_STATUS, payload);
-}
-
-void publishNodeState() {
-    if (!pilotNode.state_bekannt) return;
-
-    char payload[128] = {0};
-    baueNodeStateJson(payload, sizeof(payload));
-    publishRetained(MQTT_TOPIC_NODE_STATE, payload);
-}
-
-void aktualisierePilotNode(const uint8_t* mac) {
-    pilotNode.letzter_kontakt_ms = millis();
-
-    if (mac != nullptr) {
-        bool neueMac = !pilotNode.mac_bekannt || memcmp(pilotNode.mac, mac, 6) != 0;
-        memcpy(pilotNode.mac, mac, 6);
-        pilotNode.mac_bekannt = true;
-        stellePeerSicher(pilotNode.mac);
-
-        if (neueMac) {
-            char text[18] = {0};
-            macText(mac, text, sizeof(text));
-            logf("INFO", "Pilot-Node MAC aktualisiert: %s", text);
-        }
-    }
-
-    if (!pilotNode.online) {
-        pilotNode.online = true;
-        publishNodeStatus(true);
-        logf("INFO", "Node %s ist online", PILOT_NODE_ID);
-    }
-}
-
 bool sendePaket(const uint8_t* zielMac, uint8_t msgType, const void* payload, size_t payloadLen, const char* label) {
     if (zielMac == nullptr || payloadLen > SH_MAX_PAYLOAD_BYTES) return false;
     if (!stellePeerSicher(zielMac)) return false;
@@ -249,7 +278,7 @@ bool sendePaket(const uint8_t* zielMac, uint8_t msgType, const void* payload, si
     SmartHome::fillHeader(header, msgType, masterStatus.naechste_seq++, 0, (uint16_t)payloadLen);
 
     uint8_t* payloadBuffer = buffer + SH_HEADER_SIZE;
-    if (payloadLen > 0 && payload != nullptr) {
+    if (payloadLen > 0U && payload != nullptr) {
         memcpy(payloadBuffer, payload, payloadLen);
     }
 
@@ -268,10 +297,242 @@ bool sendePaket(const uint8_t* zielMac, uint8_t msgType, const void* payload, si
     return true;
 }
 
-void sendeHelloAck(const uint8_t* zielMac) {
+void baueMasterStatusJson(char* buffer, size_t bufferSize, bool online) {
+    snprintf(
+        buffer,
+        bufferSize,
+        "{\"master_id\":\"%s\",\"online\":%s,\"wifi\":%s,\"mqtt\":%s,\"espnow\":%s,\"fw\":\"%s\"}",
+        DEVICE_ID,
+        online ? "true" : "false",
+        masterStatus.wlan_verbunden ? "true" : "false",
+        masterStatus.mqtt_verbunden ? "true" : "false",
+        masterStatus.espnow_bereit ? "true" : "false",
+        PROJECT_VERSION);
+}
+
+void baueNodeMetaJson(size_t nodeIndex, char* buffer, size_t bufferSize) {
+    char macBuffer[18] = {0};
+    macText(nodeStates[nodeIndex].mac_bekannt ? nodeStates[nodeIndex].mac : nullptr, macBuffer, sizeof(macBuffer));
+
+    snprintf(
+        buffer,
+        bufferSize,
+        "{\"node_id\":\"%s\",\"device_name\":\"%s\",\"device_type\":\"%s\",\"device_class\":%u,\"power_type\":\"%s\",\"caps\":%u,\"fw_version\":%u,\"mac\":\"%s\"}",
+        NODE_DEFINITIONS[nodeIndex].node_id,
+        nodeStates[nodeIndex].device_name,
+        NODE_DEFINITIONS[nodeIndex].device_type,
+        (unsigned)NODE_DEFINITIONS[nodeIndex].device_class,
+        powerTypeText(NODE_DEFINITIONS[nodeIndex].power_type),
+        (unsigned)nodeStates[nodeIndex].caps,
+        (unsigned)nodeStates[nodeIndex].fw_version,
+        macBuffer);
+}
+
+void baueNodeStatusJson(size_t nodeIndex, char* buffer, size_t bufferSize, bool online) {
+    snprintf(
+        buffer,
+        bufferSize,
+        "{\"node_id\":\"%s\",\"online\":%s,\"device_type\":\"%s\",\"power_type\":\"%s\",\"fw\":\"%s\"}",
+        NODE_DEFINITIONS[nodeIndex].node_id,
+        online ? "true" : "false",
+        NODE_DEFINITIONS[nodeIndex].device_type,
+        powerTypeText(NODE_DEFINITIONS[nodeIndex].power_type),
+        PROJECT_VERSION);
+}
+
+void baueNodeStateJson(size_t nodeIndex, char* buffer, size_t bufferSize) {
+    char tempText[16] = {0};
+    char humText[16] = {0};
+    char luxText[16] = {0};
+    char batteryPctText[16] = {0};
+    char batteryMvText[16] = {0};
+    char windowText[16] = {0};
+    char rainText[16] = {0};
+    char coverPositionText[16] = {0};
+
+    switch (NODE_DEFINITIONS[nodeIndex].device_class) {
+        case SH_CLASS_NET_ERL:
+            snprintf(
+                buffer,
+                bufferSize,
+                "{\"node_id\":\"%s\",\"relay_1\":%s,\"fault\":%s}",
+                NODE_DEFINITIONS[nodeIndex].node_id,
+                nodeStates[nodeIndex].relay_1 ? "true" : "false",
+                nodeStates[nodeIndex].fault ? "true" : "false");
+            return;
+
+        case SH_CLASS_NET_ZRL:
+            schreibeUIntOrNull(coverPositionText, sizeof(coverPositionText), nodeStates[nodeIndex].cover_position, 0xFFU);
+            snprintf(
+                buffer,
+                bufferSize,
+                "{\"node_id\":\"%s\",\"relay_1\":%s,\"relay_2\":%s,\"cover_mode\":%s,\"cover_state\":%u,\"cover_position\":%s,\"fault\":%s}",
+                NODE_DEFINITIONS[nodeIndex].node_id,
+                nodeStates[nodeIndex].relay_1 ? "true" : "false",
+                nodeStates[nodeIndex].relay_2 ? "true" : "false",
+                nodeStates[nodeIndex].cover_mode ? "true" : "false",
+                (unsigned)nodeStates[nodeIndex].cover_state,
+                coverPositionText,
+                nodeStates[nodeIndex].fault ? "true" : "false");
+            return;
+
+        case SH_CLASS_NET_SEN:
+            schreibeIntOrNull(tempText, sizeof(tempText), nodeStates[nodeIndex].temp_01c, INT16_MIN);
+            schreibeUIntOrNull(humText, sizeof(humText), nodeStates[nodeIndex].hum_01pct, 0xFFFFU);
+            schreibeUIntOrNull(luxText, sizeof(luxText), nodeStates[nodeIndex].lux, 0xFFFFU);
+            snprintf(
+                buffer,
+                bufferSize,
+                "{\"node_id\":\"%s\",\"temp_01c\":%s,\"hum_01pct\":%s,\"lux\":%s,\"motion\":%s,\"fault\":%s}",
+                NODE_DEFINITIONS[nodeIndex].node_id,
+                tempText,
+                humText,
+                luxText,
+                nodeStates[nodeIndex].motion ? "true" : "false",
+                nodeStates[nodeIndex].fault ? "true" : "false");
+            return;
+
+        case SH_CLASS_BAT_SEN:
+            schreibeUIntOrNull(batteryPctText, sizeof(batteryPctText), nodeStates[nodeIndex].battery_pct, 0xFFU);
+            schreibeUIntOrNull(batteryMvText, sizeof(batteryMvText), nodeStates[nodeIndex].battery_mv, 0U);
+            schreibeUIntOrNull(windowText, sizeof(windowText), nodeStates[nodeIndex].window_open, WINDOW_STATE_UNKNOWN);
+            schreibeUIntOrNull(rainText, sizeof(rainText), nodeStates[nodeIndex].rain_raw, 0xFFFFU);
+            snprintf(
+                buffer,
+                bufferSize,
+                "{\"node_id\":\"%s\",\"battery_pct\":%s,\"battery_mv\":%s,\"window_open\":%s,\"rain_raw\":%s,\"button_flags\":%u,\"fault\":%s}",
+                NODE_DEFINITIONS[nodeIndex].node_id,
+                batteryPctText,
+                batteryMvText,
+                windowText,
+                rainText,
+                (unsigned)nodeStates[nodeIndex].button_flags,
+                nodeStates[nodeIndex].fault ? "true" : "false");
+            return;
+
+        default:
+            copyText(buffer, bufferSize, "{}");
+            return;
+    }
+}
+
+void baueNodeEventJson(size_t nodeIndex, const SmartHome::EventReportPayload& payload, char* buffer, size_t bufferSize) {
+    snprintf(
+        buffer,
+        bufferSize,
+        "{\"node_id\":\"%s\",\"event\":\"%s\",\"event_type\":%u,\"trigger\":%u,\"param1\":%u,\"param2\":%u}",
+        NODE_DEFINITIONS[nodeIndex].node_id,
+        eventTypeText(payload.event_type),
+        (unsigned)payload.event_type,
+        (unsigned)payload.trigger,
+        (unsigned)payload.param1,
+        (unsigned)payload.param2);
+}
+
+void publishRetained(const char* topic, const char* payload) {
+    if (!masterStatus.mqtt_verbunden) return;
+
+    if (!mqttClient.publish(topic, payload, true)) {
+        logf("WARN", "MQTT publish fehlgeschlagen: %s", topic);
+        return;
+    }
+
+    logf("INFO", "MQTT retained %s -> %s", topic, payload);
+}
+
+void publishTransient(const char* topic, const char* payload) {
+    if (!masterStatus.mqtt_verbunden) return;
+
+    if (!mqttClient.publish(topic, payload, false)) {
+        logf("WARN", "MQTT publish fehlgeschlagen: %s", topic);
+        return;
+    }
+
+    logf("INFO", "MQTT publish %s -> %s", topic, payload);
+}
+
+void publishMasterStatus() {
+    char topic[96] = {0};
+    char payload[192] = {0};
+    baueMasterTopic(topic, sizeof(topic));
+    baueMasterStatusJson(payload, sizeof(payload), true);
+    publishRetained(topic, payload);
+}
+
+void publishNodeMeta(size_t nodeIndex) {
+    if (!nodeStates[nodeIndex].meta_bekannt) return;
+
+    char topic[96] = {0};
+    char payload[224] = {0};
+    baueNodeTopic(nodeIndex, "meta", topic, sizeof(topic));
+    baueNodeMetaJson(nodeIndex, payload, sizeof(payload));
+    publishRetained(topic, payload);
+}
+
+void publishNodeStatus(size_t nodeIndex, bool online) {
+    char topic[96] = {0};
+    char payload[192] = {0};
+    baueNodeTopic(nodeIndex, "status", topic, sizeof(topic));
+    baueNodeStatusJson(nodeIndex, payload, sizeof(payload), online);
+    publishRetained(topic, payload);
+}
+
+void publishNodeState(size_t nodeIndex) {
+    if (!nodeStates[nodeIndex].state_bekannt) return;
+
+    char topic[96] = {0};
+    char payload[224] = {0};
+    baueNodeTopic(nodeIndex, "state", topic, sizeof(topic));
+    baueNodeStateJson(nodeIndex, payload, sizeof(payload));
+    publishRetained(topic, payload);
+}
+
+void publishNodeEvent(size_t nodeIndex, const SmartHome::EventReportPayload& payload) {
+    char topic[96] = {0};
+    char json[224] = {0};
+    baueNodeTopic(nodeIndex, "event", topic, sizeof(topic));
+    baueNodeEventJson(nodeIndex, payload, json, sizeof(json));
+    publishTransient(topic, json);
+}
+
+void publishBekannteNodesNachReconnect() {
+    publishMasterStatus();
+
+    for (size_t i = 0; i < NODE_COUNT; ++i) {
+        publishNodeMeta(i);
+        publishNodeStatus(i, nodeStates[i].online);
+        publishNodeState(i);
+    }
+}
+
+void aktualisiereNodeKontakt(size_t nodeIndex, const uint8_t* mac) {
+    nodeStates[nodeIndex].letzter_kontakt_ms = millis();
+
+    if (mac != nullptr) {
+        bool neueMac = !nodeStates[nodeIndex].mac_bekannt ||
+                       memcmp(nodeStates[nodeIndex].mac, mac, 6) != 0;
+        memcpy(nodeStates[nodeIndex].mac, mac, 6);
+        nodeStates[nodeIndex].mac_bekannt = true;
+        stellePeerSicher(nodeStates[nodeIndex].mac);
+
+        if (neueMac) {
+            char text[18] = {0};
+            macText(mac, text, sizeof(text));
+            logf("INFO", "%s MAC aktualisiert: %s", NODE_DEFINITIONS[nodeIndex].node_id, text);
+        }
+    }
+
+    if (!nodeStates[nodeIndex].online) {
+        nodeStates[nodeIndex].online = true;
+        publishNodeStatus(nodeIndex, true);
+        logf("INFO", "Node %s ist online", NODE_DEFINITIONS[nodeIndex].node_id);
+    }
+}
+
+void sendeHelloAck(const uint8_t* zielMac, uint8_t ackStatus) {
     SmartHome::HelloAckPayload payload = {};
     payload.channel = (uint8_t)(masterStatus.wlan_verbunden ? WiFi.channel() : WLAN_KANAL);
-    payload.ack_status = SH_ACK_OK;
+    payload.ack_status = ackStatus;
     sendePaket(zielMac, SH_MSG_HELLO_ACK, &payload, sizeof(payload), "HELLO_ACK");
 }
 
@@ -284,7 +545,7 @@ bool skipWhitespace(const char*& cursor) {
 }
 
 bool jsonHoleString(const char* json, const char* key, char* ziel, size_t zielGroesse) {
-    if (!json || !key || !ziel || zielGroesse == 0) return false;
+    if (!json || !key || !ziel || zielGroesse == 0U) return false;
 
     char muster[48] = {0};
     snprintf(muster, sizeof(muster), "\"%s\"", key);
@@ -331,47 +592,168 @@ bool jsonHoleBool(const char* json, const char* key, bool* wert) {
     return false;
 }
 
+bool extrahiereNodeCommandTopic(const char* topic, char* nodeId, size_t nodeIdSize, bool* istSet, bool* istGet) {
+    if (!topic || !nodeId || nodeIdSize == 0U || !istSet || !istGet) return false;
+
+    const char* prefix = "smarthome/node/";
+    const size_t prefixLen = strlen(prefix);
+    if (strncmp(topic, prefix, prefixLen) != 0) return false;
+
+    const char* start = topic + prefixLen;
+    const char* slash = strchr(start, '/');
+    if (!slash) return false;
+
+    size_t len = (size_t)(slash - start);
+    if (len == 0U || len >= nodeIdSize) return false;
+
+    memcpy(nodeId, start, len);
+    nodeId[len] = '\0';
+
+    *istSet = strcmp(slash, "/cmd/set") == 0;
+    *istGet = strcmp(slash, "/cmd/get") == 0;
+    return *istSet || *istGet;
+}
+
 void verarbeiteHello(const uint8_t* senderMac, const SmartHome::HelloPayload& payload) {
-    if (!gleicheNodeId(payload.device_id)) {
-        logf("WARN", "HELLO ignoriert: unerwartete node_id=%s", payload.device_id);
+    int nodeIndex = findeNodeIndex(payload.device_id);
+    if (nodeIndex < 0) {
+        logf("WARN", "HELLO ignoriert: unbekannte node_id=%s", payload.device_id);
+        sendeHelloAck(senderMac, SH_ACK_REJECTED);
         return;
     }
 
-    aktualisierePilotNode(senderMac);
+    if (payload.device_class != NODE_DEFINITIONS[nodeIndex].device_class ||
+        payload.power_type != NODE_DEFINITIONS[nodeIndex].power_type) {
+        logf(
+            "WARN",
+            "HELLO abgelehnt: node=%s class=%u power=%u",
+            payload.device_id,
+            (unsigned)payload.device_class,
+            (unsigned)payload.power_type);
+        sendeHelloAck(senderMac, SH_ACK_REJECTED);
+        return;
+    }
+
+    nodeStates[nodeIndex].meta_bekannt = true;
+    nodeStates[nodeIndex].caps = holeHelloCaps(payload);
+    nodeStates[nodeIndex].fw_version = payload.fw_version;
+    copyText(nodeStates[nodeIndex].device_name, sizeof(nodeStates[nodeIndex].device_name), payload.device_name);
+
+    aktualisiereNodeKontakt((size_t)nodeIndex, senderMac);
+    publishNodeMeta((size_t)nodeIndex);
+    publishNodeStatus((size_t)nodeIndex, true);
+    sendeHelloAck(senderMac, SH_ACK_OK);
+
     logf("INFO", "HELLO von %s (%s)", payload.device_id, payload.device_name);
-    publishNodeStatus(true);
-    sendeHelloAck(senderMac);
 }
 
 void verarbeiteHeartbeat(const uint8_t* senderMac, const SmartHome::HeartbeatPayload& payload) {
-    if (!gleicheNodeId(payload.node_id)) {
-        logf("WARN", "HEARTBEAT ignoriert: unerwartete node_id=%s", payload.node_id);
+    int nodeIndex = findeNodeIndex(payload.node_id);
+    if (nodeIndex < 0) {
+        logf("WARN", "HEARTBEAT ignoriert: unbekannte node_id=%s", payload.node_id);
         return;
     }
 
-    aktualisierePilotNode(senderMac);
+    aktualisiereNodeKontakt((size_t)nodeIndex, senderMac);
+    nodeStates[nodeIndex].uptime_s = payload.uptime_s;
     logf("INFO", "HEARTBEAT von %s (uptime=%lus)", payload.node_id, (unsigned long)payload.uptime_s);
 }
 
-void verarbeiteStateReport(const uint8_t* senderMac, const SmartHome::StateReportPayload& payload) {
-    if (!gleicheNodeId(payload.node_id)) {
-        logf("WARN", "STATE_REPORT ignoriert: unerwartete node_id=%s", payload.node_id);
+void verarbeiteStateReport(const uint8_t* senderMac, const uint8_t* payload, uint16_t payloadLen) {
+    if (!payload || payloadLen < SH_DEVICE_ID_LEN) {
+        logf("WARN", "STATE_REPORT verworfen: payload ungueltig");
         return;
     }
 
-    aktualisierePilotNode(senderMac);
-    pilotNode.relay_1 = (payload.relay_1 != 0U);
-    pilotNode.fault = (payload.fault != 0U);
-    pilotNode.state_bekannt = true;
+    const char* nodeId = reinterpret_cast<const char*>(payload);
+    int nodeIndex = findeNodeIndex(nodeId);
+    if (nodeIndex < 0) {
+        logf("WARN", "STATE_REPORT ignoriert: unbekannte node_id=%s", nodeId);
+        return;
+    }
 
-    logf(
-        "INFO",
-        "STATE_REPORT von %s: relay_1=%s fault=%s",
-        payload.node_id,
-        pilotNode.relay_1 ? "true" : "false",
-        pilotNode.fault ? "true" : "false");
+    aktualisiereNodeKontakt((size_t)nodeIndex, senderMac);
 
-    publishNodeState();
+    switch (NODE_DEFINITIONS[nodeIndex].device_class) {
+        case SH_CLASS_NET_ERL:
+            if (payloadLen != sizeof(SmartHome::StateReportPayload)) {
+                logf("WARN", "STATE_REPORT Laenge ungueltig fuer %s", nodeId);
+                return;
+            }
+            {
+                const SmartHome::StateReportPayload& state = *reinterpret_cast<const SmartHome::StateReportPayload*>(payload);
+                nodeStates[nodeIndex].relay_1 = (state.relay_1 != 0U);
+                nodeStates[nodeIndex].fault = (state.fault != 0U);
+            }
+            break;
+
+        case SH_CLASS_NET_ZRL:
+            if (payloadLen != sizeof(SmartHome::ZrlStateReportPayload)) {
+                logf("WARN", "STATE_REPORT Laenge ungueltig fuer %s", nodeId);
+                return;
+            }
+            {
+                const SmartHome::ZrlStateReportPayload& state = *reinterpret_cast<const SmartHome::ZrlStateReportPayload*>(payload);
+                nodeStates[nodeIndex].relay_1 = (state.relay_1 != 0U);
+                nodeStates[nodeIndex].relay_2 = (state.relay_2 != 0U);
+                nodeStates[nodeIndex].cover_mode = (state.cover_mode != 0U);
+                nodeStates[nodeIndex].cover_state = state.cover_state;
+                nodeStates[nodeIndex].cover_position = state.cover_position;
+                nodeStates[nodeIndex].fault = (state.fault != 0U);
+            }
+            break;
+
+        case SH_CLASS_NET_SEN:
+            if (payloadLen != sizeof(SmartHome::SensorStateReportPayload)) {
+                logf("WARN", "STATE_REPORT Laenge ungueltig fuer %s", nodeId);
+                return;
+            }
+            {
+                const SmartHome::SensorStateReportPayload& state = *reinterpret_cast<const SmartHome::SensorStateReportPayload*>(payload);
+                nodeStates[nodeIndex].temp_01c = state.temp_01c;
+                nodeStates[nodeIndex].hum_01pct = state.hum_01pct;
+                nodeStates[nodeIndex].lux = state.lux;
+                nodeStates[nodeIndex].motion = (state.motion != 0U);
+                nodeStates[nodeIndex].fault = (state.fault != 0U);
+            }
+            break;
+
+        case SH_CLASS_BAT_SEN:
+            if (payloadLen != sizeof(SmartHome::BatteryStateReportPayload)) {
+                logf("WARN", "STATE_REPORT Laenge ungueltig fuer %s", nodeId);
+                return;
+            }
+            {
+                const SmartHome::BatteryStateReportPayload& state = *reinterpret_cast<const SmartHome::BatteryStateReportPayload*>(payload);
+                nodeStates[nodeIndex].battery_pct = state.battery_pct;
+                nodeStates[nodeIndex].battery_mv = state.battery_mv;
+                nodeStates[nodeIndex].window_open = state.window_open;
+                nodeStates[nodeIndex].rain_raw = state.rain_raw;
+                nodeStates[nodeIndex].button_flags = state.button_flags;
+                nodeStates[nodeIndex].fault = (state.fault != 0U);
+            }
+            break;
+
+        default:
+            logf("WARN", "STATE_REPORT ohne Handler fuer %s", nodeId);
+            return;
+    }
+
+    nodeStates[nodeIndex].state_bekannt = true;
+    publishNodeState((size_t)nodeIndex);
+    logf("INFO", "STATE_REPORT von %s verarbeitet", nodeId);
+}
+
+void verarbeiteEventReport(const uint8_t* senderMac, const SmartHome::EventReportPayload& payload) {
+    int nodeIndex = findeNodeIndex(payload.node_id);
+    if (nodeIndex < 0) {
+        logf("WARN", "EVENT ignoriert: unbekannte node_id=%s", payload.node_id);
+        return;
+    }
+
+    aktualisiereNodeKontakt((size_t)nodeIndex, senderMac);
+    publishNodeEvent((size_t)nodeIndex, payload);
+    logf("INFO", "EVENT von %s: type=%u", payload.node_id, (unsigned)payload.event_type);
 }
 
 void verarbeiteEspNowPaket(const uint8_t* senderMac, const uint8_t* daten, int laenge) {
@@ -402,8 +784,12 @@ void verarbeiteEspNowPaket(const uint8_t* senderMac, const uint8_t* daten, int l
             break;
 
         case SH_MSG_STATE:
-            if (header->payload_len == sizeof(SmartHome::StateReportPayload)) {
-                verarbeiteStateReport(senderMac, *reinterpret_cast<const SmartHome::StateReportPayload*>(payload));
+            verarbeiteStateReport(senderMac, payload, header->payload_len);
+            break;
+
+        case SH_MSG_EVENT:
+            if (header->payload_len == sizeof(SmartHome::EventReportPayload)) {
+                verarbeiteEventReport(senderMac, *reinterpret_cast<const SmartHome::EventReportPayload*>(payload));
             }
             break;
 
@@ -434,6 +820,30 @@ void onEspNowSent(const uint8_t* mac, esp_now_send_status_t status) {
         status == ESP_NOW_SEND_SUCCESS ? "OK" : "FEHLER");
 }
 
+bool sendeStateRequest(size_t nodeIndex) {
+    if (!nodeStates[nodeIndex].mac_bekannt) {
+        logf("WARN", "STATE_REQUEST verworfen: MAC fuer %s unbekannt", NODE_DEFINITIONS[nodeIndex].node_id);
+        return false;
+    }
+
+    SmartHome::CmdPayload payload = {};
+    payload.cmd_type = SH_CMD_STATE_REQUEST;
+    return sendePaket(nodeStates[nodeIndex].mac, SH_MSG_CMD, &payload, sizeof(payload), "STATE_REQUEST");
+}
+
+bool sendeRelayCommand(size_t nodeIndex, uint8_t relayIndex, bool relayState) {
+    if (!nodeStates[nodeIndex].mac_bekannt) {
+        logf("WARN", "COMMAND_SET_RELAY verworfen: MAC fuer %s unbekannt", NODE_DEFINITIONS[nodeIndex].node_id);
+        return false;
+    }
+
+    SmartHome::CmdPayload payload = {};
+    payload.cmd_type = SH_CMD_SET_RELAY;
+    payload.param1 = relayIndex;
+    payload.param2 = relayState ? 1U : 0U;
+    return sendePaket(nodeStates[nodeIndex].mac, SH_MSG_CMD, &payload, sizeof(payload), "COMMAND_SET_RELAY");
+}
+
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
     char json[256] = {0};
     size_t copyLen = length;
@@ -441,46 +851,58 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     memcpy(json, payload, copyLen);
     json[copyLen] = '\0';
 
-    logf("INFO", "MQTT empfangen %s -> %s", topic, json);
-
-    if (strcmp(topic, MQTT_TOPIC_NODE_COMMAND) != 0) {
+    char nodeId[SH_DEVICE_ID_LEN] = {0};
+    bool istSet = false;
+    bool istGet = false;
+    if (!extrahiereNodeCommandTopic(topic, nodeId, sizeof(nodeId), &istSet, &istGet)) {
         logf("WARN", "MQTT Topic ignoriert: %s", topic);
         return;
     }
 
+    int nodeIndex = findeNodeIndex(nodeId);
+    if (nodeIndex < 0) {
+        logf("WARN", "MQTT Command fuer unbekannte node_id=%s", nodeId);
+        return;
+    }
+
+    logf("INFO", "MQTT empfangen %s -> %s", topic, json);
+
     char cmd[32] = {0};
-    char requestId[48] = {0};
+    jsonHoleString(json, "cmd", cmd, sizeof(cmd));
+
+    if (istGet) {
+        if (strcmp(cmd, "state") != 0 && strcmp(cmd, "get_state") != 0) {
+            logf("WARN", "MQTT cmd/get ignoriert fuer %s", nodeId);
+            return;
+        }
+
+        sendeStateRequest((size_t)nodeIndex);
+        return;
+    }
+
+    if (!istRelayNode((size_t)nodeIndex)) {
+        logf("WARN", "MQTT set_relay ignoriert: %s ist kein Relais-Node", nodeId);
+        return;
+    }
+
+    if (strcmp(cmd, "set_relay") != 0) {
+        logf("WARN", "MQTT cmd/set ignoriert fuer %s", nodeId);
+        return;
+    }
+
     bool relayState = false;
-
-    if (!jsonHoleString(json, "cmd", cmd, sizeof(cmd)) || strcmp(cmd, "set_relay") != 0) {
-        logf("WARN", "MQTT Command ignoriert: cmd fehlt oder ist nicht set_relay");
+    if (jsonHoleBool(json, "relay_1", &relayState)) {
+        sendeRelayCommand((size_t)nodeIndex, 0U, relayState);
         return;
     }
 
-    if (!jsonHoleBool(json, "relay_1", &relayState)) {
-        logf("WARN", "MQTT Command ignoriert: relay_1 fehlt");
+    if (NODE_DEFINITIONS[nodeIndex].device_class == SH_CLASS_NET_ZRL &&
+        jsonHoleBool(json, "relay_2", &relayState)) {
+        sendeRelayCommand((size_t)nodeIndex, 1U, relayState);
         return;
     }
 
-    jsonHoleString(json, "request_id", requestId, sizeof(requestId));
-
-    if (!pilotNode.mac_bekannt) {
-        logf("WARN", "COMMAND_SET_RELAY verworfen: Node-MAC unbekannt");
-        return;
-    }
-
-    SmartHome::CmdPayload cmdPayload = {};
-    cmdPayload.cmd_type = SH_CMD_SET_RELAY;
-    cmdPayload.param1 = 0U;
-    cmdPayload.param2 = relayState ? 1U : 0U;
-
-    logf(
-        "INFO",
-        "MQTT -> COMMAND_SET_RELAY relay_1=%s request_id=%s",
-        relayState ? "true" : "false",
-        requestId[0] != '\0' ? requestId : "-");
-
-    sendePaket(pilotNode.mac, SH_MSG_CMD, &cmdPayload, sizeof(cmdPayload), "COMMAND_SET_RELAY");
+    logf("WARN", "MQTT set_relay ohne unterstuetzten Kanal fuer %s", nodeId);
 }
 
 void initialisiereHardware() {
@@ -537,7 +959,7 @@ void initialisiereEspNow() {
 void initialisiereMqtt() {
     mqttClient.setServer(MQTT_HOST, MQTT_PORT);
     mqttClient.setCallback(mqttCallback);
-    mqttClient.setBufferSize(256);
+    mqttClient.setBufferSize(384);
     logf("INFO", "MQTT konfiguriert: %s:%d", MQTT_HOST, MQTT_PORT);
 }
 
@@ -565,14 +987,16 @@ void pruefeMqttVerbindung() {
 
     masterStatus.letzter_mqtt_versuch_ms = millis();
 
-    char willPayload[160] = {0};
+    char willTopic[96] = {0};
+    char willPayload[192] = {0};
+    baueMasterTopic(willTopic, sizeof(willTopic));
     baueMasterStatusJson(willPayload, sizeof(willPayload), false);
 
     bool verbunden = mqttClient.connect(
         DEVICE_ID,
         MQTT_USER,
         MQTT_PASSWORD,
-        MQTT_TOPIC_MASTER_STATUS,
+        willTopic,
         0,
         true,
         willPayload,
@@ -586,24 +1010,25 @@ void pruefeMqttVerbindung() {
     masterStatus.mqtt_verbunden = true;
     logf("INFO", "MQTT verbunden");
 
-    if (!mqttClient.subscribe(MQTT_TOPIC_NODE_COMMAND)) {
-        logf("WARN", "MQTT Subscribe fehlgeschlagen: %s", MQTT_TOPIC_NODE_COMMAND);
-    } else {
-        logf("INFO", "MQTT Subscribe aktiv: %s", MQTT_TOPIC_NODE_COMMAND);
+    if (!mqttClient.subscribe(MQTT_TOPIC_CMD_SET_SUB)) {
+        logf("WARN", "MQTT Subscribe fehlgeschlagen: %s", MQTT_TOPIC_CMD_SET_SUB);
+    }
+    if (!mqttClient.subscribe(MQTT_TOPIC_CMD_GET_SUB)) {
+        logf("WARN", "MQTT Subscribe fehlgeschlagen: %s", MQTT_TOPIC_CMD_GET_SUB);
     }
 
-    publishMasterStatus();
-    publishNodeStatus(pilotNode.online);
-    publishNodeState();
+    publishBekannteNodesNachReconnect();
 }
 
 void pruefeOfflineTimeout() {
-    if (!pilotNode.online) return;
+    for (size_t i = 0; i < NODE_COUNT; ++i) {
+        if (!nodeStates[i].online) continue;
 
-    if ((millis() - pilotNode.letzter_kontakt_ms) > NODE_OFFLINE_TIMEOUT_MS) {
-        pilotNode.online = false;
-        publishNodeStatus(false);
-        logf("WARN", "Node %s nach Timeout offline", PILOT_NODE_ID);
+        if ((millis() - nodeStates[i].letzter_kontakt_ms) > NODE_DEFINITIONS[i].offline_timeout_ms) {
+            nodeStates[i].online = false;
+            publishNodeStatus(i, false);
+            logf("WARN", "Node %s nach Timeout offline", NODE_DEFINITIONS[i].node_id);
+        }
     }
 }
 
@@ -615,11 +1040,17 @@ void gibStartmeldungAus() {
     Serial.print(DATEI_GERAET);
     Serial.print(" v");
     Serial.println(DATEI_VERSION);
-    Serial.print("Pilot-Node: ");
-    Serial.println(PILOT_NODE_ID);
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
-    Serial.println("Minimalstrecke: ESP-NOW <-> MQTT <-> ESP-NOW");
+    Serial.println("Bekannte Basisnodes:");
+    for (size_t i = 0; i < NODE_COUNT; ++i) {
+        Serial.print(" - ");
+        Serial.print(NODE_DEFINITIONS[i].node_id);
+        Serial.print(" (");
+        Serial.print(NODE_DEFINITIONS[i].device_type);
+        Serial.println(")");
+    }
+    Serial.println("MQTT: master/<id>/status und node/<id>/(meta|status|state|event)");
     Serial.println("================================");
 }
 
@@ -629,8 +1060,8 @@ void setup() {
         delay(150);
     }
 
-    pilotNode = {};
     masterStatus = {};
+    initialisiereNodeStates();
     gibStartmeldungAus();
     initialisiereHardware();
     initialisiereWlan();

@@ -1,360 +1,1349 @@
-const sharedCss = `
-<style>
-  .sm-panel {
-    background: linear-gradient(180deg, #fffdf9 0%, #f9f3ea 100%);
-    border: 1px solid #d7c9b7;
-    border-radius: 18px;
-    padding: 16px;
-    box-shadow: 0 10px 28px rgba(59, 41, 20, 0.08);
-  }
-  .sm-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
-  }
-  .sm-card {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid #eadfce;
-    border-radius: 14px;
-    padding: 12px;
-  }
-  .sm-card h3,
-  .sm-panel h3 {
-    margin: 0 0 6px 0;
-    font-size: 1rem;
-    color: #1d4d4f;
-  }
-  .sm-kpi {
-    background: #0f766e;
-    color: #fffdf7;
-    border-radius: 14px;
-    padding: 14px;
-  }
-  .sm-kpi span {
-    display: block;
-    font-size: 0.82rem;
-    opacity: 0.82;
-  }
-  .sm-kpi strong {
-    display: block;
-    font-size: 1.75rem;
-    margin-top: 4px;
-  }
-  .sm-list {
-    display: grid;
-    gap: 12px;
-  }
-  .sm-item {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid #eadfce;
-    border-radius: 14px;
-    padding: 12px;
-    display: grid;
-    gap: 6px;
-  }
-  .sm-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .sm-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    background: #efe6d8;
-    color: #5b4b39;
-  }
-  .sm-badge.online {
-    background: #d9f4ea;
-    color: #166c53;
-  }
-  .sm-badge.offline {
-    background: #f6ddd7;
-    color: #8b3021;
-  }
-  .sm-muted {
-    color: #685d51;
-    font-size: 0.88rem;
-  }
-  .sm-stack {
-    display: grid;
-    gap: 10px;
-  }
-  .sm-form {
-    display: grid;
-    gap: 10px;
-  }
-  .sm-form label {
-    display: grid;
-    gap: 4px;
-    font-size: 0.86rem;
-    color: #4d443b;
-  }
-  .sm-form input,
-  .sm-form textarea,
-  .sm-form select,
-  .sm-form button {
-    border-radius: 12px;
-    border: 1px solid #d7c9b7;
-    padding: 10px 12px;
-    font: inherit;
-  }
-  .sm-form textarea {
-    min-height: 110px;
-    resize: vertical;
-  }
-  .sm-form button {
-    background: linear-gradient(135deg, #0f766e 0%, #14532d 100%);
-    color: #fffdf7;
-    cursor: pointer;
-    font-weight: 700;
-  }
-  .sm-form button.alt {
-    background: linear-gradient(135deg, #7c4d12 0%, #b45309 100%);
-  }
-  .sm-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .sm-code {
-    font-family: "IBM Plex Mono", Consolas, monospace;
-    font-size: 0.82rem;
-    background: #f4ede2;
-    border-radius: 10px;
-    padding: 8px 10px;
-    word-break: break-word;
-  }
-  .sm-note {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: #f4ede2;
-    color: #5b4b39;
-    font-size: 0.88rem;
-  }
-  .sm-two-col {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-  }
-  .sm-empty {
-    margin: 0;
-    padding: 12px;
-    border-radius: 12px;
-    background: #f4ede2;
-    color: #5b4b39;
-  }
-  @media (max-width: 700px) {
-    .sm-panel {
-      padding: 14px;
-      border-radius: 14px;
-    }
-  }
-</style>`;
+const nodes = [];
 
-function node(id, type, extra) {
-  return { id, type, ...extra };
-}
+const addNode = (node) => nodes.push(node);
+const script = (...lines) => lines.join("\n");
 
-function tab(id, label) {
-  return node(id, "tab", { label, disabled: false, info: "" });
-}
+const ids = {
+    tabIngest: "tab_ingest",
+    tabRegistry: "tab_registry",
+    tabState: "tab_state",
+    tabConfig: "tab_config",
+    tabTimeSeries: "tab_time_series",
+    tabLogging: "tab_logging",
+    mqttBroker: "cfg_mqtt_broker",
+    sqliteDb: "cfg_sqlite_db",
+    mqttServerStatus: "mqtt_server_status",
+    mqttMasterStatus: "mqtt_master_status",
+    mqttMasterEvent: "mqtt_master_event",
+    mqttNodeMeta: "mqtt_node_meta",
+    mqttNodeStatus: "mqtt_node_status",
+    mqttNodeState: "mqtt_node_state",
+    mqttNodeEvent: "mqtt_node_event",
+    mqttNodeAck: "mqtt_node_ack",
+    mqttNodeCfgReport: "mqtt_node_cfg_report",
+    normalize: "fn_normalize",
+    routeCore: "fn_route_core",
+    linkOutDeviceRegistry: "link_out_device_registry",
+    linkInDeviceRegistry: "link_in_device_registry",
+    buildDeviceUpsert: "fn_build_device_upsert",
+    sqliteDeviceUpsert: "sqlite_device_upsert",
+    routePostRegistry: "fn_route_post_registry",
+    buildCapabilityUpserts: "fn_build_capability_upserts",
+    sqliteCapabilityUpserts: "sqlite_capability_upserts",
+    linkOutStateStore: "link_out_state_store",
+    linkInStateStore: "link_in_state_store",
+    buildLastStateUpsert: "fn_build_last_state_upsert",
+    sqliteLastStateUpsert: "sqlite_last_state_upsert",
+    linkOutServerStatus: "link_out_server_status",
+    linkInServerStatus: "link_in_server_status",
+    buildServerStatusUpserts: "fn_build_server_status_upserts",
+    sqliteServerStatusUpserts: "sqlite_server_status_upserts",
+    linkOutConfigStore: "link_out_config_store",
+    linkInConfigStore: "link_in_config_store",
+    buildConfigUpserts: "fn_build_config_upserts",
+    sqliteConfigUpserts: "sqlite_config_upserts",
+    linkOutTimeSeries: "link_out_time_series",
+    linkInTimeSeries: "link_in_time_series",
+    buildInfluxLine: "fn_build_influx_line",
+    influxWrite: "http_influx_write",
+    linkOutAudit: "link_out_audit",
+    linkInAudit: "link_in_audit",
+    buildAuditInsert: "fn_build_audit_insert",
+    sqliteAuditInsert: "sqlite_audit_insert"
+};
 
-function uiPage(id, name, path, icon, order) {
-  return node(id, "ui-page", {
-    ui: "1000000000000200",
-    path,
-    name,
-    icon,
-    layout: "grid",
-    theme: "1000000000000201",
-    breakpoint: "sm",
-    order,
-    className: "",
-    visible: "true",
-    disabled: "false"
-  });
-}
+const toSqlLines = [
+    'const toSql = (value) => {',
+    '    if (value === null || value === undefined) {',
+    '        return "NULL";',
+    '    }',
+    '    if (typeof value === "number") {',
+    '        return Number.isFinite(value) ? String(value) : "NULL";',
+    '    }',
+    '    if (typeof value === "boolean") {',
+    '        return value ? "1" : "0";',
+    '    }',
+    '    return "\'" + String(value).replace(/\'/g, "\'\'") + "\'";',
+    '};'
+];
 
-function uiGroup(id, page, name, width, order) {
-  return node(id, "ui-group", {
-    page,
-    name,
-    width,
-    height: "1",
-    order,
-    showTitle: true,
-    className: "",
-    visible: "true",
-    disabled: "false",
-    groupType: "default"
-  });
-}
+const pickStringLines = [
+    'const pickString = (...values) => {',
+    '    for (const value of values) {',
+    '        if (typeof value === "string" && value.trim()) {',
+    '            return value.trim();',
+    '        }',
+    '    }',
+    '    return null;',
+    '};'
+];
 
-function uiTemplate(id, group, name, order, format, wires = []) {
-  return node(id, "ui-template", {
-    z: "1000000000000002",
-    group,
-    name,
-    order,
-    width: "12",
-    height: "0",
-    head: "",
-    format,
-    storeOutMessages: false,
-    passthru: false,
-    resendOnRefresh: true,
-    templateScope: "local",
-    className: "",
-    x: 1180,
-    y: 0,
-    wires
-  });
-}
+const routeCoreFunc = script(
+    'const event = msg.payload || {};',
+    'if (event.scope === "server" && event.channel === "status") {',
+    '    return [null, msg];',
+    '}',
+    'if (event.scope === "master" || event.scope === "node") {',
+    '    return [msg, null];',
+    '}',
+    'return null;'
+);
 
-function commandForm(title, commandType, note) {
-  return `${sharedCss}
-<template>
-  <div class='sm-panel'>
-    <h3>${title}</h3>
-    <p class='sm-note'>${note}</p>
-    <div class='sm-form'>
-      <label>
-        Zielgeraet (node_id)
-        <input v-model='form.device_id' placeholder='net_erl_01'>
-      </label>
-      <label>
-        Payload als JSON oder Text
-        <textarea v-model='form.payloadText' placeholder='{"channel":"relay1","value":true}'></textarea>
-      </label>
-      <button @click='sendCommand'>An MQTT senden</button>
-      <p class='sm-muted'>Topic: <span class='sm-code'>smarthome/node/&lt;node_id&gt;/${commandType}</span></p>
-      <p v-if='feedback' class='sm-muted'>{{ feedback }}</p>
-    </div>
-  </div>
-</template>
-<script>
-export default {
-  data() {
-    return {
-      form: {
-        device_id: '',
-        payloadText: '{}'
-      },
-      feedback: ''
-    }
-  },
-  methods: {
-    sendCommand() {
-      if (!this.form.device_id) {
-        this.feedback = 'node_id fehlt'
-        return
-      }
-      this.feedback = 'Gesendet an ' + this.form.device_id
-      this.send({
-        topic: 'ui/mqtt/action',
-        commandType: '${commandType}',
-        payload: {
-          device_id: this.form.device_id.trim(),
-          payload_text: this.form.payloadText
-        }
-      })
-    }
-  }
-}
-</script>`;
-}
+const normalizeFunc = script(
+    'const topic = String(msg.topic || "");',
+    'const parts = topic.split("/");',
+    'if (parts[0] !== "smarthome") {',
+    '    return null;',
+    '}',
+    'let scope = null;',
+    'let entityId = null;',
+    'let channel = null;',
+    'if (parts.length === 3 && parts[1] === "server" && parts[2] === "status") {',
+    '    scope = "server";',
+    '    channel = "status";',
+    '} else if (parts.length === 4 && parts[1] === "master" && ["status", "event"].includes(parts[3])) {',
+    '    scope = "master";',
+    '    entityId = parts[2];',
+    '    channel = parts[3];',
+    '} else if (parts.length === 4 && parts[1] === "node" && ["meta", "status", "state", "event", "ack"].includes(parts[3])) {',
+    '    scope = "node";',
+    '    entityId = parts[2];',
+    '    channel = parts[3];',
+    '} else if (parts.length === 5 && parts[1] === "node" && parts[3] === "cfg" && parts[4] === "report") {',
+    '    scope = "node";',
+    '    entityId = parts[2];',
+    '    channel = "cfg/report";',
+    '} else {',
+    '    return null;',
+    '}',
+    'let parsed = msg.payload;',
+    'if (Buffer.isBuffer(parsed)) {',
+    '    parsed = parsed.toString("utf8");',
+    '}',
+    'if (typeof parsed === "string") {',
+    '    try {',
+    '        parsed = JSON.parse(parsed);',
+    '    } catch (error) {',
+    '        node.warn("Dropping invalid JSON on " + topic + ": " + error.message);',
+    '        return null;',
+    '    }',
+    '}',
+    'if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {',
+    '    node.warn("Dropping non-object payload on " + topic);',
+    '    return null;',
+    '}',
+    'const receivedAt = new Date().toISOString();',
+    'const payloadIdCandidates = scope === "master"',
+    '    ? [parsed.master_id, parsed.device_id, parsed.id]',
+    '    : scope === "node"',
+    '        ? [parsed.device_id, parsed.node_id, parsed.id]',
+    '        : [parsed.server_id, parsed.id];',
+    'const payloadId = payloadIdCandidates.find((value) => typeof value === "string" && value.trim()) || null;',
+    'if (entityId && payloadId && payloadId !== entityId) {',
+    '    node.warn("Dropping payload with mismatched id on " + topic);',
+    '    return null;',
+    '}',
+    'if ((channel === "event" || channel === "ack") && msg.retain) {',
+    '    node.warn("Unexpected retained " + channel + " on " + topic + "; message stays out of current-state storage.");',
+    '    }',
+    'const ts = [parsed.ts, parsed.timestamp, parsed.occurred_at, parsed.reported_at]',
+    '    .find((value) => typeof value === "string" && value.trim()) || receivedAt;',
+    'const masterId = scope === "master"',
+    '    ? entityId',
+    '    : (typeof parsed.master_id === "string" && parsed.master_id.trim() ? parsed.master_id.trim() : null);',
+    'msg.payload = {',
+    '    topic,',
+    '    scope,',
+    '    entityId,',
+    '    channel,',
+    '    ts,',
+    '    receivedAt,',
+    '    retain: !!msg.retain,',
+    '    qos: msg.qos === undefined ? null : msg.qos,',
+    '    masterId,',
+    '    payload: parsed,',
+    '    rawJson: JSON.stringify(parsed)',
+    '};',
+    'return msg;'
+);
 
-function auditTemplate(title, limit) {
-  return `${sharedCss}
-<template>
-  <div class='sm-panel'>
-    <h3>${title}</h3>
-    <div class='sm-list' v-if='rows.length'>
-      <article class='sm-item' v-for='row in rows.slice(0, ${limit})' :key='row.id'>
-        <div class='sm-meta'>
-          <span class='sm-badge'>{{ row.direction }}</span>
-          <span class='sm-badge'>{{ row.channel }}</span>
-          <span class='sm-badge' v-if='row.device_id'>{{ row.device_id }}</span>
-          <span class='sm-muted'>{{ row.occurred_at }}</span>
-        </div>
-        <div class='sm-code'>{{ row.topic }}</div>
-        <div class='sm-muted'>{{ row.payload_preview }}</div>
-      </article>
-    </div>
-    <p class='sm-empty' v-else>Noch keine Audit-Eintraege.</p>
-  </div>
-</template>
-<script>
-export default {
-  computed: {
-    rows() {
-      return Array.isArray(this.msg?.payload) ? this.msg.payload : []
-    }
-  }
-}
-</script>`;
-}
+const buildDeviceUpsertFunc = script(
+    ...toSqlLines,
+    ...pickStringLines,
+    'const normalizeDeviceClass = (value) => {',
+    '    if (typeof value !== "string" || !value.trim()) {',
+    '        return null;',
+    '    }',
+    '    const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");',
+    '    if (!normalized) {',
+    '        return null;',
+    '    }',
+    '    if (normalized === "master" || normalized.startsWith("master_")) {',
+    '        return "master";',
+    '    }',
+    '    if (normalized.startsWith("net_erl")) {',
+    '        return "net_erl";',
+    '    }',
+    '    if (normalized.startsWith("net_zrl")) {',
+    '        return "net_zrl";',
+    '    }',
+    '    if (normalized.startsWith("net_sen")) {',
+    '        return "net_sen";',
+    '    }',
+    '    if (normalized.startsWith("bat_sen")) {',
+    '        return "bat_sen";',
+    '    }',
+    '    return normalized;',
+    '};',
+    'const inferDeviceClassFromId = (value) => {',
+    '    if (typeof value !== "string" || !value.trim()) {',
+    '        return null;',
+    '    }',
+    '    return normalizeDeviceClass(value);',
+    '};',
+    'const normalizePowerSource = (rawValue, deviceClass) => {',
+    '    if (typeof rawValue === "number") {',
+    '        if (rawValue === 0) return "mains";',
+    '        if (rawValue === 1) return "battery";',
+    '    }',
+    '    const text = typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";',
+    '    if (["mains", "line", "wired", "ac"].includes(text)) {',
+    '        return "mains";',
+    '    }',
+    '    if (["battery", "bat", "dc"].includes(text)) {',
+    '        return "battery";',
+    '    }',
+    '    if (deviceClass === "bat_sen") {',
+    '        return "battery";',
+    '    }',
+    '    if (deviceClass === "master" || /^net_/.test(deviceClass || "")) {',
+    '        return "mains";',
+    '    }',
+    '    return null;',
+    '};',
+    'const inferStatus = (payload) => {',
+    '    if (!payload || typeof payload !== "object") {',
+    '        return null;',
+    '    }',
+    '    if (typeof payload.status === "string" && payload.status.trim()) {',
+    '        return payload.status.trim().toLowerCase();',
+    '    }',
+    '    if (payload.online === true) {',
+    '        return "online";',
+    '    }',
+    '    if (payload.online === false) {',
+    '        return "offline";',
+    '    }',
+    '    if (payload.fault === true) {',
+    '        return "fault";',
+    '    }',
+    '    return null;',
+    '};',
+    'const event = msg.payload || {};',
+    'if ((event.channel === "event" || event.channel === "ack") && event.retain) {',
+    '    node.warn("Skipping retained " + event.channel + " for registry updates on " + (event.topic || "unknown topic"));',
+    '    return null;',
+    '}',
+    'msg.smarthomeEvent = event;',
+    'const payload = event.payload || {};',
+    'const now = event.ts || event.receivedAt || new Date().toISOString();',
+    'const defaultName = event.entityId;',
+    'const explicitName = pickString(payload.display_name, payload.device_name, payload.name, payload.label);',
+    'const displayName = explicitName || defaultName;',
+    'const inferredClass = normalizeDeviceClass(',
+    '    pickString(',
+    '        payload.device_class,',
+    '        payload.device_type,',
+    '        payload.hardware_type,',
+    '        inferDeviceClassFromId(event.entityId),',
+    '        event.scope === "master" ? "master" : null',
+    '    )',
+    ');',
+    'const deviceClass = inferredClass || "unknown";',
+    'const metaCacheKey = "device_meta_" + event.entityId;',
+    'const cachedMeta = flow.get(metaCacheKey) || {};',
+    'const deviceType = pickString(payload.device_type, payload.device_class, cachedMeta.deviceType, deviceClass);',
+    'const room = pickString(payload.room, payload.room_slug, cachedMeta.room);',
+    'const hardwareType = pickString(payload.hw_variant, payload.hardware_type, payload.device_type);',
+    'const firmwareVersion = pickString(payload.fw_version, payload.firmware_version, payload.fw, payload.version);',
+    'const protocolVersion = pickString(payload.protocol_version, payload.schema);',
+    'const powerSource = normalizePowerSource(payload.power_class ?? payload.power_source ?? payload.power_type, inferredClass);',
+    'const manufacturer = pickString(payload.manufacturer);',
+    'const model = pickString(payload.model);',
+    'const statusSummary = event.channel === "status" ? inferStatus(payload) : null;',
+    'const originMasterId = event.scope === "node"',
+    '    ? pickString(event.masterId, payload.origin_master_id, payload.master_id)',
+    '    : null;',
+    'const effectivePowerSource = powerSource || cachedMeta.powerSource || "unknown";',
+    'flow.set(metaCacheKey, {',
+    '    deviceType,',
+    '    powerSource: effectivePowerSource,',
+    '    room',
+    '});',
+    'msg.registryDevice = {',
+    '    deviceId: event.entityId,',
+    '    deviceRole: event.scope === "master" ? "master" : "node",',
+    '    deviceClass,',
+    '    deviceType,',
+    '    powerSource: effectivePowerSource,',
+    '    room',
+    '};',
+    'msg.topic = [',
+    '    "INSERT INTO devices (device_id, device_role, display_name, default_name, origin_master_id, device_class, hardware_type, firmware_version, protocol_version, power_source, manufacturer, model, status, meta_json, created_at, updated_at, first_seen_at, last_seen_at, last_meta_at, last_status_at, last_state_at, last_event_at, last_ack_at)",',
+    '    "VALUES (" + [',
+    '        toSql(event.entityId),',
+    '        toSql(event.scope === "master" ? "master" : "node"),',
+    '        toSql(displayName),',
+    '        toSql(defaultName),',
+    '        toSql(originMasterId),',
+    '        toSql(deviceClass),',
+    '        toSql(hardwareType),',
+    '        toSql(firmwareVersion),',
+    '        toSql(protocolVersion),',
+    '        toSql(powerSource),',
+    '        toSql(manufacturer),',
+    '        toSql(model),',
+    '        toSql(statusSummary),',
+    '        toSql(event.scope === "node" && event.channel === "meta" ? event.rawJson : null),',
+    '        toSql(now),',
+    '        toSql(now),',
+    '        toSql(now),',
+    '        toSql(now),',
+    '        toSql(event.scope === "node" && event.channel === "meta" ? now : null),',
+    '        toSql(event.channel === "status" ? now : null),',
+    '        toSql(event.channel === "state" ? now : null),',
+    '        toSql(event.channel === "event" ? now : null),',
+    '        toSql(event.channel === "ack" ? now : null)',
+    '    ].join(", ") + ")",',
+    '    "ON CONFLICT(device_id) DO UPDATE SET",',
+    '    "device_role = excluded.device_role,",',
+    '    "updated_at = excluded.updated_at,",',
+    '    "last_seen_at = excluded.last_seen_at,",',
+    '    "display_name = CASE WHEN excluded.meta_json IS NOT NULL OR devices.display_name = devices.default_name THEN excluded.display_name ELSE devices.display_name END,",',
+    '    "origin_master_id = COALESCE(excluded.origin_master_id, devices.origin_master_id),",',
+    '    "device_class = COALESCE(excluded.device_class, devices.device_class),",',
+    '    "hardware_type = COALESCE(excluded.hardware_type, devices.hardware_type),",',
+    '    "firmware_version = COALESCE(excluded.firmware_version, devices.firmware_version),",',
+    '    "protocol_version = COALESCE(excluded.protocol_version, devices.protocol_version),",',
+    '    "power_source = COALESCE(excluded.power_source, devices.power_source),",',
+    '    "manufacturer = COALESCE(excluded.manufacturer, devices.manufacturer),",',
+    '    "model = COALESCE(excluded.model, devices.model),",',
+    '    "status = CASE WHEN excluded.status IS NOT NULL THEN excluded.status ELSE devices.status END,",',
+    '    "meta_json = CASE WHEN excluded.meta_json IS NOT NULL THEN excluded.meta_json ELSE devices.meta_json END,",',
+    '    "last_meta_at = CASE WHEN excluded.last_meta_at IS NOT NULL THEN excluded.last_meta_at ELSE devices.last_meta_at END,",',
+    '    "last_status_at = CASE WHEN excluded.last_status_at IS NOT NULL THEN excluded.last_status_at ELSE devices.last_status_at END,",',
+    '    "last_state_at = CASE WHEN excluded.last_state_at IS NOT NULL THEN excluded.last_state_at ELSE devices.last_state_at END,",',
+    '    "last_event_at = CASE WHEN excluded.last_event_at IS NOT NULL THEN excluded.last_event_at ELSE devices.last_event_at END,",',
+    '    "last_ack_at = CASE WHEN excluded.last_ack_at IS NOT NULL THEN excluded.last_ack_at ELSE devices.last_ack_at END"',
+    '].join(" ");',
+    'return msg;'
+);
 
-const overviewTemplate = `${sharedCss}
-<template>
-  <div class='sm-panel sm-stack'>
-    <div class='sm-grid'>
-      <section class='sm-kpi'>
-        <span>Geraete</span>
-        <strong>{{ total }}</strong>
-      </section>
-      <section class='sm-kpi'>
-        <span>Online</span>
-        <strong>{{ online }}</strong>
-      </section>
-      <section class='sm-kpi'>
-        <span>Offline</span>
-        <strong>{{ offline }}</strong>
-      </section>
-      <section class='sm-kpi'>
-        <span>Ohne Raum</span>
-        <strong>{{ unassigned }}</strong>
-      </section>
-    </div>
-    <div class='sm-list' v-if='devices.length'>
-      <article class='sm-item' v-for='device in devices.slice(0, 6)' :key='device.device_id'>
-        <div class='sm-meta'>
-          <span :class="['sm-badge', device.is_online ? 'online' : 'offline']">{{ device.is_online ? 'online' : 'offline' }}</span>
-          <span class='sm-badge'>{{ device.device_role }}</span>
-          <span class='sm-badge'>{{ device.room_label }}</span>
-        </div>
-        <h3>{{ device.display_name }}</h3>
-        <div class='sm-muted'>{{ device.device_id }} | {{ device.device_class || 'unknown' }}</div>
-        <div class='sm-muted'>{{ device.state_preview || device.status_preview || 'Noch kein state/status im Speicher.' }}</div>
-      </article>
-    </div>
-    <p class='sm-empty' v-else>Noch keine Geraete erkannt.</p>
-  </div>
-</template>
-<script>
-export default {
-  computed: {
-    devices() {
-      return Array.isArray(this.msg?.payload) ? this.msg.payload : []
-    },
-    total() {
-      return this.devices.length
-    },
-    online() {
-      return this.devices.filter((device) => device.is_online).length
-    },
-    offline() {
-      return this.devices.filter((device) => !device.is_online).length
-    },
-    unassigned() {
-      return this.devices.filter((device) => device.room_label === 'Ohne Raum').length
-    }
-  }
-}
-</script>`;
+const routePostRegistryFunc = script(
+    'const event = msg.smarthomeEvent || {};',
+    'const toCapabilities = event.scope === "node" && event.channel === "meta" ? msg : null;',
+    'const toStateStore = ["status", "state", "event", "ack"].includes(event.channel) ? msg : null;',
+    'const toConfigStore = event.scope === "node" && event.channel === "cfg/report" ? msg : null;',
+    'const toTimeSeries = event.scope === "node" && event.channel === "state" ? msg : null;',
+    'return [toCapabilities, toStateStore, toConfigStore, toTimeSeries];'
+);
+
+const buildCapabilityUpsertsFunc = script(
+    ...toSqlLines,
+    ...pickStringLines,
+    'const inferRole = (key) => {',
+    '    if (/relay|switch|cover|light|output/i.test(key)) {',
+    '        return "actuator";',
+    '    }',
+    '    if (/temp|humid|lux|co2|eco2|tvoc|aqi|motion|contact|battery|button|rain/i.test(key)) {',
+    '        return "sensor";',
+    '    }',
+    '    return "unknown";',
+    '};',
+    'const inferType = (key) => {',
+    '    if (/relay|switch|motion|contact|fault|online|button|cover_calibrated/i.test(key)) {',
+    '        return "boolean";',
+    '    }',
+    '    if (/temp|humid|lux|co2|eco2|tvoc|aqi|battery|position|rain|timeout|delay|interval|threshold/i.test(key)) {',
+    '        return "number";',
+    '    }',
+    '    return null;',
+    '};',
+    'const inferUnit = (key) => {',
+    '    if (/temperature|temp|_c$/i.test(key)) {',
+    '        return "c";',
+    '    }',
+    '    if (/humidity|humid|_pct$/i.test(key)) {',
+    '        return "pct";',
+    '    }',
+    '    if (/lux/i.test(key)) {',
+    '        return "lux";',
+    '    }',
+    '    if (/co2|eco2/i.test(key)) {',
+    '        return "ppm";',
+    '    }',
+    '    if (/tvoc/i.test(key)) {',
+    '        return "ppb";',
+    '    }',
+    '    return null;',
+    '};',
+    'const capabilityMaskMap = {',
+    '    0x0001: "relay_1",',
+    '    0x0002: "relay_2",',
+    '    0x0004: "temperature_c",',
+    '    0x0008: "humidity_pct",',
+    '    0x0010: "lux",',
+    '    0x0020: "aqi",',
+    '    0x0040: "motion",',
+    '    0x0080: "contact",',
+    '    0x0100: "rain",',
+    '    0x0200: "battery_pct",',
+    '    0x0400: "button_1",',
+    '    0x0800: "buttons",',
+    '    0x1000: "led_ring",',
+    '    0x2000: "cover",',
+    '    0x4000: "setup_portal"',
+    '};',
+    'const event = msg.smarthomeEvent || msg.payload || {};',
+    'const payload = event.payload || {};',
+    'if (event.scope !== "node" || event.channel !== "meta") {',
+    '    return null;',
+    '}',
+    'let capabilities = [];',
+    'if (Array.isArray(payload.capabilities)) {',
+    '    capabilities = payload.capabilities;',
+    '} else if (payload.capabilities && typeof payload.capabilities === "object") {',
+    '    capabilities = Object.entries(payload.capabilities).map(([key, meta]) => (meta && typeof meta === "object") ? { key, ...meta } : { key });',
+    '} else {',
+    '    let mask = null;',
+    '    if (typeof payload.capability_mask === "number" && Number.isFinite(payload.capability_mask)) {',
+    '        mask = payload.capability_mask;',
+    '    } else if (typeof payload.capability_mask === "string" && payload.capability_mask.trim()) {',
+    '        const parsedMask = Number(payload.capability_mask);',
+    '        if (Number.isFinite(parsedMask)) {',
+    '            mask = parsedMask;',
+    '        }',
+    '    } else if (Number.isFinite(payload.caps_hi) || Number.isFinite(payload.caps_lo)) {',
+    '        const hi = Number.isFinite(payload.caps_hi) ? Number(payload.caps_hi) : 0;',
+    '        const lo = Number.isFinite(payload.caps_lo) ? Number(payload.caps_lo) : 0;',
+    '        mask = ((hi & 0xFF) << 8) | (lo & 0xFF);',
+    '    }',
+    '    if (mask !== null) {',
+    '        capabilities = Object.entries(capabilityMaskMap)',
+    '            .filter(([bit]) => (mask & Number(bit)) !== 0)',
+    '            .map(([, key]) => ({ key }));',
+    '    }',
+    '}',
+    'const now = event.ts || event.receivedAt || new Date().toISOString();',
+    'const messages = [];',
+    'for (const capability of capabilities) {',
+    '    const key = typeof capability === "string"',
+    '        ? capability',
+    '        : capability && typeof capability === "object"',
+    '            ? pickString(capability.key, capability.id, capability.name)',
+    '            : null;',
+    '    if (!key) {',
+    '        continue;',
+    '    }',
+    '    const meta = capability && typeof capability === "object" ? capability : { key };',
+    '    messages.push({',
+    '        smarthomeEvent: event,',
+    '        topic: [',
+    '            "INSERT INTO device_capabilities (device_id, capability_key, capability_role, data_type, unit, writable, readable, channel, meta_json, created_at, updated_at)",',
+    '            "VALUES (" + [',
+    '                toSql(event.entityId),',
+    '                toSql(key),',
+    '                toSql(meta.role || inferRole(key)),',
+    '                toSql(meta.data_type || meta.type || inferType(key)),',
+    '                toSql(meta.unit || inferUnit(key)),',
+    '                toSql(meta.writable === undefined ? (/relay|switch|cover|light|output/i.test(key) ? 1 : 0) : (meta.writable ? 1 : 0)),',
+    '                toSql(meta.readable === undefined ? 1 : (meta.readable ? 1 : 0)),',
+    '                toSql(meta.channel || null),',
+    '                toSql(JSON.stringify(meta)),',
+    '                toSql(now),',
+    '                toSql(now)',
+    '            ].join(", ") + ")",',
+    '            "ON CONFLICT(device_id, capability_key) DO UPDATE SET",',
+    '            "capability_role = excluded.capability_role,",',
+    '            "data_type = COALESCE(excluded.data_type, device_capabilities.data_type),",',
+    '            "unit = COALESCE(excluded.unit, device_capabilities.unit),",',
+    '            "writable = excluded.writable,",',
+    '            "readable = excluded.readable,",',
+    '            "channel = COALESCE(excluded.channel, device_capabilities.channel),",',
+    '            "meta_json = excluded.meta_json,",',
+    '            "updated_at = excluded.updated_at"',
+    '        ].join(" ")',
+    '    });',
+    '}',
+    'return messages.length ? [messages] : null;'
+);
+
+const buildLastStateUpsertFunc = script(
+    ...toSqlLines,
+    'const event = msg.smarthomeEvent || msg.payload || {};',
+    'const now = event.ts || event.receivedAt || new Date().toISOString();',
+    'if ((event.channel === "event" || event.channel === "ack") && event.retain) {',
+    '    node.warn("Ignoring retained " + event.channel + " for current-state storage on " + event.topic);',
+    '    return null;',
+    '}',
+    'if (event.channel === "status") {',
+    '    msg.topic = [',
+    '        "INSERT INTO device_last_state (device_id, status_json, status_at, updated_at)",',
+    '        "VALUES (" + [toSql(event.entityId), toSql(event.rawJson), toSql(now), toSql(now)].join(", ") + ")",',
+    '        "ON CONFLICT(device_id) DO UPDATE SET",',
+    '        "status_json = excluded.status_json,",',
+    '        "status_at = excluded.status_at,",',
+    '        "updated_at = excluded.updated_at"',
+    '    ].join(" ");',
+    '    return msg;',
+    '}',
+    'if (event.channel === "state") {',
+    '    msg.topic = [',
+    '        "INSERT INTO device_last_state (device_id, state_json, state_at, updated_at)",',
+    '        "VALUES (" + [toSql(event.entityId), toSql(event.rawJson), toSql(now), toSql(now)].join(", ") + ")",',
+    '        "ON CONFLICT(device_id) DO UPDATE SET",',
+    '        "state_json = excluded.state_json,",',
+    '        "state_at = excluded.state_at,",',
+    '        "updated_at = excluded.updated_at"',
+    '    ].join(" ");',
+    '    return msg;',
+    '}',
+    'if (event.channel === "event") {',
+    '    msg.topic = [',
+    '        "INSERT INTO device_last_state (device_id, event_json, event_at, updated_at)",',
+    '        "VALUES (" + [toSql(event.entityId), toSql(event.rawJson), toSql(now), toSql(now)].join(", ") + ")",',
+    '        "ON CONFLICT(device_id) DO UPDATE SET",',
+    '        "event_json = excluded.event_json,",',
+    '        "event_at = excluded.event_at,",',
+    '        "updated_at = excluded.updated_at"',
+    '    ].join(" ");',
+    '    return msg;',
+    '}',
+    'if (event.channel === "ack") {',
+    '    msg.topic = [',
+    '        "INSERT INTO device_last_state (device_id, ack_json, ack_at, updated_at)",',
+    '        "VALUES (" + [toSql(event.entityId), toSql(event.rawJson), toSql(now), toSql(now)].join(", ") + ")",',
+    '        "ON CONFLICT(device_id) DO UPDATE SET",',
+    '        "ack_json = excluded.ack_json,",',
+    '        "ack_at = excluded.ack_at,",',
+    '        "updated_at = excluded.updated_at"',
+    '    ].join(" ");',
+    '    return msg;',
+    '}',
+    'return null;'
+);
+
+const buildServerStatusUpsertsFunc = script(
+    ...toSqlLines,
+    'const event = msg.payload || {};',
+    'if (event.scope !== "server" || event.channel !== "status") {',
+    '    return null;',
+    '}',
+    'const now = event.ts || event.receivedAt || new Date().toISOString();',
+    'const messages = [',
+    '    {',
+    '        topic: [',
+    '            "INSERT INTO server_settings (setting_key, setting_value, value_type, updated_at)",',
+    '            "VALUES (" + [toSql("server_status_json"), toSql(event.rawJson), toSql("json"), toSql(now)].join(", ") + ")",',
+    '            "ON CONFLICT(setting_key) DO UPDATE SET",',
+    '            "setting_value = excluded.setting_value,",',
+    '            "value_type = excluded.value_type,",',
+    '            "updated_at = excluded.updated_at"',
+    '        ].join(" ")',
+    '    },',
+    '    {',
+    '        topic: [',
+    '            "INSERT INTO server_settings (setting_key, setting_value, value_type, updated_at)",',
+    '            "VALUES (" + [toSql("server_status_at"), toSql(now), toSql("datetime"), toSql(now)].join(", ") + ")",',
+    '            "ON CONFLICT(setting_key) DO UPDATE SET",',
+    '            "setting_value = excluded.setting_value,",',
+    '            "value_type = excluded.value_type,",',
+    '            "updated_at = excluded.updated_at"',
+    '        ].join(" ")',
+    '    }',
+    '];',
+    'return [messages];'
+);
+
+const buildConfigUpsertsFunc = script(
+    ...toSqlLines,
+    ...pickStringLines,
+    'const cfgKeyByParamId = {',
+    '    1: "device_name",',
+    '    2: "report_interval_s",',
+    '    3: "ack_timeout_ms",',
+    '    4: "max_retries",',
+    '    5: "event_debounce_ms",',
+    '    6: "led_enabled",',
+    '    16: "temp_report_delta",',
+    '    17: "hum_report_delta",',
+    '    18: "lux_report_delta",',
+    '    19: "presence_hold_s",',
+    '    32: "relay_mode",',
+    '    33: "auto_off_delay_s",',
+    '    34: "light_threshold_on",',
+    '    35: "light_threshold_off",',
+    '    36: "relay_default_on_boot",',
+    '    48: "cover_run_time_up_ms",',
+    '    49: "cover_run_time_down_ms",',
+    '    50: "cover_reverse_lock_ms",',
+    '    51: "cover_calibrated",',
+    '    64: "wake_interval_s",',
+    '    65: "rx_window_ms",',
+    '    66: "low_battery_threshold",',
+    '    80: "ring_enabled",',
+    '    81: "ring_brightness",',
+    '    82: "ring_mode"',
+    '};',
+    'const event = msg.smarthomeEvent || msg.payload || {};',
+    'const payload = event.payload || {};',
+    'if (event.scope !== "node" || event.channel !== "cfg/report") {',
+    '    return null;',
+    '}',
+    'const now = event.ts || event.receivedAt || new Date().toISOString();',
+    'const metaKeys = new Set([',
+    '    "schema", "ts", "timestamp", "reported_at", "device_id", "node_id", "master_id",',
+    '    "display_name", "device_name", "device_class", "device_type", "hw_variant", "fw",',
+    '    "fw_version", "firmware_version", "protocol_version", "source", "status", "profile_id",',
+    '    "revision", "config_revision", "values", "config", "reported", "params", "entries"',
+    ']);',
+    'const entries = new Map();',
+    'const setEntry = (key, value) => {',
+    '    if (typeof key !== "string" || !key.trim()) {',
+    '        return;',
+    '    }',
+    '    entries.set(key.trim(), value);',
+    '};',
+    'const addObjectEntries = (objectValue) => {',
+    '    if (!objectValue || typeof objectValue !== "object" || Array.isArray(objectValue)) {',
+    '        return;',
+    '    }',
+    '    for (const [key, value] of Object.entries(objectValue)) {',
+    '        if (metaKeys.has(key)) {',
+    '            continue;',
+    '        }',
+    '        setEntry(key, value);',
+    '    }',
+    '};',
+    'const addArrayEntries = (arrayValue) => {',
+    '    if (!Array.isArray(arrayValue)) {',
+    '        return;',
+    '    }',
+    '    for (const item of arrayValue) {',
+    '        if (!item || typeof item !== "object") {',
+    '            continue;',
+    '        }',
+    '        const namedKey = pickString(item.key, item.id, item.name);',
+    '        if (namedKey) {',
+    '            setEntry(namedKey, item.value);',
+    '            continue;',
+    '        }',
+    '        if (Number.isFinite(item.param_id)) {',
+    '            const mappedKey = cfgKeyByParamId[item.param_id] || ("param_" + item.param_id);',
+    '            setEntry(mappedKey, item.value);',
+    '        }',
+    '    }',
+    '};',
+    'if (Array.isArray(payload.values)) {',
+    '    addArrayEntries(payload.values);',
+    '} else if (payload.values && typeof payload.values === "object") {',
+    '    addObjectEntries(payload.values);',
+    '}',
+    'if (payload.config && typeof payload.config === "object") {',
+    '    addObjectEntries(payload.config);',
+    '}',
+    'if (payload.reported && typeof payload.reported === "object") {',
+    '    addObjectEntries(payload.reported);',
+    '}',
+    'if (Array.isArray(payload.params)) {',
+    '    addArrayEntries(payload.params);',
+    '}',
+    'if (Array.isArray(payload.entries)) {',
+    '    addArrayEntries(payload.entries);',
+    '}',
+    'if (!entries.size) {',
+    '    addObjectEntries(payload);',
+    '}',
+    'const messages = [];',
+    'for (const [configKey, rawValue] of entries.entries()) {',
+    '    const configType = rawValue === null ? "null"',
+    '        : Array.isArray(rawValue) || (rawValue && typeof rawValue === "object") ? "json"',
+    '        : typeof rawValue;',
+    '    const serializedValue = rawValue === null || rawValue === undefined',
+    '        ? null',
+    '        : typeof rawValue === "string"',
+    '            ? rawValue',
+    '            : JSON.stringify(rawValue);',
+    '    messages.push({',
+    '        smarthomeEvent: event,',
+    '        topic: [',
+    '            "INSERT INTO device_config (device_id, config_key, config_value, config_type, source_channel, last_reported_at, updated_at)",',
+    '            "VALUES (" + [',
+    '                toSql(event.entityId),',
+    '                toSql(configKey),',
+    '                toSql(serializedValue),',
+    '                toSql(configType),',
+    '                toSql("cfg/report"),',
+    '                toSql(now),',
+    '                toSql(now)',
+    '            ].join(", ") + ")",',
+    '            "ON CONFLICT(device_id, config_key) DO UPDATE SET",',
+    '            "config_value = excluded.config_value,",',
+    '            "config_type = excluded.config_type,",',
+    '            "source_channel = excluded.source_channel,",',
+    '            "last_reported_at = excluded.last_reported_at,",',
+    '            "updated_at = excluded.updated_at"',
+    '        ].join(" ")',
+    '    });',
+    '};',
+    'return messages.length ? [messages] : null;'
+);
+
+const buildInfluxLineFunc = script(
+    'const event = msg.smarthomeEvent || msg.payload || {};',
+    'if (event.scope !== "node" || event.channel !== "state") {',
+    '    return null;',
+    '}',
+    'const payload = event.payload || {};',
+    'const sensorRoot = payload.sensors;',
+    'const escapeTag = (value) => String(value).replace(/ /g, "\\\\ ").replace(/,/g, "\\\\,").replace(/=/g, "\\\\=");',
+    'const normalizeMetric = (value) => String(value)',
+    '    .trim()',
+    '    .toLowerCase()',
+    '    .replace(/[^a-z0-9_]+/g, "_")',
+    '    .replace(/^_+|_+$/g, "");',
+    'const inferUnit = (metric) => {',
+    '    if (/_01c$/i.test(metric)) return "0.1c";',
+    '    if (/_01pct$/i.test(metric)) return "0.1pct";',
+    '    if (/temp|_c$/i.test(metric)) return "c";',
+    '    if (/hum|humid|_pct$|pct$/i.test(metric)) return "pct";',
+    '    if (/eco2|co2/i.test(metric)) return "ppm";',
+    '    if (/tvoc|voc/i.test(metric)) return "ppb";',
+    '    if (/lux/i.test(metric)) return "lux";',
+    '    if (/battery_pct/i.test(metric)) return "pct";',
+    '    if (/battery_mv|_mv$/i.test(metric)) return "mv";',
+    '    if (/battery_v|_v$|volt/i.test(metric)) return "v";',
+    '    return null;',
+    '};',
+    'const isTimeSeriesMetric = (metric) => {',
+    '    if (!metric) return false;',
+    '    if (/relay|switch|cover|output|fault|online|status|event|command|motion|contact|window/i.test(metric)) return false;',
+    '    return /(temp|hum|humid|co2|eco2|tvoc|voc|lux|battery(_mv|_v|_pct)?|volt|pressure|current|power|energy|aqi|rain|water|flow|pm\\d*|soil|moist|uv)/i.test(metric);',
+    '};',
+    'const registryDevice = msg.registryDevice || {};',
+    'const nodeId = event.entityId || event.deviceId;',
+    'if (!nodeId) {',
+    '    return null;',
+    '}',
+    'const points = [];',
+    'const appendPoint = (metric, value, unit) => {',
+    '    if (typeof value !== "number" || !Number.isFinite(value)) return;',
+    '    const normalizedMetric = normalizeMetric(metric);',
+    '    if (!normalizedMetric || !isTimeSeriesMetric(normalizedMetric)) return;',
+    '    points.push({ metric: normalizedMetric, unit: typeof unit === "string" && unit ? unit : inferUnit(normalizedMetric), value: Number(value) });',
+    '};',
+    'const visitSensors = (value, prefix) => {',
+    '    if (value === null || value === undefined) return;',
+    '    if (typeof value === "number") {',
+    '        appendPoint(prefix, value, null);',
+    '        return;',
+    '    }',
+    '    if (Array.isArray(value) || typeof value !== "object") return;',
+    '    if (typeof value.value === "number" && Number.isFinite(value.value)) {',
+    '        appendPoint(prefix, value.value, value.unit || value.uom || null);',
+    '        return;',
+    '    }',
+    '    for (const [key, current] of Object.entries(value)) {',
+    '        const nextPrefix = prefix ? prefix + "_" + key : key;',
+    '        visitSensors(current, nextPrefix);',
+    '    }',
+    '};',
+    'if (sensorRoot && typeof sensorRoot === "object" && !Array.isArray(sensorRoot)) {',
+    '    visitSensors(sensorRoot, "");',
+    '} else {',
+    '    for (const [key, current] of Object.entries(payload)) {',
+    '        if (typeof current === "number") {',
+    '            appendPoint(key, current, null);',
+    '            continue;',
+    '        }',
+    '        if (current && typeof current === "object" && !Array.isArray(current) && typeof current.value === "number" && Number.isFinite(current.value)) {',
+    '            appendPoint(key, current.value, current.unit || current.uom || null);',
+    '        }',
+    '    }',
+    '}',
+    'if (!points.length) {',
+    '    return null;',
+    '}',
+    'const tags = ["node_id=" + escapeTag(nodeId)];',
+    'const deviceType = registryDevice.deviceType',
+    '    || (typeof payload.device_type === "string" && payload.device_type ? payload.device_type : null)',
+    '    || registryDevice.deviceClass',
+    '    || (typeof payload.device_class === "string" && payload.device_class ? payload.device_class : null);',
+    'if (deviceType) {',
+    '    tags.push("device_type=" + escapeTag(deviceType));',
+    '}',
+    'const room = registryDevice.room',
+    '    || (typeof payload.room === "string" && payload.room ? payload.room : null)',
+    '    || (typeof payload.room_slug === "string" && payload.room_slug ? payload.room_slug : null);',
+    'if (room) {',
+    '    tags.push("room=" + escapeTag(room));',
+    '}',
+    'const timestampMs = Date.parse(event.ts || event.receivedAt || new Date().toISOString());',
+    'const safeTimestampMs = Number.isNaN(timestampMs) ? Date.now() : timestampMs;',
+    'const timestampNs = (BigInt(safeTimestampMs) * 1000000n).toString();',
+    'const influxToken = env.get("INFLUX_TOKEN");',
+    'if (!influxToken) {',
+    '    node.warn("Skipping Influx write because INFLUX_TOKEN is empty.");',
+    '    return null;',
+    '}',
+    'msg.url = (env.get("INFLUX_URL") || "http://influxdb:8086")',
+    '    + "/api/v2/write?org=" + encodeURIComponent(env.get("INFLUX_ORG") || "")',
+    '    + "&bucket=" + encodeURIComponent(env.get("INFLUX_BUCKET") || "smarthome")',
+    '    + "&precision=ns";',
+    'msg.headers = {',
+    '    Authorization: "Token " + influxToken,',
+    '    "Content-Type": "text/plain; charset=utf-8"',
+    '};',
+    'msg.payload = points.map((point) => {',
+    '    const pointTags = tags.slice();',
+    '    pointTags.push("metric=" + escapeTag(point.metric));',
+    '    if (point.unit) pointTags.push("unit=" + escapeTag(point.unit));',
+    '    return "smarthome_sensor," + pointTags.join(",") + " value_num=" + String(point.value) + " " + timestampNs;',
+    '}).join("\\n");',
+    'return msg;'
+);
+
+const buildAuditInsertFunc = script(
+    ...toSqlLines,
+    'const event = msg.payload || {};',
+    'msg.topic = [',
+    '    "INSERT INTO audit_log (topic, device_id, master_id, scope, channel, direction, retain, payload_json, occurred_at)",',
+    '    "VALUES (" + [',
+    '        toSql(event.topic),',
+    '        toSql(event.scope === "server" ? null : event.entityId),',
+    '        toSql(event.scope === "master" ? event.entityId : event.masterId),',
+    '        toSql(event.scope || "unknown"),',
+    '        toSql(event.channel || "unknown"),',
+    '        toSql("ingest"),',
+    '        toSql(event.retain ? 1 : 0),',
+    '        toSql(event.rawJson || null),',
+    '        toSql(event.ts || event.receivedAt || new Date().toISOString())',
+    '    ].join(", ") + ")"',
+    '].join(" ");',
+    'return msg;'
+);
+
+addNode({
+    id: ids.tabIngest,
+    type: "tab",
+    label: "10 MQTT Ingest",
+    disabled: false,
+    info: "Normalize MQTT topics and route server/master/node payloads."
+});
+
+addNode({
+    id: ids.tabRegistry,
+    type: "tab",
+    label: "20 Registry",
+    disabled: false,
+    info: "Automatic device creation and capability upsert in SQLite."
+});
+
+addNode({
+    id: ids.tabState,
+    type: "tab",
+    label: "30 State Store",
+    disabled: false,
+    info: "Separated status/state/event/ack and server status persistence."
+});
+
+addNode({
+    id: ids.tabConfig,
+    type: "tab",
+    label: "35 Config Store",
+    disabled: false,
+    info: "Persist cfg/report payloads into device_config."
+});
+
+addNode({
+    id: ids.tabTimeSeries,
+    type: "tab",
+    label: "40 Time Series",
+    disabled: false,
+    info: "Write only numeric sensor series from MQTT state into InfluxDB."
+});
+
+addNode({
+    id: ids.tabLogging,
+    type: "tab",
+    label: "80 Logging",
+    disabled: false,
+    info: "Audit logging for all ingested MQTT messages."
+});
+
+addNode({
+    id: ids.mqttBroker,
+    type: "mqtt-broker",
+    name: "SmartHome MQTT",
+    broker: "${MQTT_HOST}",
+    port: "${MQTT_PORT}",
+    clientid: "smarthome-server-v1",
+    autoConnect: true,
+    usetls: false,
+    protocolVersion: "5",
+    keepalive: "60",
+    cleansession: true,
+    birthTopic: "",
+    birthQos: "0",
+    birthRetain: "false",
+    birthPayload: "",
+    birthMsg: {},
+    closeTopic: "",
+    closeQos: "0",
+    closeRetain: "false",
+    closePayload: "",
+    closeMsg: {},
+    willTopic: "",
+    willQos: "0",
+    willRetain: "false",
+    willPayload: "",
+    willMsg: {},
+    userProps: "",
+    sessionExpiry: ""
+});
+
+addNode({
+    id: ids.sqliteDb,
+    type: "sqlitedb",
+    db: "${SQLITE_PATH}",
+    mode: "RWC",
+    name: "sqlite_db"
+});
+
+[
+    { nodeId: ids.mqttServerStatus, name: "Server Status", topic: "smarthome/server/status", y: 60 },
+    { nodeId: ids.mqttMasterStatus, name: "Master Status", topic: "smarthome/master/+/status", y: 120 },
+    { nodeId: ids.mqttMasterEvent, name: "Master Event", topic: "smarthome/master/+/event", y: 180 },
+    { nodeId: ids.mqttNodeMeta, name: "Node Meta", topic: "smarthome/node/+/meta", y: 240 },
+    { nodeId: ids.mqttNodeStatus, name: "Node Status", topic: "smarthome/node/+/status", y: 300 },
+    { nodeId: ids.mqttNodeState, name: "Node State", topic: "smarthome/node/+/state", y: 360 },
+    { nodeId: ids.mqttNodeEvent, name: "Node Event", topic: "smarthome/node/+/event", y: 420 },
+    { nodeId: ids.mqttNodeAck, name: "Node Ack", topic: "smarthome/node/+/ack", y: 480 },
+    { nodeId: ids.mqttNodeCfgReport, name: "Node Cfg Report", topic: "smarthome/node/+/cfg/report", y: 540 }
+].forEach(({ nodeId, name, topic, y }) => {
+    addNode({
+        id: nodeId,
+        type: "mqtt in",
+        z: ids.tabIngest,
+        name,
+        topic,
+        qos: "1",
+        datatype: "auto-detect",
+        broker: ids.mqttBroker,
+        nl: false,
+        rap: true,
+        rh: 0,
+        inputs: 0,
+        x: 170,
+        y,
+        wires: [[ids.normalize]]
+    });
+});
+
+addNode({
+    id: ids.normalize,
+    type: "function",
+    z: ids.tabIngest,
+    name: "Normalize MQTT",
+    func: normalizeFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 430,
+    y: 300,
+    wires: [[ids.linkOutAudit, ids.routeCore]]
+});
+
+addNode({
+    id: ids.routeCore,
+    type: "function",
+    z: ids.tabIngest,
+    name: "Route Core Paths",
+    func: routeCoreFunc,
+    outputs: 2,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 690,
+    y: 300,
+    wires: [[ids.linkOutDeviceRegistry], [ids.linkOutServerStatus]]
+});
+
+addNode({
+    id: ids.linkOutDeviceRegistry,
+    type: "link out",
+    z: ids.tabIngest,
+    name: "To Registry",
+    mode: "link",
+    links: [ids.linkInDeviceRegistry],
+    x: 915,
+    y: 270,
+    wires: []
+});
+
+addNode({
+    id: ids.linkOutServerStatus,
+    type: "link out",
+    z: ids.tabIngest,
+    name: "To Server Status Store",
+    mode: "link",
+    links: [ids.linkInServerStatus],
+    x: 945,
+    y: 330,
+    wires: []
+});
+
+addNode({
+    id: ids.linkOutAudit,
+    type: "link out",
+    z: ids.tabIngest,
+    name: "To Audit",
+    mode: "link",
+    links: [ids.linkInAudit],
+    x: 690,
+    y: 120,
+    wires: []
+});
+
+addNode({
+    id: ids.linkInDeviceRegistry,
+    type: "link in",
+    z: ids.tabRegistry,
+    name: "From Ingest",
+    links: [ids.linkOutDeviceRegistry],
+    x: 135,
+    y: 140,
+    wires: [[ids.buildDeviceUpsert]]
+});
+
+addNode({
+    id: ids.buildDeviceUpsert,
+    type: "function",
+    z: ids.tabRegistry,
+    name: "Build Device Upsert",
+    func: buildDeviceUpsertFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 410,
+    y: 140,
+    wires: [[ids.sqliteDeviceUpsert]]
+});
+
+addNode({
+    id: ids.sqliteDeviceUpsert,
+    type: "sqlite",
+    z: ids.tabRegistry,
+    mydb: ids.sqliteDb,
+    sqlquery: "msg.topic",
+    sql: "",
+    name: "Upsert Device",
+    x: 670,
+    y: 140,
+    wires: [[ids.routePostRegistry]]
+});
+
+addNode({
+    id: ids.routePostRegistry,
+    type: "function",
+    z: ids.tabRegistry,
+    name: "Route Post Registry",
+    func: routePostRegistryFunc,
+    outputs: 4,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 930,
+    y: 140,
+    wires: [[ids.buildCapabilityUpserts], [ids.linkOutStateStore], [ids.linkOutConfigStore], [ids.linkOutTimeSeries]]
+});
+
+addNode({
+    id: ids.linkOutTimeSeries,
+    type: "link out",
+    z: ids.tabRegistry,
+    name: "To Time Series",
+    mode: "link",
+    links: [ids.linkInTimeSeries],
+    x: 1225,
+    y: 220,
+    wires: []
+});
+
+addNode({
+    id: ids.buildCapabilityUpserts,
+    type: "function",
+    z: ids.tabRegistry,
+    name: "Build Capability Upserts",
+    func: buildCapabilityUpsertsFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 1220,
+    y: 100,
+    wires: [[ids.sqliteCapabilityUpserts]]
+});
+
+addNode({
+    id: ids.sqliteCapabilityUpserts,
+    type: "sqlite",
+    z: ids.tabRegistry,
+    mydb: ids.sqliteDb,
+    sqlquery: "msg.topic",
+    sql: "",
+    name: "Upsert Capabilities",
+    x: 1490,
+    y: 100,
+    wires: [[]]
+});
+
+addNode({
+    id: ids.linkOutStateStore,
+    type: "link out",
+    z: ids.tabRegistry,
+    name: "To State Store",
+    mode: "link",
+    links: [ids.linkInStateStore],
+    x: 1220,
+    y: 140,
+    wires: []
+});
+
+addNode({
+    id: ids.linkOutConfigStore,
+    type: "link out",
+    z: ids.tabRegistry,
+    name: "To Config Store",
+    mode: "link",
+    links: [ids.linkInConfigStore],
+    x: 1230,
+    y: 180,
+    wires: []
+});
+
+addNode({
+    id: ids.linkInStateStore,
+    type: "link in",
+    z: ids.tabState,
+    name: "From Registry",
+    links: [ids.linkOutStateStore],
+    x: 145,
+    y: 120,
+    wires: [[ids.buildLastStateUpsert]]
+});
+
+addNode({
+    id: ids.buildLastStateUpsert,
+    type: "function",
+    z: ids.tabState,
+    name: "Build Last State Upsert",
+    func: buildLastStateUpsertFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 430,
+    y: 120,
+    wires: [[ids.sqliteLastStateUpsert]]
+});
+
+addNode({
+    id: ids.sqliteLastStateUpsert,
+    type: "sqlite",
+    z: ids.tabState,
+    mydb: ids.sqliteDb,
+    sqlquery: "msg.topic",
+    sql: "",
+    name: "Upsert Last State",
+    x: 730,
+    y: 120,
+    wires: [[]]
+});
+
+addNode({
+    id: ids.linkInServerStatus,
+    type: "link in",
+    z: ids.tabState,
+    name: "From Ingest",
+    links: [ids.linkOutServerStatus],
+    x: 145,
+    y: 220,
+    wires: [[ids.buildServerStatusUpserts]]
+});
+
+addNode({
+    id: ids.buildServerStatusUpserts,
+    type: "function",
+    z: ids.tabState,
+    name: "Build Server Status Upserts",
+    func: buildServerStatusUpsertsFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 455,
+    y: 220,
+    wires: [[ids.sqliteServerStatusUpserts]]
+});
+
+addNode({
+    id: ids.sqliteServerStatusUpserts,
+    type: "sqlite",
+    z: ids.tabState,
+    mydb: ids.sqliteDb,
+    sqlquery: "msg.topic",
+    sql: "",
+    name: "Upsert Server Status",
+    x: 765,
+    y: 220,
+    wires: [[]]
+});
+
+addNode({
+    id: ids.linkInConfigStore,
+    type: "link in",
+    z: ids.tabConfig,
+    name: "From Registry",
+    links: [ids.linkOutConfigStore],
+    x: 145,
+    y: 120,
+    wires: [[ids.buildConfigUpserts]]
+});
+
+addNode({
+    id: ids.buildConfigUpserts,
+    type: "function",
+    z: ids.tabConfig,
+    name: "Build Config Upserts",
+    func: buildConfigUpsertsFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 425,
+    y: 120,
+    wires: [[ids.sqliteConfigUpserts]]
+});
+
+addNode({
+    id: ids.sqliteConfigUpserts,
+    type: "sqlite",
+    z: ids.tabConfig,
+    mydb: ids.sqliteDb,
+    sqlquery: "msg.topic",
+    sql: "",
+    name: "Upsert Device Config",
+    x: 720,
+    y: 120,
+    wires: [[]]
+});
+
+addNode({
+    id: ids.linkInTimeSeries,
+    type: "link in",
+    z: ids.tabTimeSeries,
+    name: "From Registry",
+    links: [ids.linkOutTimeSeries],
+    x: 145,
+    y: 120,
+    wires: [[ids.buildInfluxLine]]
+});
+
+addNode({
+    id: ids.buildInfluxLine,
+    type: "function",
+    z: ids.tabTimeSeries,
+    name: "Build Influx Line",
+    func: buildInfluxLineFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 420,
+    y: 120,
+    wires: [[ids.influxWrite]]
+});
+
+addNode({
+    id: ids.influxWrite,
+    type: "http request",
+    z: ids.tabTimeSeries,
+    name: "Write InfluxDB",
+    method: "POST",
+    ret: "txt",
+    paytoqs: "ignore",
+    url: "",
+    persist: false,
+    proxy: "",
+    insecureHTTPParser: false,
+    authType: "",
+    senderr: true,
+    headers: [],
+    x: 710,
+    y: 120,
+    wires: [[]]
+});
+
+addNode({
+    id: ids.linkInAudit,
+    type: "link in",
+    z: ids.tabLogging,
+    name: "From Ingest",
+    links: [ids.linkOutAudit],
+    x: 135,
+    y: 100,
+    wires: [[ids.buildAuditInsert]]
+});
+
+addNode({
+    id: ids.buildAuditInsert,
+    type: "function",
+    z: ids.tabLogging,
+    name: "Build Audit Insert",
+    func: buildAuditInsertFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 420,
+    y: 100,
+    wires: [[ids.sqliteAuditInsert]]
+});
+
+addNode({
+    id: ids.sqliteAuditInsert,
+    type: "sqlite",
+    z: ids.tabLogging,
+    mydb: ids.sqliteDb,
+    sqlquery: "msg.topic",
+    sql: "",
+    name: "Insert Audit Row",
+    x: 710,
+    y: 100,
+    wires: [[]]
+});
+
+process.stdout.write(`${JSON.stringify(nodes, null, 2)}\n`);

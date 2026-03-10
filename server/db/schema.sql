@@ -5,13 +5,13 @@ CREATE TABLE IF NOT EXISTS rooms (
     slug TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS devices (
     device_id TEXT PRIMARY KEY,
-    device_role TEXT NOT NULL CHECK (device_role IN ('node', 'master')),
+    device_role TEXT NOT NULL DEFAULT 'node' CHECK (device_role IN ('node', 'master')),
     display_name TEXT NOT NULL,
     default_name TEXT NOT NULL,
     room_id INTEGER,
@@ -90,8 +90,8 @@ CREATE TABLE IF NOT EXISTS automations (
     trigger_definition_json TEXT,
     action_definition_json TEXT,
     notes TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_executed_at TEXT
 );
 
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE TABLE IF NOT EXISTS weather_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    provider TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'open-meteo',
     location_label TEXT,
     latitude REAL,
     longitude REAL,
@@ -120,8 +120,15 @@ CREATE TABLE IF NOT EXISTS weather_settings (
     enabled INTEGER NOT NULL DEFAULT 0,
     units TEXT NOT NULL DEFAULT 'metric',
     config_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS server_settings (
+    setting_key TEXT PRIMARY KEY,
+    setting_value TEXT,
+    value_type TEXT NOT NULL DEFAULT 'text',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_devices_room_id ON devices(room_id);
@@ -132,3 +139,41 @@ CREATE INDEX IF NOT EXISTS idx_device_config_device ON device_config(device_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_occurred_at ON audit_log(occurred_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_device ON audit_log(device_id);
 
+INSERT INTO weather_settings (
+    id,
+    provider,
+    location_label,
+    latitude,
+    longitude,
+    api_base_url,
+    api_key_ref,
+    poll_interval_minutes,
+    enabled,
+    units,
+    config_json,
+    created_at,
+    updated_at
+) VALUES (
+    1,
+    'open-meteo',
+    NULL,
+    NULL,
+    NULL,
+    'https://api.open-meteo.com/v1/forecast',
+    NULL,
+    15,
+    0,
+    'metric',
+    '{"provider":"open-meteo"}',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+) ON CONFLICT(id) DO NOTHING;
+
+INSERT INTO server_settings (setting_key, setting_value, value_type, updated_at) VALUES
+    ('alert_channel', 'none', 'text', CURRENT_TIMESTAMP),
+    ('influx_retention_days', '365', 'integer', CURRENT_TIMESTAMP),
+    ('mqtt_base_topic', 'smarthome', 'text', CURRENT_TIMESTAMP),
+    ('ui_forecast_enabled', '0', 'boolean', CURRENT_TIMESTAMP),
+    ('ui_scenes_enabled', '0', 'boolean', CURRENT_TIMESTAMP),
+    ('weather_provider', 'open-meteo', 'text', CURRENT_TIMESTAMP)
+ON CONFLICT(setting_key) DO NOTHING;

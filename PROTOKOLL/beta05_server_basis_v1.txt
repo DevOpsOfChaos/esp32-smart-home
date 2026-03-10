@@ -1,0 +1,41 @@
+Stand: beta05
+Datei: beta05_server_basis_v1.txt
+Datum: 2026-03-10
+Autor: Codex
+
+1. Anlass
+- Der Serverteil hatte nur einen unsauberen Vorzustand mit veralteter Compose-Ablage und versionierten lokalen Secret-Dateien.
+- Fuer die Serverseite fehlte eine reproduzierbare V1 mit klarer Speichertrennung, MQTT-Verarbeitung und Dashboard-Grundstruktur.
+
+2. Aenderung
+- Compose-Basis fuer Mosquitto, Node-RED und InfluxDB aufgebaut.
+- Lokale Secret-Dateien aus dem Repo entfernt und auf Example-/Default-Dateien umgestellt.
+- SQLite-Schema fuer Geraete, Raeume, Capabilities, Config, Last-State, Automationen, Audit und Wetter angelegt.
+- Node-RED-Generator fuer MQTT-Ingest, automatische Geraeteanlage, Status-/State-Speicherung, Influx-Schreibpfad und FlowFuse-Dashboard erstellt.
+- MQTT-Vertrag und Serverdoku auf den V1-Stand gezogen.
+
+3. Begruendung
+- Ohne saubere V1 entsteht sofort wieder derselbe Fehler wie im Altbestand: viele lose Ideen, aber keine belastbare Serverbasis.
+- Der technische Schwerpunkt liegt auf korrekter Datenhaltung und nachvollziehbarem MQTT-Vertrag, nicht auf Schein-Komfort.
+
+4. Verbesserungseffekt
+- Neustartfaehige Serverbasis mit klaren Diensten und klarer Datenverantwortung.
+- Neue Geraete werden sofort sichtbar und in SQLite registriert.
+- Sensor-Zeitreihen und operative Serverdaten sind sauber getrennt.
+- Das Dashboard hat reale Seiten statt Platzhalter-Ordner.
+
+5. Risiken / Trade-offs
+- Broker-Haertung ist in V1 noch offen.
+- Wetter ist nur vorbereitet, nicht produktiv.
+- Historische Influx-Abfragen fuer Diagramme fehlen noch.
+- Das Dashboard ist funktional, aber noch bewusst technisch.
+
+6. Teststatus
+- `build-server-v1-flows.js` in einem Node-20-Container ausgefuehrt.
+- generierte `flows.json` per `ConvertFrom-Json` geprueft.
+- Container wurden in dieser Session noch nicht komplett gebaut und gestartet.
+
+7. Lehrerblick
+- Die Eigenleistung liegt in der neuen Serverbasis, nicht im Kopieren alter Flows.
+- Altbestand wurde nicht als aktive Basis uebernommen.
+- Der Stand ist fachlich nachvollziehbar, weil Architektur, Topics, Speichertrennung und UI-Grenzen konsistent aufeinander abgestimmt sind.

@@ -1,0 +1,76 @@
+Stand: beta09
+Datei: beta09_influx_schreibpfad_verifiziert.txt
+Datum: 2026-03-10
+Autor: Codex
+
+1. Anlass
+- Der InfluxDB-Schreibpfad der bestehenden Serverbasis sollte mit kontrollierten MQTT-Testdaten belastbar nachgewiesen werden.
+- Ziel war kein Ausbau des Servers, sondern die Verifikation und nur bei echtem Defekt die minimale Korrektur der Ingest-Logik.
+
+2. Befund vor der Korrektur
+- Der produktive Test gegen einen frischen Compose-Stack zeigte zwei reale Defekte:
+  - die generierte `flows.json` verlor die `id`-Felder der MQTT-Input-Nodes und verhinderte damit eine saubere MQTT-Anbindung
+  - der aktive Influx-Builder schrieb zwar Influx-Punkte, aber nicht im benoetigten Schema mit `metric`-Tag und `value_num`
+- Zusaetzlich wurde bei der Verifikation sichtbar, dass alte Node-RED-Volumes fruehere Flows konservieren koennen. Fuer belastbare Nachweise wurde deshalb mit einem frischen Compose-Projekt und frischen Volumes gearbeitet.
+
+3. Aenderung
+- Die MQTT-Input-Node-Generierung im Flow-Builder wurde auf explizite `nodeId`-Objekte umgestellt.
+- Der Influx-Builder schreibt jetzt pro numerischem Sensorwert aus `state.sensors` genau einen Punkt nach `smarthome_sensor`.
+- Tags im Influx-Punkt:
+  - `node_id`
+  - `device_type`
+  - `room` falls vorhanden
+  - `metric`
+  - `unit` falls ableitbar
+- Feld im Influx-Punkt:
+  - `value_num`
+- Boolesche, textuelle und offensichtliche Aktor-/Statusfelder werden fuer Influx verworfen.
+
+4. Verwendete Testdaten
+- Topic `smarthome/node/net_sen_test_fix_02/meta` mit realitaetsnahen Metadaten fuer einen Test-Sensorknoten:
+  - `device_id = net_sen_test_fix_02`
+  - `device_type = net_sen`
+  - `room = labor`
+  - Capabilities fuer Temperatur, Feuchte, eCO2, TVOC, Lux und Batteriespannung
+- Topic `smarthome/node/net_sen_test_fix_02/state` mit bewusst gemischtem Payload:
+  - numerische Sensordaten: `temp_c`, `humidity_pct`, `eco2_ppm`, `tvoc_ppb`, `lux`, `battery_mv`
+  - ungeeignete Werte: `status_text`, `window_state`, `battery_low`, `relay_1`, `relay_2`, `dew_point_c`, `comfort_index`, `ventilation_needed`
+
+5. Nachweis
+- Reale MQTT-Ingestion bestaetigt ueber `audit_log`:
+  - `smarthome/node/net_sen_test_fix_02/meta`
+  - `smarthome/node/net_sen_test_fix_02/state`
+- Positiver Influx-Query-Nachweis gegen Bucket `smarthome`:
+  - Measurement: `smarthome_sensor`
+  - Field: `value_num`
+  - Tags: `node_id=net_sen_test_fix_02`, `device_type=net_sen`, `room=labor`
+  - gefundene Metrics:
+    - `battery_mv = 3748`
+    - `eco2_ppm = 612`
+    - `humidity_pct = 46.2`
+    - `lux = 318`
+    - `temp_c = 21.7`
+    - `tvoc_ppb = 87`
+- Nicht in Influx gefunden:
+  - `relay_1`, `relay_2`
+  - `battery_low`
+  - `status_text`
+  - `window_state`
+  - `dew_point_c`
+  - `comfort_index`
+  - `ventilation_needed`
+
+6. Verbesserungseffekt
+- Der Influx-Schreibpfad ist fuer den aktuellen Serverstand jetzt reproduzierbar pruefbar.
+- Die Ingestion schreibt nur noch echte numerische Sensorwerte im erwarteten Punktschema.
+- Die Abfrage gegen den Bucket ist fuer denselben Testknoten reproduzierbar.
+
+7. Teststatus
+- Echte Docker-Compose-Ausfuehrung eines frischen Test-Stacks mit Mosquitto, Node-RED und InfluxDB
+- Echte MQTT-Publishes ueber `mosquitto_pub`
+- Echte SQLite-Pruefung des Audit-Trails
+- Echte Flux-Query gegen den Influx-Bucket
+
+8. Grenzen
+- Die Verifikation bezog sich bewusst nur auf den Influx-Schreibpfad fuer `node/.../state`.
+- Wetter, Automationen, Dashboard-Politur und Architekturumbauten wurden nicht angefasst.

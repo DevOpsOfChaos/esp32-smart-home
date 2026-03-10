@@ -41,10 +41,20 @@ credentials*.h
 
 # Server Secrets und Laufzeitdaten
 server/config/*.local.*
+server/config/.env
 server/config/mosquitto/config/
+server/config/mosquitto/config/passwd*
 server/data/
 server/runtime/
 server/node_modules/
+server/docker-compose.override.yml
+server/docker-compose.override.yaml
+server/docker-compose.local.yml
+server/docker-compose.local.yaml
+server/docker-compose.*.local.yml
+server/docker-compose.*.local.yaml
+server/nodered/_generated_v1_flows.tmp.json
+server/nodered/_generated_v1_flows*.tmp.json
 
 # Lokale Overrides und temporaere Dateien
 private/

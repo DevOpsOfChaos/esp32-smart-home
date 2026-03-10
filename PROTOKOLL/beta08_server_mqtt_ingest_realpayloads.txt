@@ -1,0 +1,69 @@
+Anlass
+- Die Serverbasis musste gegen reale bzw. realitaetsnahe MQTT-Payloads aus dem aktuellen V1-Vertrag sowie dem Stand von `master` und `net_erl` validiert werden.
+- Ziel war keine neue Funktion, sondern die Schaerfung der vorhandenen Ingestion fuer echte Topics und Payloadformen.
+
+Aenderung
+- Die Node-RED-Ingestion verarbeitet jetzt explizit:
+  - `smarthome/server/status`
+  - `smarthome/master/<master_id>/status`
+  - `smarthome/master/<master_id>/event`
+  - `smarthome/node/<node_id>/meta`
+  - `smarthome/node/<node_id>/status`
+  - `smarthome/node/<node_id>/state`
+  - `smarthome/node/<node_id>/event`
+  - `smarthome/node/<node_id>/ack`
+  - `smarthome/node/<node_id>/cfg/report`
+- Unbekannte Master und Nodes werden automatisch in `devices` angelegt.
+- `status`, `state`, `event` und `ack` bleiben in SQLite getrennt.
+- `cfg/report` wird in `device_config` persistiert.
+- Influx bekommt nur numerische Sensorwerte aus `state`.
+- Dabei werden sowohl strukturierte `sensors`-Payloads als auch reale Root-Felder wie `temp_01c`, `hum_01pct`, `battery_pct`, `battery_mv` und `rain_raw` akzeptiert.
+- Retained `event` und retained `ack` werden zwar auditiert, aber nicht mehr fuer Registry- oder Last-State-Updates benutzt.
+- Die begleitende Dokumentation wurde auf diese reale Ingest-Semantik gezogen.
+
+Begruendung
+- Die alte Ingestion war an mehreren Stellen inkonsistent:
+  - wichtige Vertrags-Topics waren noch gar nicht angebunden
+  - `cfg/report` fehlte in SQLite
+  - Sensor-Ingestion nach Influx war nicht sauber gegen unpassende Felder abgegrenzt
+  - retained Transients konnten noch in die Geraete-Registry einsickern
+  - die Flow-Funktion fuer Device-Upsert hatte einen unnoetigen zweiten Rueckgabekanal trotz nur eines konfigurierten Outputs
+- Das ist kein Detailfehler, sondern fuehrt spaeter zu stillen Datenfehlern.
+
+Verbesserungseffekt
+- Die Serverbasis verarbeitet jetzt den MQTT-V1-Vertrag deutlich konsistenter.
+- Reale oder realitaetsnahe Status-, State-, Event-, Ack- und Config-Payloads fuehren zu nachvollziehbarer Persistenz in SQLite.
+- Sensorische Zahlenwerte landen sauber in Influx, boolesche Aktor- oder Statuswerte nicht.
+- Die Auto-Anlage neuer Master und Nodes funktioniert fuer gueltige Vertragsnachrichten ohne Zusatzlogik.
+
+Risiken / Trade-offs
+- Ein altes `smarthome/master/status` ohne `<master_id>` bleibt absichtlich ausserhalb des V1-Vertrags.
+- Wenn alte Firmware diesen Legacy-Topic weiterhin nutzt, sieht der Server diesen Master-Status bewusst nicht als gueltig an.
+- Retained `event` oder retained `ack` werden nur geloggt; wer so etwas im Broker hat, muss die Quelle korrigieren statt den Server weich zu spuelen.
+
+Teststatus
+- Ausgefuehrt wurde eine echte Funktionsvalidierung der generierten Node-RED-Flow-Funktionen gegen folgende realen bzw. realitaetsnahen Beispiele:
+  - `smarthome/server/status`
+  - `smarthome/master/master_01/status`
+  - `smarthome/master/master_01/event`
+  - `smarthome/node/net_erl_01/meta`
+  - `smarthome/node/net_erl_01/status`
+  - `smarthome/node/net_erl_01/state`
+  - `smarthome/node/net_sen_01/state`
+  - `smarthome/node/bat_sen_01/state`
+  - `smarthome/node/net_erl_01/event`
+  - `smarthome/node/net_erl_01/ack`
+  - `smarthome/node/net_erl_01/cfg/report`
+  - negative Faelle mit retained `event` und retained `ack`
+- Die erzeugten SQL-Statements wurden gegen `server/db/schema.sql` in einer SQLite-In-Memory-Datenbank ausgefuehrt.
+- Zusaetzlich wurde die JS-Syntax von `server/nodered/build-flows.js` mit Node 20 geprueft.
+
+Lehrerblick: Eigenleistung vs. Uebernahme
+- Eigenleistung:
+  - Analyse des bestehenden MQTT-Vertrags und der aktuellen Serverbasis
+  - Ableitung realitaetsnaher Payload-Faelle aus Doku und Firmwarestand
+  - gezielte Schaerfung der Ingest-Logik ohne Architekturumbau
+  - nachvollziehbare Verifikation gegen Flow-Funktionen und SQLite-Schema
+- Uebernahme:
+  - keine fremde Architektur oder Fremdflows uebernommen
+  - keine externe Testsüite importiert

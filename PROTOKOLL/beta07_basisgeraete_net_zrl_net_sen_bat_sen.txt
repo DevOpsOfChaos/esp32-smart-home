@@ -1,0 +1,87 @@
+Stand: beta07
+Datei: beta07_basisgeraete_net_zrl_net_sen_bat_sen.txt
+Datum: 2026-03-10
+Autor: Codex
+
+1. Anlass
+- Die reale Minimalstrecke `net_erl_01 <-> master` war vorhanden, die drei
+  weiteren Basisgeraete `net_zrl`, `net_sen` und `bat_sen` waren aber nur
+  als kompilierende Platzhalter vorhanden.
+- Damit stand zwar eine Architekturidee im Repo, aber keine saubere
+  Firmware-Linie fuer alle vier Basisgeraete.
+
+2. Aenderung
+- `master` wurde von genau einem Pilot-Node auf vier feste Basisnodes
+  erweitert:
+  `net_erl_01`, `net_zrl_01`, `net_sen_01`, `bat_sen_01`
+- `master` verarbeitet jetzt fuer diese vier Basen:
+  `HELLO`, `HELLO_ACK`, `HEARTBEAT`, `STATE_REPORT` und `EVENT`
+- Die MQTT-Pfade wurden auf die dokumentierte Semantik aus
+  `docs/04_mqtt_topics.md` gezogen:
+  `smarthome/master/<master_id>/status`
+  `smarthome/node/<node_id>/meta`
+  `smarthome/node/<node_id>/status`
+  `smarthome/node/<node_id>/state`
+  `smarthome/node/<node_id>/event`
+  `smarthome/node/<node_id>/cmd/set`
+  `smarthome/node/<node_id>/cmd/get`
+- `net_zrl` ist jetzt eine echte Zwei-Relais-Basis mit derselben
+  ESP-NOW-Kommunikationslinie wie `net_erl`; Cover-Schutzlogik bleibt nur
+  im aktivierten Cover-Modus wirksam.
+- `net_sen` sendet jetzt echte `HELLO`-/`HEARTBEAT`-/`STATE_REPORT`
+  Nachrichten mit generischen Sensorfeldern und optionalem Motion-Ereignis.
+- `bat_sen` sendet jetzt echte `HELLO`-/`HEARTBEAT`-/`STATE_REPORT`
+  Nachrichten sowie Events fuer Reed/Taster. Deep-Sleep wurde bewusst nicht
+  pseudo-fertig aktiviert.
+- `Protocol.h` fuehrt dafuer kompakte feste State-/Event-Payloads fuer die
+  drei neuen Basen ein, statt eine neue Sonderarchitektur aufzuziehen.
+- `platformio.ini` wurde fuer die ESP32-C3-Umgebungen vereinheitlicht.
+
+3. Begruendung
+- Vorher war nur `net_erl` real eingebunden. Alles andere war Kulisse.
+- Eine saubere Basisgeraete-Linie braucht keine Fantasie-Architektur,
+  sondern dieselbe echte Transport- und Meldelogik fuer jede Basisklasse.
+- `bat_sen` als "batteriebetrieben" zu etikettieren und gleichzeitig eine
+  ungepruefte Deep-Sleep-Orchestrierung hineinzuschreiben waere nur Blendwerk
+  gewesen. Deshalb bleibt der Sleep-Teil bewusst offen, waehrend Build und
+  Integration jetzt stimmen.
+
+4. Verbesserungseffekt
+- Alle vier Basisgeraete haengen jetzt am selben realen ESP-NOW-Protokollpfad.
+- `master` fuehrt Status, Meta, State und Event fuer die Basen konsistent
+  ueber MQTT.
+- `net_zrl` ist als allgemeine Zwei-Relais-Basis nutzbar, ohne wieder zur
+  versteckten Rolladen-Spezialfirmware zu verkommen.
+- Die Serverseite bekommt damit eine klarere und konsistentere Firmware-Basis,
+  ohne dass in diesem Task bereits Serverlogik angefasst werden musste.
+
+5. Risiken / Trade-offs
+- Es gibt weiterhin keine offene Registry oder dynamische Discovery ueber
+  beliebig viele Nodes; der Master kennt genau vier feste Basisnodes.
+- Die State-Payloads sind bewusst kompakte feste Strukturen und noch keine
+  allgemeine TLV-Laufzeitdarstellung.
+- `net_sen` und `bat_sen` nutzen generische Platzhalterwerte, solange keine
+  echten Sensortreiber oder Kalibrierungen belegt sind.
+- Deep-Sleep fuer `bat_sen` bleibt offen.
+- Keine Hardwaretests in diesem Stand, nur Build- und Codeintegration.
+
+6. Teststatus
+- Erfolgreich gebaut:
+  `platformio run -e master`
+  `platformio run -e net_erl`
+  `platformio run -e net_zrl`
+  `platformio run -e net_sen`
+  `platformio run -e bat_sen`
+- Nicht durchgefuehrt:
+  Flash auf Hardware, realer MQTT-Run mit den neuen Basen, echter
+  Sensor-/Reed-/Tastertest, Deep-Sleep-Test.
+
+7. Lehrerblick
+- Eigenleistung steckt hier nicht in Feature-Show, sondern in der
+  kontrollierten Rueckfuehrung von drei Platzhalter-Firmwares auf dieselbe
+  reale Kommunikationslinie wie die verifizierte Minimalstrecke.
+- Als Referenz genutzt wurden nur die vorhandene `net_erl`-Strecke, das
+  bestehende Protokoll und die dokumentierten Architekturregeln.
+- Fachlich nachvollziehbar ist der Stand, weil er die zentrale Projektgrenze
+  sauber einhaelt: Nodes nur ESP-NOW, MQTT nur im Master, keine neue
+  Sonderarchitektur und keine behaupteten Tests, die nie gelaufen sind.

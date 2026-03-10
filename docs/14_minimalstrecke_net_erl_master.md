@@ -10,12 +10,20 @@ Die erste lauffaehige Vertikalstrecke ist bewusst auf genau ein Pilotgeraet begr
 - MQTT-`set_relay` wird als `COMMAND_SET_RELAY` an `net_erl_01` zurueckgesendet
 - nach Relaisaenderung sendet `net_erl_01` einen neuen `STATE_REPORT`
 
+Erweiterungsstand derselben Firmware-Linie:
+
+- `master` kennt jetzt zusaetzlich die festen Basisnodes `net_zrl_01`, `net_sen_01` und `bat_sen_01`
+- diese drei Basen sind im Code und Build integriert, aber in diesem Dokument nicht als real verifizierte Minimalstrecke behauptet
+- die reale Nachweisstrecke dieses Dokuments bleibt `net_erl_01`
+
 MQTT-Topics der Minimalstrecke:
 
-- `smarthome/master/status`
+- `smarthome/master/MASTER-001/status`
+- `smarthome/node/net_erl_01/meta`
 - `smarthome/node/net_erl_01/status`
 - `smarthome/node/net_erl_01/state`
-- `smarthome/node/net_erl_01/command`
+- `smarthome/node/net_erl_01/cmd/set`
+- `smarthome/node/net_erl_01/cmd/get`
 
 ## Geaenderte Dateien
 - `firmware/platformio.ini`
@@ -32,11 +40,11 @@ MQTT-Topics der Minimalstrecke:
 ## Testablauf
 1. `master` flashen und seriellen Monitor oeffnen.
 2. Lokale `Secrets.h` mit gueltigem WLAN und MQTT-Broker bereitstellen.
-3. MQTT-Broker starten und `smarthome/master/status`, `smarthome/node/net_erl_01/status` und `smarthome/node/net_erl_01/state` abonnieren.
+3. MQTT-Broker starten und `smarthome/master/MASTER-001/status`, `smarthome/node/net_erl_01/meta`, `smarthome/node/net_erl_01/status` und `smarthome/node/net_erl_01/state` abonnieren.
 4. `net_erl` flashen und seriellen Monitor oeffnen.
 5. Pruefen, dass `master` `HELLO` von `net_erl_01` loggt und den Node online publiziert.
 6. Pruefen, dass nach `HELLO_ACK` ein `STATE_REPORT` in MQTT ankommt.
-7. MQTT-Command senden:
+7. MQTT-Command an Topic `smarthome/node/net_erl_01/cmd/set` senden:
 
 ```json
 {"cmd":"set_relay","relay_1":true,"request_id":"cmd_0001"}
@@ -47,10 +55,12 @@ MQTT-Topics der Minimalstrecke:
 10. `net_erl` ausschalten oder Funk trennen und pruefen, dass `master` nach rund 15 Sekunden offline publiziert.
 
 ## Bekannte Grenzen
-- genau ein Pilot-Node: `net_erl_01`
-- keine Unterstuetzung fuer `net_zrl`
+- reale Nachweisstrecke dieses Dokuments bleibt genau ein Pilot-Node: `net_erl_01`
+- keine offene Mehrgeraete-Registry; im Master sind vier feste Basisnodes hinterlegt:
+  `net_erl_01`, `net_zrl_01`, `net_sen_01`, `bat_sen_01`
 - kein Cover-Modus
 - keine Weboberflaeche
 - kein generisches Registry-/Mehrgeraete-Handling
 - keine ACK-/Retry-Logik fuer Commands
 - `net_erl` arbeitet ohne lokale Taster- oder Komfortlogik
+- `net_zrl`, `net_sen` und `bat_sen` sind in diesem Stand nur build- und codeintegriert, nicht real auf Hardware nachgewiesen

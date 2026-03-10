@@ -38,6 +38,7 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 
 // Node gilt nach ausbleibenden HEARTBEATs als offline.
 constexpr unsigned long NODE_OFFLINE_TIMEOUT_MS = 15000UL;
+constexpr unsigned long BATTERY_NODE_OFFLINE_TIMEOUT_MS = 900000UL;
 
 // Takt der Hauptschleife.
 constexpr unsigned long LOOP_INTERVAL_MS = 10UL;

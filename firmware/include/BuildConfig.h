@@ -9,5 +9,5 @@
 // ============================================================
 
 #define SH_BUILD_NAME        "neubasis"
-#define SH_BUILD_VERSION     "0.2.1"
+#define SH_BUILD_VERSION     "0.2.2"
 #define SH_BUILD_DEBUG       1

@@ -14,8 +14,9 @@ Es ist die neue, veröffentlichbare Arbeitsbasis für:
 
 ## Aktueller lauffaehiger Stand
 Stand 2026-03-10:
-- minimale Vertikalstrecke `net_erl_01 -> master -> MQTT -> master -> net_erl_01`
-- genau ein Pilotgeraet, keine Ausweitung auf weitere Nodes oder Komfortfunktionen
+- reale Minimalstrecke `net_erl_01 -> master -> MQTT -> master -> net_erl_01`
+- feste Basisgeraete `net_zrl_01`, `net_sen_01` und `bat_sen_01` sind jetzt ebenfalls in dieselbe Firmware-Linie integriert
+- Hardware-nachgewiesen bleibt in diesem Stand nur die `net_erl`-Minimalstrecke; die drei weiteren Basen sind Build-/Code-integriert, aber nicht geflasht oder praktisch verifiziert
 - Kurzbeschreibung, Testablauf und Grenzen: `docs/14_minimalstrecke_net_erl_master.md`
 - verbindlicher Hardware-Pinstandard: `docs/15_hardware_pinstandard.md`
 
