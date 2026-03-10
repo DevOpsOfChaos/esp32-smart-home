@@ -76,6 +76,15 @@ Er darf **nicht** als neue Basis hineinkopiert werden.
 5. `docs/08_altbestand_zerlegung.md`
 6. `docs/11_implementierungsphasen.md`
 
+## Steuerdateien fuer neue Chats
+Diese Dateien halten den Projektkontext im Repository und nicht im Chatverlauf:
+
+- `AGENTS.md`
+- `docs/PROJECT_CONTEXT.md`
+- `docs/CURRENT_SPRINT.md`
+- `docs/TASK_QUEUE.md`
+- `docs/DECISIONS.md`
+
 ## Arbeitsregeln fuer dieses Repository
 - Code-Arbeitsordner lokal: `C:\Users\mries\Documents\Playground\smarthome-esp32`
 - OneDrive dient nur fuer Doku, Begleitdateien, Exporte und Backups
