@@ -1,0 +1,48 @@
+Stand: beta10
+Datei: beta10_master_mqtt_v1_topics_korrigiert.txt
+Datum: 2026-03-10
+Autor: Codex
+
+1. Anlass
+- Der finale MQTT-Vertrag V1 fordert fuer den Master die Topics `smarthome/master/<master_id>/status` und `smarthome/master/<master_id>/event`.
+- Die reale Firmware publizierte zwar bereits den Status unter `smarthome/master/<master_id>/status`, bediente aber keinen eigenen Master-`event`-Kanal.
+- Den Server weich auf diese Luecke zu trimmen waere die falsche Richtung gewesen. Der Fehler lag in der Master-Firmware.
+
+2. Aenderung
+- Die Master-Topic-Bildung wurde auf einen gemeinsamen Builder fuer `status` und `event` gezogen.
+- Der retained Master-Status bleibt auf `smarthome/master/<master_id>/status`.
+- Der Master publiziert jetzt zusaetzlich bei erfolgreichem MQTT-Session-Aufbau ein transient `mqtt_connected` nach `smarthome/master/<master_id>/event`.
+- Die serielle Startmeldung des Masters nennt jetzt den kompletten Master-V1-Baum `master/<id>/(status|event)`.
+- `docs/DECISIONS.md` wurde nicht geaendert, weil der Vertrag dort nicht falsch war; die verbindliche Topic-Form ist bereits in `docs/04_mqtt_topics.md` eindeutig festgezogen.
+
+3. Begruendung
+- Ein "fast richtiger" Vertrag ist wertlos. Wenn `master/event` im V1-Baum steht, aber die Firmware diesen Kanal nie nutzt, ist der Vertrag faktisch gebrochen.
+- Die Korrektur musste im Master erfolgen, nicht als Legacy- oder Sonderfall im Server.
+- Die Aenderung bleibt absichtlich klein: keine neue Geraetelogik, keine ESP-NOW-Umbauten, keine Serveraenderung.
+
+4. Verbesserungseffekt
+- Die eigenen MQTT-Nachrichten des Masters laufen jetzt konsistent ueber die finalen V1-Topics.
+- Der Server kann Master-Status und echte Master-Events ohne Sonderbehandlung ingestieren.
+- Die bestehende Minimalstrecke `master + net_erl` bleibt unangetastet; die Node-Topics und Command-Subscriptions wurden nicht umgebaut.
+
+5. Risiken / Trade-offs
+- Der neue Master-Event-Kanal emittiert in diesem Stand bewusst nur ein minimales `mqtt_connected` beim Verbindungsaufbau. Eine breitere Master-Event-Taxonomie ist weiterhin offen und war nicht Teil dieses Tasks.
+- Historische Protokolleintraege wie `beta03_minimalstrecke_net_erl_master.txt` bleiben unveraendert, auch wenn sie den damaligen Altstand mit altem Master-Topic dokumentieren.
+- Kein Flash, kein MQTT-Lauf gegen reale Hardware und kein Broker-Mitschnitt in diesem Task.
+
+6. Teststatus
+- Erfolgreich gebaut:
+  - `platformio run -e master`
+  - `platformio run -e net_erl`
+  - `platformio run -e net_zrl`
+  - `platformio run -e net_sen`
+  - `platformio run -e bat_sen`
+- Nicht durchgefuehrt:
+  - Flash auf Hardware
+  - MQTT-Lauf gegen echten Broker
+  - ESP-NOW-Funktest mit realem `net_erl`
+
+7. Lehrerblick
+- Die Eigenleistung steckt hier in der sauberen Rueckfuehrung eines realen Vertragsbruchs auf die richtige Schicht: Firmware statt Server-Fallback.
+- Als Referenz genutzt wurden die bestehende Master-Firmware, der festgezogene MQTT-Vertrag in `docs/04_mqtt_topics.md` und die aktuelle Build-Basis.
+- Fachlich nachvollziehbar ist der Stand, weil er exakt eine Inkonsistenz beseitigt, ohne die Architektur oder die Geraetebasen nebenbei umzubauen.

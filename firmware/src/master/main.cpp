@@ -204,8 +204,8 @@ void schreibeUIntOrNull(char* buffer, size_t bufferSize, unsigned long value, un
     snprintf(buffer, bufferSize, "%lu", value);
 }
 
-void baueMasterTopic(char* buffer, size_t bufferSize) {
-    snprintf(buffer, bufferSize, "smarthome/master/%s/status", DEVICE_ID);
+void baueMasterTopic(const char* channel, char* buffer, size_t bufferSize) {
+    snprintf(buffer, bufferSize, "smarthome/master/%s/%s", DEVICE_ID, channel);
 }
 
 void baueNodeTopic(size_t nodeIndex, const char* suffix, char* buffer, size_t bufferSize) {
@@ -304,6 +304,19 @@ void baueMasterStatusJson(char* buffer, size_t bufferSize, bool online) {
         "{\"master_id\":\"%s\",\"online\":%s,\"wifi\":%s,\"mqtt\":%s,\"espnow\":%s,\"fw\":\"%s\"}",
         DEVICE_ID,
         online ? "true" : "false",
+        masterStatus.wlan_verbunden ? "true" : "false",
+        masterStatus.mqtt_verbunden ? "true" : "false",
+        masterStatus.espnow_bereit ? "true" : "false",
+        PROJECT_VERSION);
+}
+
+void baueMasterEventJson(char* buffer, size_t bufferSize, const char* eventName) {
+    snprintf(
+        buffer,
+        bufferSize,
+        "{\"master_id\":\"%s\",\"event\":\"%s\",\"online\":true,\"wifi\":%s,\"mqtt\":%s,\"espnow\":%s,\"fw\":\"%s\"}",
+        DEVICE_ID,
+        eventName ? eventName : "unknown",
         masterStatus.wlan_verbunden ? "true" : "false",
         masterStatus.mqtt_verbunden ? "true" : "false",
         masterStatus.espnow_bereit ? "true" : "false",
@@ -454,9 +467,17 @@ void publishTransient(const char* topic, const char* payload) {
 void publishMasterStatus() {
     char topic[96] = {0};
     char payload[192] = {0};
-    baueMasterTopic(topic, sizeof(topic));
+    baueMasterTopic("status", topic, sizeof(topic));
     baueMasterStatusJson(payload, sizeof(payload), true);
     publishRetained(topic, payload);
+}
+
+void publishMasterEvent(const char* eventName) {
+    char topic[96] = {0};
+    char payload[224] = {0};
+    baueMasterTopic("event", topic, sizeof(topic));
+    baueMasterEventJson(payload, sizeof(payload), eventName);
+    publishTransient(topic, payload);
 }
 
 void publishNodeMeta(size_t nodeIndex) {
@@ -497,6 +518,7 @@ void publishNodeEvent(size_t nodeIndex, const SmartHome::EventReportPayload& pay
 
 void publishBekannteNodesNachReconnect() {
     publishMasterStatus();
+    publishMasterEvent("mqtt_connected");
 
     for (size_t i = 0; i < NODE_COUNT; ++i) {
         publishNodeMeta(i);
@@ -989,7 +1011,7 @@ void pruefeMqttVerbindung() {
 
     char willTopic[96] = {0};
     char willPayload[192] = {0};
-    baueMasterTopic(willTopic, sizeof(willTopic));
+    baueMasterTopic("status", willTopic, sizeof(willTopic));
     baueMasterStatusJson(willPayload, sizeof(willPayload), false);
 
     bool verbunden = mqttClient.connect(
@@ -1050,7 +1072,7 @@ void gibStartmeldungAus() {
         Serial.print(NODE_DEFINITIONS[i].device_type);
         Serial.println(")");
     }
-    Serial.println("MQTT: master/<id>/status und node/<id>/(meta|status|state|event)");
+    Serial.println("MQTT: master/<id>/(status|event) und node/<id>/(meta|status|state|event)");
     Serial.println("================================");
 }
 
