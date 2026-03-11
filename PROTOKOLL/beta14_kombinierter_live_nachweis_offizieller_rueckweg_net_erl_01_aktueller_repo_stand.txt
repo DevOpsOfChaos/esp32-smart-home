@@ -1,0 +1,100 @@
+Stand: beta14
+Datei: beta14_kombinierter_live_nachweis_offizieller_rueckweg_net_erl_01_aktueller_repo_stand.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Der offizielle Rueckweg fuer `net_erl_01` sollte im aktuellen Repo-Stand nicht nur in Teilnachweisen, sondern in genau einem realen kombinierten Live-Lauf belegt werden:
+  `Server/Node-RED -> MQTT cmd/set -> SQLite audit_log egress -> Master -> net_erl -> MQTT state -> SQLite state`.
+- Dabei durfte keine neue Feature-Logik gebaut werden. Nur die reale Betriebswahrheit des aktuellen Repos sollte nachgewiesen werden.
+
+2. Befund vor dem offiziellen Lauf
+- Ein reines `docker compose up --build -d` reichte fuer diesen Nachweis zunaechst nicht aus, weil das persistierte Volume `server_nodered_data` noch ein altes `/data/flows.json` fuhr.
+- Konkreter Effekt: Broker und Hardwarepfad reagierten bereits auf `cmd/set`, aber `audit_log` zeigte fuer denselben Lauf keine `direction = egress`-Zeilen.
+- Der Repo-Code war an dieser Stelle nicht das Problem. Die laufende Node-RED-Instanz nutzte schlicht nicht den aktuellen Generatorstand aus `server/nodered/build-flows.js`.
+
+3. Aenderung
+- Keine Architektur-, Topic-, Firmware- oder Server-Logik geaendert.
+- Der Server-Stack wurde fuer den offiziellen Lauf betrieblich sauber auf den aktuellen Repo-Stand gezogen:
+  - `docker compose down --remove-orphans`
+  - `docker volume rm server_nodered_data`
+  - `docker compose up --build -d`
+- `master` und `net_erl` wurden aus dem aktuellen Repo-Stand real gebaut und neu geflasht:
+  - `platformio.exe run -e master`
+  - `platformio.exe run -e net_erl`
+  - `platformio.exe run -e master -t upload --upload-port COM3`
+  - `platformio.exe run -e net_erl -t upload --upload-port COM10`
+
+4. Begruendung
+- Ein Nachweis gegen eine laufende Stale-Flow-Instanz ist fachlich wertlos, auch wenn der Quellcode im Repo richtig aussieht.
+- Der operative Eingriff blieb bewusst minimal: keine neue Flow-Logik, kein neues Topic, kein neuer Payload, keine Firmware-Erweiterung.
+- Erst nach frischer Node-RED-Datenbasis war der laufende Serverpfad wirklich identisch zum aktuellen Repo-Stand.
+
+5. Verbesserungseffekt
+- Der kombinierte offizielle Rueckweg ist jetzt im aktuellen Repo-Stand als ein zusammenhaengender Real-Lauf belegt.
+- `request_id` ist ueber Broker-Mitschnitt und SQLite-`audit_log` direkt nachvollziehbar.
+- `audit_log` und `device_last_state` bleiben semantisch sauber getrennt:
+  - `cmd/set` erscheint als `direction = egress` in `audit_log`
+  - `state` erscheint als `direction = ingest` in `audit_log`
+  - `device_last_state.state_json` spiegelt nur den echten Rueckweg-Status
+  - `cmd/set` erzeugt keinen kuenstlichen `device_last_state`-Eintrag
+
+6. Risiken / Trade-offs
+- Der versionierte Serverpfad bleibt bewusst eng auf `net_erl_01`; das ist kein generischer Multi-Device-Command-Baukasten.
+- Der Nachweis deckt keine ACK-/Retry-Detailpruefung, keine Langzeitstabilitaet und keine weiteren Basisgeraete ab.
+- Die reale Betriebsfalle mit `server_nodered_data` bleibt relevant: Wer Flow-Generator-Aenderungen pruefen will, darf persistierte Node-RED-Flows nicht blind weiterverwenden.
+
+7. Teststatus
+- Reale verwendete Hardware und Portzuordnung:
+  - `master -> COM3`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `net_erl -> COM10`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6B:6B:30`
+- Reale Server-Basis vor dem offiziellen Triggerlauf:
+  - `server-mosquitto-1`, `server-influxdb-1`, `server-nodered-1` gesund
+  - `/data/flows.json` in der laufenden Node-RED-Instanz enthaelt `link_out_audit_egress`
+  - Baseline nach frischer `server_nodered_data`:
+    - `SELECT COUNT(*) FROM audit_log WHERE topic='smarthome/node/net_erl_01/cmd/set';` -> `0`
+    - `device_last_state.state_json` fuer `net_erl_01` -> `{"node_id":"net_erl_01","relay_1":false,"fault":false}`
+- Reale Server-Trigger:
+  - `POST http://127.0.0.1:1880/inject/inject_net_erl_on` -> HTTP `200`
+  - `POST http://127.0.0.1:1880/inject/inject_net_erl_off` -> HTTP `200`
+- Reale passive Broker-Beobachtung:
+  - `2026-03-11T11:49:45+0000|smarthome/node/net_erl_01/cmd/set|{"cmd":"set_relay","relay_1":true,"request_id":"nodered_net_erl_01_on_1773229785657"}`
+  - `2026-03-11T11:49:45+0000|smarthome/node/net_erl_01/state|{"node_id":"net_erl_01","relay_1":true,"fault":false}`
+  - `2026-03-11T11:49:49+0000|smarthome/node/net_erl_01/cmd/set|{"cmd":"set_relay","relay_1":false,"request_id":"nodered_net_erl_01_off_1773229789679"}`
+  - `2026-03-11T11:49:49+0000|smarthome/node/net_erl_01/state|{"node_id":"net_erl_01","relay_1":false,"fault":false}`
+- Reale SQLite-Beobachtung `audit_log` fuer `cmd/set`:
+  - `id=8`, `occurred_at=2026-03-11T11:49:45.657Z`, `direction=egress`, `channel=cmd/set`, Payload mit `request_id=nodered_net_erl_01_on_1773229785657`
+  - `id=10`, `occurred_at=2026-03-11T11:49:49.679Z`, `direction=egress`, `channel=cmd/set`, Payload mit `request_id=nodered_net_erl_01_off_1773229789679`
+- Reale SQLite-Beobachtung `audit_log` fuer Rueckweg-`state`:
+  - `id=9`, `occurred_at=2026-03-11T11:49:45.680Z`, `direction=ingest`, `channel=state`, Payload `relay_1:true`
+  - `id=11`, `occurred_at=2026-03-11T11:49:49.711Z`, `direction=ingest`, `channel=state`, Payload `relay_1:false`
+- Reale SQLite-Beobachtung `device_last_state`:
+  - `status_json` bleibt getrennt: `{"node_id":"net_erl_01","online":true,"device_type":"net_erl","power_type":"mains","fw":"0.2.2"}`
+  - `state_json` nach OFF-Endzustand: `{"node_id":"net_erl_01","relay_1":false,"fault":false}`
+  - `state_at = 2026-03-11T11:49:49.711Z`
+  - `ack_json` leer
+  - `event_json` leer
+  - `SELECT COUNT(*) FROM audit_log WHERE topic='smarthome/node/net_erl_01/cmd/set' AND direction='ingest';` -> `0`
+- Reale Master-Serial-Beobachtungen:
+  - `MQTT empfangen smarthome/node/net_erl_01/cmd/set -> {"cmd":"set_relay","relay_1":true,"request_id":"nodered_net_erl_01_on_1773229785657"}`
+  - `COMMAND_SET_RELAY gesendet an 20:6E:F1:6B:6B:30`
+  - `MQTT retained smarthome/node/net_erl_01/state -> {"node_id":"net_erl_01","relay_1":true,"fault":false}`
+  - `STATE_REPORT von net_erl_01 verarbeitet`
+  - `MQTT empfangen smarthome/node/net_erl_01/cmd/set -> {"cmd":"set_relay","relay_1":false,"request_id":"nodered_net_erl_01_off_1773229789679"}`
+  - `COMMAND_SET_RELAY gesendet an 20:6E:F1:6B:6B:30`
+  - `MQTT retained smarthome/node/net_erl_01/state -> {"node_id":"net_erl_01","relay_1":false,"fault":false}`
+  - `STATE_REPORT von net_erl_01 verarbeitet`
+- Reale net_erl-Serial-Beobachtungen:
+  - `COMMAND_SET_RELAY empfangen: relay_1=true`
+  - `Relais physisch EIN auf GPIO10 (Master-Kommando)`
+  - `STATE_REPORT gesendet an 20:6E:F1:6D:92:C0`
+  - `COMMAND_SET_RELAY empfangen: relay_1=false`
+  - `Relais physisch AUS auf GPIO10 (Master-Kommando)`
+  - `STATE_REPORT gesendet an 20:6E:F1:6D:92:C0`
+- Ergebnis des offiziellen kombinierten Live-Nachweises:
+  - Bestanden fuer `net_erl_01` im aktuellen Repo-Stand, nachdem die stale Node-RED-Volume entfernt wurde
+
+8. Lehrerblick
+- Die Eigenleistung steckt hier nicht in neuer Feature-Logik, sondern in sauberer technischer Wahrheitsfindung: laufende Instanz gegen versionierten Generatorstand abgeglichen, die persistente Abweichung gefunden, den Stack betrieblich korrekt auf aktuellen Repo-Stand gebracht und danach den Rueckweg real ueber Hardware, Broker, SQLite und serielle Logs belegt.
+- Als Referenz genutzt wurden die vorhandenen Repo-Dokumente, der versionierte Flow-Generator und die bestehende Firmware-Basis. Es wurde kein Altprojekt reaktiviert und keine neue Nebenlogik eingebaut.
+- Fachlich nachvollziehbar ist der Stand, weil Trigger, Ports, Request-IDs, Broker-Payloads, SQLite-Zeilen und serielle Reaktionen konkret benannt sind und die vorherige Bruchstelle offen dokumentiert ist.

@@ -6,8 +6,9 @@
 - Bereits im Repo belegt:
   - reale Bring-up-Minimalstrecke `master <-> net_erl`: `docs/14_test_und_nachweisstand.md`, `PROTOKOLL/beta06_firmware_bringup_master_net_erl..txt`
   - Buildbasis fuer `master` und `net_erl`: `docs/14_test_und_nachweisstand.md`
+- Getrennt vom Runbook inzwischen ebenfalls belegt:
+  - offizieller kombinierter Live-Nachweis `Node-RED -> MQTT cmd/set -> SQLite audit_log egress -> Master -> net_erl -> MQTT state -> SQLite state`: `docs/14_test_und_nachweisstand.md`, `PROTOKOLL/beta14_kombinierter_live_nachweis_offizieller_rueckweg_net_erl_01_aktueller_repo_stand.txt`
 - Weiterhin offen:
-  - konsolidierter Gesamtbeleg `Node -> Master -> MQTT/Server -> Master -> Node`
   - ACK-/Retry-Nachweis, vollstaendige Servervalidierung, weitere Basisgeraete
 
 ## 2. Voraussetzungen
@@ -24,6 +25,7 @@
 - Fuer realen `master`-Bring-up mit WLAN und MQTT ist eine lokale `firmware/include/Secrets.h` mit gueltigen Werten noetig. Vorlage: `firmware/include/Secrets.example.h`.
 - MQTT/Broker ist nur fuer den `master`-Bring-up und die Minimal-Funktionspruefung relevant, nicht fuer den reinen Build von `net_erl`.
 - Wenn fuer den MQTT-Teil der versionierte Server-Stack unter `server/` genutzt wird, muss Docker Desktop real laufen. Fuer den Repo-Default muss der lokal ignorierte Ordner `server/config/mosquitto/config/` als Verzeichnis vorhanden sein, auch wenn er leer bleibt; sonst scheitert Mosquitto an `include_dir /mosquitto/config/local`.
+- Wenn fuer den serverseitigen Node-RED-Bedienpfad ein geaenderter versionierter Flow-Generatorstand geprueft werden soll, reicht ein blosses `docker compose up --build -d` nicht immer. Ein persistiertes `server_nodered_data` kann ein altes `/data/flows.json` weiterfahren; fuer einen echten Test des aktuellen Generatorstands die Node-RED-Datenbasis vorher gezielt erneuern, z. B. per `docker compose down` und `docker volume rm server_nodered_data`.
 
 ## 3. Relevante Build-Umgebungen
 
@@ -232,7 +234,7 @@ cd C:\Users\mries\Documents\Playground\smarthome-esp32\firmware
 
 ## 10. Offene Grenzen
 - Kein vollstaendiges Server-Runbook
-- Kein offizieller Gesamtbeleg ueber die komplette Strecke bis Server und zurueck
+- Dieses Dokument selbst ist nicht der offizielle Gesamtbeleg ueber die komplette Strecke bis Server und zurueck; der aktuelle Beleg fuer `net_erl_01` liegt getrennt in `docs/14_test_und_nachweisstand.md` und `PROTOKOLL/beta14_kombinierter_live_nachweis_offizieller_rueckweg_net_erl_01_aktueller_repo_stand.txt`
 - Kein belastbarer ACK-/Retry-Nachweis
 - Kein Nachweis fuer `net_zrl`, `net_sen` oder `bat_sen`
 - Kein vollstaendiger Offline-/Langzeittest

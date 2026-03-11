@@ -26,6 +26,7 @@ Nicht diese Datei:
 | Lokale MQTT-Broker-Auth in der Serverbasis | offen | offen | kein getrackter Nachweis im Repo-Stand |
 | Konsolidierter realer Gesamt-Nachweis fuer `net_erl_01` ueber serverseitigen Node-RED-Pfad | nachgewiesen | real hardware, real lokal | `PROTOKOLL/beta12_offizieller_serverseitiger_rueckweg_nachweis_net_erl_01.txt` |
 | SQLite-Audit fuer ausgehende serverseitige `cmd/set`-Publishes | nachgewiesen | real lokal | `PROTOKOLL/beta13_cmd_set_audit_sqlite_egress.txt` |
+| Kombinierter Live-Nachweis im aktuellen Repo-Stand fuer `net_erl_01` (`Node-RED -> cmd/set -> audit_log egress -> Master -> net_erl -> MQTT state -> device_last_state`) | nachgewiesen | real hardware, real lokal | `PROTOKOLL/beta14_kombinierter_live_nachweis_offizieller_rueckweg_net_erl_01_aktueller_repo_stand.txt` |
 | Reproduzierbarer Build-/Flash-/Seriell-Runbook | nachgewiesen | real hardware | `docs/16_build_flash_bringup_master_net_erl.md`, `PROTOKOLL/beta11_realer_retest_master_net_erl_mqtt_minimalpfad.txt` |
 
 ## Wichtige Klarstellungen
@@ -35,6 +36,7 @@ Nicht diese Datei:
 - `PROTOKOLL/beta11_realer_retest_master_net_erl_mqtt_minimalpfad.txt` belegt den erneuten realen Lauf mit aktuellem `master`-/`net_erl`-Stand, sichtbaren MQTT-V1-Topics und realem Relais-Schaltpfad. Der offizielle serverseitige Bedienpfad war dort noch nicht enthalten.
 - `PROTOKOLL/beta12_offizieller_serverseitiger_rueckweg_nachweis_net_erl_01.txt` belegt den offiziellen serverseitigen Rueckweg fuer `net_erl_01` ueber Node-RED im damaligen Stand. Der ausgehende `cmd/set`-Publish selbst war dort noch kein SQLite-Audit-Eintrag.
 - `PROTOKOLL/beta13_cmd_set_audit_sqlite_egress.txt` belegt den aktuellen Repo-Stand fuer genau diese Luecke: ausgehende serverseitige `cmd/set`-Publishes landen jetzt zusaetzlich in `audit_log`, ohne `device_last_state` oder eingehende `state`-/`event`-/`ack`-Semantik zu vermischen.
+- `PROTOKOLL/beta14_kombinierter_live_nachweis_offizieller_rueckweg_net_erl_01_aktueller_repo_stand.txt` belegt den kombinierten offiziellen Live-Lauf im aktuellen Repo-Stand. Der Lauf zeigte zusaetzlich eine reale Betriebsgrenze: Ein blosses `docker compose up --build -d` kann wegen persistiertem `server_nodered_data` ein altes `/data/flows.json` weiterfahren; fuer den echten Test neuer Flow-Generator-Staende muss die persistierte Node-RED-Datenbasis sauber erneuert oder die persistierte Flow-Datei bewusst ersetzt werden.
 
 ## Offene Nachweis- und Doku-Luecken
 - weitere serverseitige Rueckweg-Nachweise fuer andere Basisgeraete als `net_erl_01`
