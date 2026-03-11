@@ -1,0 +1,105 @@
+Stand: beta24
+Datei: beta24_net_sen_01_realnachweis_blockiert_sensorpfad_und_portlage.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Fuer `net_sen_01` sollte ein realer Hardware- und Serverpfad-Nachweis im aktuellen Repo-Stand gefahren werden.
+- Die Regeln waren dabei eng und sinnvoll:
+  - `master` bleibt auf `COM3`
+  - `net_erl_01` laeuft parallel extern und darf nicht gestoert werden
+  - `net_zrl_01` ist bereits real nachgewiesen und darf nicht unnoetig angefasst werden
+  - der Port des `net_sen`-Testgeraets darf nicht geraten werden
+  - keine Fake-Sensorwerte und keine Pseudo-Nachweise
+
+2. Aenderung
+- Keine Firmware-, Server-, Topic-, Flow-, Schema- oder Architektur-Aenderung.
+- Keine Uploads und kein Flash auf reale Hardware.
+- Nur reale Pruefung der Ausgangslage:
+  - Pflichtdoku und technisch relevante Dateien gelesen
+  - laufenden Server-Stack geprueft
+  - reale USB-/Portlage geprueft
+  - `net_sen`-Build geprueft
+  - MQTT-/SQLite-Sicht fuer `net_sen_01` geprueft
+
+3. Reale Befunde
+- Reale Portinventur per `platformio device list`:
+  - `COM3` -> `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `COM5` -> `USB VID:PID=303A:1001 SER=8C:D0:B2:A8:B0:89`
+- `COM3` ist das feste `master`-Geraet.
+- Die Hardware-ID auf `COM5` entspricht dem bereits in `beta22` und `beta23` real verwendeten und nachgewiesenen `net_zrl_01`-Testgeraet.
+- Es war damit aktuell kein eigener, separat zuordenbarer `net_sen`-USB-Port vorhanden.
+- Reale Serverbasis:
+  - `server-mosquitto-1`, `server-influxdb-1`, `server-nodered-1` liefen healthy
+- Reale SQLite-Sicht:
+  - `devices` zeigt `net_sen_01` nur als `offline`
+  - `device_last_state` enthaelt fuer `net_sen_01` nur `status_json`, aber kein `state_json` und kein `ack_json`
+  - `audit_log` enthaelt fuer `net_sen_01` nur `status|ingest`-Zeilen mit `online:false`
+  - Summen in `audit_log`: `meta=0`, `state=0`, `ack=0`, `status=26`
+- Reale MQTT-Sicht:
+  - auf `smarthome/node/net_sen_01/#` war nur retained `status` sichtbar
+  - kein `meta`, kein `state`, kein `ack`
+- Reale Influx-Sicht:
+  - Query auf Bucket `smarthome` fuer `node_id = net_sen_01` lieferte keine Punkte
+- Reale Build-Sicht:
+  - `platformio run -e net_sen` lief erfolgreich
+- Reale Firmware-Sicht in `firmware/src/net_sen/main.cpp`:
+  - Startbanner: `Sensor-Basis ohne feste Fachsensor-Treiber`
+  - `messeSensoren()` ist leer
+  - Temperatur, Feuchte und Lux starten auf Sentinel-Werten (`INT16_MIN`, `0xFFFF`, `0xFFFF`)
+  - `PIN_PIR = -1`, also auch kein real verdrahteter Motion-Pfad in der Repo-Basis
+- Reale Hardware-/Sensor-Doku:
+  - `hardware/net_sen/README.md` ist nur ein Platzhalter
+  - `firmware/lib/ShSensors/README.md` ist ebenfalls nur ein Platzhalter
+
+4. Begruendung
+- Ein ehrlicher `net_sen`-Nachweis braucht zwei Dinge gleichzeitig:
+  - ein real identifizierbares Testgeraet
+  - mindestens einen real angeschlossenen und in der Firmware wirklich ausgelesenen Sensor
+- Beides war hier nicht gegeben.
+- `COM5` blind fuer `net_sen` zu beanspruchen waere fachlich falsch gewesen:
+  - es ist der bereits nachgewiesene `net_zrl_01`-Knoten
+  - eine Umwidmung haette einen bestehenden Realpfad unnoetig zerstoert
+- Selbst eine bewusste Umwidmung von `COM5` haette den geforderten Sensornachweis nicht geliefert:
+  - die aktuelle `net_sen`-Firmware liest keine Fachsensorik aus
+  - sie wuerde nur HELLO/HEARTBEAT und bei Bedarf einen `STATE_REPORT` mit Sentinel-/Default-Werten liefern
+  - das waere kein echter Messwertnachweis
+
+5. Verbesserungseffekt
+- Die Kette wurde nicht mit Wunschdenken geschlossen, sondern an der echten Bruchstelle gestoppt.
+- Der Blocker ist sauber lokalisiert:
+  - primaer: keine dedizierte reale `net_sen`-Testhardware mit eigenem Port im aktuellen Aufbau
+  - zusaetzlich: kein implementierter realer Sensorpfad in der versionierten `net_sen`-Firmware
+- Der Serverpfad selbst ist dabei nicht als Hauptfehler entlarvt:
+  - Broker, Node-RED, SQLite und Influx laufen
+  - es fehlt der reale upstream-Sensordatenpfad
+
+6. Risiken / Trade-offs
+- Es gibt nach diesem Lauf weiterhin keinen realen Nachweis fuer `net_sen_01`.
+- Es wurde bewusst kein Flash auf `COM5` erzwungen und kein serieller Monitor auf `COM5` geoeffnet, weil das den bereits belegten `net_zrl_01`-Pfad ohne sinnvollen Zielgewinn gestoert haette.
+- Es wurde bewusst keine Doku in `docs/14_test_und_nachweisstand.md`, `docs/CURRENT_SPRINT.md` oder `docs/TASK_QUEUE.md` geaendert, weil kein neuer Realnachweis entstanden ist.
+
+7. Teststatus
+- Ausgefuehrt:
+  - `platformio device list`
+  - `platformio run -e net_sen`
+  - `docker compose ps`
+  - SQLite-Abfragen gegen `devices`, `device_last_state` und `audit_log`
+  - MQTT-Abfrage gegen `smarthome/node/net_sen_01/#`
+  - Influx-Query gegen `smarthome_sensor` fuer `node_id = net_sen_01`
+- Nicht ausgefuehrt:
+  - Upload/Flash fuer `net_sen`
+  - serieller Bring-up eines `net_sen`-Geraets
+  - MQTT `meta`/`state`-Nachweis fuer `net_sen`
+  - SQLite-`state`-Nachweis fuer `net_sen`
+- Ergebnis Influx:
+  - kein Fehler im Influx-Schreibpfad sichtbar
+  - aber auch keine `net_sen_01`-Zeitreihe vorhanden, weil upstream kein realer `state` ankommt
+- Exakte Bruchstelle:
+  - vor Real-Flash/Bring-up: kein sauber identifizierbares `net_sen`-USB-Testgeraet vorhanden
+  - selbst bei erzwungener Umwidmung: kein realer Sensorlesepfad in der aktuellen `net_sen`-Firmware vorhanden
+
+8. Lehrerblick
+- Die Eigenleistung liegt hier nicht im Produzieren eines schoenen Erfolgsberichts, sondern im sauberen Abbruch an der belegten Grenze.
+- Als Referenz genutzt wurden nur die aktuelle Repo-Doku, die aktuelle Firmware-/Serverbasis und die bereits vorhandenen Nachweisdateien fuer `master`, `net_erl_01` und `net_zrl_01`.
+- Fachlich nachvollziehbar ist der Stand, weil reale Port-IDs, Build-Ergebnis, MQTT-/SQLite-Befunde und die konkrete Leerstelle in `net_sen`-Firmware und Hardware-Doku offen benannt sind.
