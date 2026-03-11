@@ -27,8 +27,8 @@
 
 ## Realer Nachweisstand dieser Architektur
 
-- im Repo real belegt: MQTT-Ingest, SQLite-Ablage, Influx-Schreibpfad, offizieller Node-RED-Rueckweg fuer `net_erl_01`, SQLite-Audit fuer ausgehende `cmd/set`-Publishes und kombinierter Live-Lauf im aktuellen Repo-Stand
-- der belegte Command-/Rueckweg ist bewusst kein generischer Multi-Device-Baukasten, sondern nur der enge `net_erl_01`-Pilotpfad
+- im Repo real belegt: MQTT-Ingest, SQLite-Ablage, Influx-Schreibpfad, offizielle Node-RED-Rueckwege fuer `net_erl_01` und `net_zrl_01`, SQLite-Audit fuer ausgehende `cmd/set`-Publishes und kombinierte Live-Laeufe im aktuellen Repo-Stand
+- die belegten Command-/Rueckwege sind bewusst kein generischer Multi-Device-Baukasten, sondern die engen Pilotpfade `net_erl_01` und `net_zrl_01`
 - offen bleiben ACK/Retry, Offline-Timeout, Langzeitstabilitaet, weitere Basisgeraete und ein vollstaendiger Gesamtprojektnachweis
 
 ## V1-Grenzen

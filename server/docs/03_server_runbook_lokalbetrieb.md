@@ -173,11 +173,15 @@ docker compose up --build -d
 docker compose exec nodered sh -lc "node /opt/smarthome/build-flows.js > /tmp/expected_flows.json && node -e \"const fs=require('fs'); process.exit(fs.readFileSync('/tmp/expected_flows.json','utf8')===fs.readFileSync('/data/flows.json','utf8') ? 0 : 1)\" && rm -f /tmp/expected_flows.json"
 ```
 
-Erst danach funktional pruefen. Fuer den aktuell versionierten Rueckweg von `net_erl_01` existieren im Repo bereits diese Server-Trigger. Dabei den realen `NODERED_HOST_PORT` aus der lokalen `.env` einsetzen:
+Erst danach funktional pruefen. Fuer die aktuell versionierten Rueckwege von `net_erl_01` und `net_zrl_01` existieren im Repo bereits diese Server-Trigger. Dabei den realen `NODERED_HOST_PORT` aus der lokalen `.env` einsetzen:
 
 ```powershell
 Invoke-WebRequest -Method Post http://127.0.0.1:<NODERED_HOST_PORT>/inject/inject_net_erl_on
 Invoke-WebRequest -Method Post http://127.0.0.1:<NODERED_HOST_PORT>/inject/inject_net_erl_off
+Invoke-WebRequest -Method Post http://127.0.0.1:<NODERED_HOST_PORT>/inject/inject_net_zrl_relay_1_on
+Invoke-WebRequest -Method Post http://127.0.0.1:<NODERED_HOST_PORT>/inject/inject_net_zrl_relay_1_off
+Invoke-WebRequest -Method Post http://127.0.0.1:<NODERED_HOST_PORT>/inject/inject_net_zrl_relay_2_on
+Invoke-WebRequest -Method Post http://127.0.0.1:<NODERED_HOST_PORT>/inject/inject_net_zrl_relay_2_off
 ```
 
 Broker/MQTT pruefen:

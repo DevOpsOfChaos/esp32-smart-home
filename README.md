@@ -15,12 +15,12 @@ Es ist die neue, veröffentlichbare Arbeitsbasis für:
 ## Aktueller belegter Stand
 Stand 2026-03-11:
 - reale Bring-up- und MQTT-Minimalstrecke `master <-> net_erl_01` ist im Repo dokumentiert
-- der offizielle serverseitige Rueckweg fuer `net_erl_01` ueber Node-RED ist belegt
+- die offiziellen serverseitigen Rueckwege fuer `net_erl_01` und `net_zrl_01` ueber Node-RED sind belegt
 - das SQLite-Audit fuer ausgehende serverseitige `cmd/set`-Publishes ist belegt
-- der kombinierte Live-Nachweis im aktuellen Repo-Stand ist fuer genau diesen Pilotpfad belegt:
-  `Node-RED -> cmd/set -> audit_log egress -> Master -> net_erl -> MQTT state -> device_last_state`
+- die kombinierten Live-Nachweise im aktuellen Repo-Stand sind fuer diese beiden Pilotpfade belegt:
+  `Node-RED -> cmd/set -> audit_log egress -> Master -> net_erl|net_zrl -> MQTT state -> device_last_state`
 - die Server-V1 hat zusaetzlich getrennte Nachweise fuer MQTT-Ingest und Influx-Schreibpfad
-- feste Basisgeraete `net_zrl_01`, `net_sen_01` und `bat_sen_01` sind in dieselbe Firmware-Linie integriert, aber nicht als reale Hardwarebasis nachgewiesen
+- feste Basisgeraete `net_sen_01` und `bat_sen_01` sind in dieselbe Firmware-Linie integriert, aber nicht als reale Hardwarebasis nachgewiesen
 - offen bleiben ACK/Retry, Langzeitstabilitaet, Offline-Timeout, weitere Basisgeraete und ein vollstaendiger Gesamtprojektnachweis
 - belegter Ist-Stand: `docs/14_test_und_nachweisstand.md`
 - Detailblatt der Minimalstrecke: `docs/14_minimalstrecke_net_erl_master.md`

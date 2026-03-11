@@ -27,9 +27,9 @@ Diese V1 stellt das erste reproduzierbare Serverfundament bereit fuer:
 ## Belegter V1-Stand per 2026-03-11
 
 - MQTT-Ingest/SQLite-Ablage und Influx-Schreibpfad sind real lokal nachgewiesen
-- der offizielle serverseitige Rueckweg fuer `net_erl_01` ueber Node-RED ist nachgewiesen
-- das SQLite-Audit fuer ausgehende `smarthome/node/net_erl_01/cmd/set`-Publishes ist nachgewiesen
-- der kombinierte Live-Nachweis im aktuellen Repo-Stand bleibt bewusst eng auf `net_erl_01` begrenzt
+- die offiziellen serverseitigen Rueckwege fuer `net_erl_01` und `net_zrl_01` ueber Node-RED sind nachgewiesen
+- das SQLite-Audit fuer ausgehende `smarthome/node/<node_id>/cmd/set`-Publishes ist fuer diese beiden Pilotpfade nachgewiesen
+- die kombinierten Live-Nachweise im aktuellen Repo-Stand bleiben bewusst eng auf `net_erl_01` und `net_zrl_01` begrenzt
 - offen bleiben ACK/Retry, Offline-Timeout, Langzeitstabilitaet, weitere Basisgeraete und ein vollstaendiger Gesamtprojektnachweis
 
 ## Bereichsdoku im Server

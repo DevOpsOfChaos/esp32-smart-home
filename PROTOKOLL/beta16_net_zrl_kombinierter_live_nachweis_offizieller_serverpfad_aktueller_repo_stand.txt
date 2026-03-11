@@ -1,0 +1,133 @@
+Stand: beta16
+Datei: beta16_net_zrl_kombinierter_live_nachweis_offizieller_serverpfad_aktueller_repo_stand.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Der in `beta15` nur bis zum realen Bring-up gefuehrte `net_zrl`-Pfad sollte jetzt als offizieller kombinierter Live-Nachweis im aktuellen Repo-Stand zu Ende gebracht werden:
+  `Server/Node-RED -> MQTT cmd/set -> SQLite audit_log egress -> Master -> net_zrl -> MQTT state -> SQLite state`.
+- Der bereits bekannte Docker-/WSL-Blocker war laut Laufzeitlage behoben. Deshalb war jetzt kein Neubau der Aufgabe gefragt, sondern der ehrliche Abschluss des begonnenen Nachweises.
+
+2. Befund vor dem offiziellen Lauf
+- Docker Desktop war wieder real verfuegbar:
+  - `docker version` -> Engine `29.2.1`, Docker Desktop `4.64.0`
+  - `docker compose version` -> `v5.1.0`
+- Der versionierte Node-RED-Generator fuhr nach dem Docker-Reset wieder den aktuellen Repo-Stand, aber im bisherigen Scope weiterhin nur den alten offiziellen `cmd/set`-Pfad fuer `net_erl_01`.
+- Damit war die kleine reproduzierbare Restblockade fuer `net_zrl` klar benennbar: kein offizieller versionierter `cmd/set`-Trigger fuer `smarthome/node/net_zrl_01/cmd/set`, obwohl der restliche Serverpfad, das Audit und die Firmware bereits real vorhanden waren.
+
+3. Aenderung
+- Minimal noetige Korrektur in `server/nodered/build-flows.js`:
+  - neuer offizieller `net_zrl_01`-`cmd/set`-Pfad ueber versionierte `inject`-/Dashboard-Trigger fuer `relay_1` und `relay_2`
+  - Wiederverwendung des bestehenden MQTT-Egress und des bestehenden SQLite-`audit_log`-Pfads
+  - keine neuen Topics, keine neue Payload-Semantik, keine Architektur-Erweiterung
+- Der laufende Node-RED-Stand wurde bewusst auf den aktuellen Generatorstand gezogen:
+  - `docker volume rm server_nodered_data`
+  - `docker compose up --build -d`
+- Keine neue Firmware-Korrektur, keine neuen Firmware-Builds und keine neuen Uploads in diesem Abschlusslauf.
+- Weiterverwendeter realer Firmware-Stand aus `beta15`:
+  - `master` auf `COM3`
+  - `net_zrl` auf `COM10`
+
+4. Begruendung
+- Ohne versionierten `net_zrl`-Triggerpfad ueber Node-RED waere jeder angebliche Servernachweis nur ein lokaler MQTT-Direktclient-Test mit falschem Etikett gewesen.
+- Der Eingriff blieb bewusst klein: nur der fehlende offizielle Triggerpfad wurde in denselben bestehenden Egress-/Audit-Baustein eingefuegt.
+- Wegen des bekannten Persistenzthemas waere ein Test gegen altes `server_nodered_data` fachlich wertlos gewesen. Deshalb wurde die Node-RED-Laufzeitbasis bewusst erneuert.
+
+5. Verbesserungseffekt
+- `net_zrl_01` ist jetzt im aktuellen Repo-Stand als allgemeine Zwei-Relais-Basis auch ueber den offiziellen Serverpfad real belegt.
+- Fuer alle vier serverseitigen Schaltfaelle ist der Rueckweg jetzt konkret nachvollziehbar:
+  - `relay_1` EIN
+  - `relay_1` AUS
+  - `relay_2` EIN
+  - `relay_2` AUS
+- `status`, `state`, `ack` und `event` bleiben semantisch sauber getrennt:
+  - `cmd/set` erscheint nur als `direction = egress` in `audit_log`
+  - `state` erscheint nur als `direction = ingest` in `audit_log`
+  - `device_last_state` fuehrt fuer `net_zrl_01` getrennte `status_json` und `state_json`
+  - `ack_json` und `event_json` blieben leer
+
+6. Risiken / Trade-offs
+- Der versionierte Serverpfad ist jetzt fuer zwei enge Pilotpfade belegt, aber immer noch kein generischer Command-Baukasten fuer beliebige Geraete.
+- Kein neuer Firmware-Build in diesem Lauf bedeutet: Der Nachweis setzt bewusst auf dem in `beta15` real geflashten Stand auf, statt dieselbe Hardware unnnoetig neu zu flashen.
+- Beim Oeffnen der seriellen USB-CDC-Ports fuer die Logbeobachtung zeigte sich lokal ein methodischer Nebeneffekt: Direkt nach dem Portoeffnen musste zuerst wieder ein stabiler HEARTBEAT-/HELLO-Zustand abgewartet werden. Die offizielle Vierer-Serie wurde deshalb erst nach dieser Stabilisierung gewertet.
+
+7. Teststatus
+- Reale Docker-/Server-Pruefungen:
+  - `docker version` erfolgreich, Engine `29.2.1`, Docker Desktop `4.64.0`
+  - `docker compose version` erfolgreich, `v5.1.0`
+  - `docker compose ps` nach dem offiziellen Lauf:
+    - `server-mosquitto-1` healthy
+    - `server-influxdb-1` healthy
+    - `server-nodered-1` healthy
+  - `docker compose exec nodered ... cmp /tmp/expected_flows.json /data/flows.json` -> `FLOWS_MATCH`
+- Reale verwendete Hardware und Ports:
+  - `master -> COM3`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `net_zrl -> COM10`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6B:6B:30`
+  - Pinstandard bleibt real relevant:
+    - `relay_1 -> GPIO10`
+    - `relay_2 -> GPIO5`
+- Reale Server-Baseline nach bewusstem Node-RED-Reset:
+  - `SELECT COUNT(*) FROM audit_log WHERE topic='smarthome/node/net_zrl_01/cmd/set';` -> `0`
+  - `device_last_state` vor der Vierer-Serie:
+    - `status_json`: `{"node_id":"net_zrl_01","online":true,"device_type":"net_zrl","power_type":"mains","fw":"0.2.2"}`
+    - `state_json`: `{"node_id":"net_zrl_01","relay_1":false,"relay_2":false,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+- Reale Warm-up-Beobachtung vor der offiziellen Vierer-Serie:
+  - `master`: `STATE_REPORT von net_zrl_01 verarbeitet`, mehrfach `HEARTBEAT von net_zrl_01`
+  - `net_zrl`: mehrfach `HEARTBEAT erfolgreich`
+- Reale offizielle Server-Trigger:
+  - `POST http://127.0.0.1:1880/inject/inject_net_zrl_relay_1_on` -> HTTP `200`
+  - `POST http://127.0.0.1:1880/inject/inject_net_zrl_relay_1_off` -> HTTP `200`
+  - `POST http://127.0.0.1:1880/inject/inject_net_zrl_relay_2_on` -> HTTP `200`
+  - `POST http://127.0.0.1:1880/inject/inject_net_zrl_relay_2_off` -> HTTP `200`
+- Reale passive Broker-Beobachtung:
+  - `2026-03-11T13:17:29+0000|smarthome/node/net_zrl_01/cmd/set|{"cmd":"set_relay","relay_1":true,"request_id":"nodered_net_zrl_01_relay_1_on_1773235049397"}`
+  - `2026-03-11T13:17:29+0000|smarthome/node/net_zrl_01/state|{"node_id":"net_zrl_01","relay_1":true,"relay_2":false,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+  - `2026-03-11T13:17:35+0000|smarthome/node/net_zrl_01/cmd/set|{"cmd":"set_relay","relay_1":false,"request_id":"nodered_net_zrl_01_relay_1_off_1773235055982"}`
+  - `2026-03-11T13:17:35+0000|smarthome/node/net_zrl_01/state|{"node_id":"net_zrl_01","relay_1":false,"relay_2":false,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+  - `2026-03-11T13:17:42+0000|smarthome/node/net_zrl_01/cmd/set|{"cmd":"set_relay","relay_2":true,"request_id":"nodered_net_zrl_01_relay_2_on_1773235062598"}`
+  - `2026-03-11T13:17:42+0000|smarthome/node/net_zrl_01/state|{"node_id":"net_zrl_01","relay_1":false,"relay_2":true,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+  - `2026-03-11T13:17:49+0000|smarthome/node/net_zrl_01/cmd/set|{"cmd":"set_relay","relay_2":false,"request_id":"nodered_net_zrl_01_relay_2_off_1773235069124"}`
+  - `2026-03-11T13:17:49+0000|smarthome/node/net_zrl_01/state|{"node_id":"net_zrl_01","relay_1":false,"relay_2":false,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+- Reale SQLite-Beobachtung `audit_log` fuer `cmd/set`-Egress:
+  - `id=36`, `direction=egress`, `channel=cmd/set`, `request_id=nodered_net_zrl_01_relay_1_on_1773235049397`
+  - `id=38`, `direction=egress`, `channel=cmd/set`, `request_id=nodered_net_zrl_01_relay_1_off_1773235055982`
+  - `id=40`, `direction=egress`, `channel=cmd/set`, `request_id=nodered_net_zrl_01_relay_2_on_1773235062598`
+  - `id=42`, `direction=egress`, `channel=cmd/set`, `request_id=nodered_net_zrl_01_relay_2_off_1773235069124`
+- Reale SQLite-Beobachtung `audit_log` fuer Rueckweg-`state`:
+  - `id=37`, `direction=ingest`, `channel=state`, Payload `relay_1:true, relay_2:false`
+  - `id=39`, `direction=ingest`, `channel=state`, Payload `relay_1:false, relay_2:false`
+  - `id=41`, `direction=ingest`, `channel=state`, Payload `relay_1:false, relay_2:true`
+  - `id=43`, `direction=ingest`, `channel=state`, Payload `relay_1:false, relay_2:false`
+  - `SELECT COUNT(*) FROM audit_log WHERE topic='smarthome/node/net_zrl_01/cmd/set' AND direction='ingest';` -> `0`
+- Reale SQLite-Beobachtung `device_last_state`:
+  - `status_json` getrennt von `state_json`
+  - `ack_json` leer
+  - `event_json` leer
+  - Endzustand nach OFF/OFF und weiterem periodischem `STATE_REPORT`:
+    - `state_json`: `{"node_id":"net_zrl_01","relay_1":false,"relay_2":false,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+    - `updated_at = 2026-03-11T13:18:19.246Z`
+- Reale serielle Beobachtung `master`:
+  - `MQTT empfangen smarthome/node/net_zrl_01/cmd/set -> {"cmd":"set_relay","relay_1":true,"request_id":"nodered_net_zrl_01_relay_1_on_1773235049397"}`
+  - `COMMAND_SET_RELAY gesendet an 20:6E:F1:6B:6B:30`
+  - `STATE_REPORT von net_zrl_01 verarbeitet`
+  - `MQTT empfangen smarthome/node/net_zrl_01/cmd/set -> {"cmd":"set_relay","relay_1":false,"request_id":"nodered_net_zrl_01_relay_1_off_1773235055982"}`
+  - `COMMAND_SET_RELAY gesendet an 20:6E:F1:6B:6B:30`
+  - `STATE_REPORT von net_zrl_01 verarbeitet`
+  - `MQTT empfangen smarthome/node/net_zrl_01/cmd/set -> {"cmd":"set_relay","relay_2":true,"request_id":"nodered_net_zrl_01_relay_2_on_1773235062598"}`
+  - `COMMAND_SET_RELAY gesendet an 20:6E:F1:6B:6B:30`
+  - `STATE_REPORT von net_zrl_01 verarbeitet`
+  - `MQTT empfangen smarthome/node/net_zrl_01/cmd/set -> {"cmd":"set_relay","relay_2":false,"request_id":"nodered_net_zrl_01_relay_2_off_1773235069124"}`
+  - `COMMAND_SET_RELAY gesendet an 20:6E:F1:6B:6B:30`
+  - `STATE_REPORT von net_zrl_01 verarbeitet`
+- Reale serielle Beobachtung `net_zrl`:
+  - `Relais 1 -> EIN (Master-Kommando)`
+  - `Relais 1 -> AUS (Master-Kommando)`
+  - `Relais 2 -> EIN (Master-Kommando)`
+  - `Relais 2 -> AUS (Master-Kommando)`
+- Ergebnis des offiziellen kombinierten Live-Nachweises:
+  - Bestanden fuer `net_zrl_01` im aktuellen Repo-Stand
+
+8. Lehrerblick
+- Die Eigenleistung steckt hier in der sauberen Trennung zwischen echter Restblockade und Ausrede: Nicht die Firmware war jetzt offen, sondern der fehlende versionierte Node-RED-Pfad fuer `net_zrl`. Genau dieser wurde minimal ergaenzt, danach wurde der stale Laufzeitstand bewusst entfernt und erst dann real gemessen.
+- Als Referenz genutzt wurden die vorhandenen Repo-Runbooks, der bestehende `cmd/set`-/`audit_log`-Pfad fuer `net_erl_01` und der in `beta15` bereits real gebrachte `master <-> net_zrl`-Stand.
+- Fachlich nachvollziehbar ist der Stand, weil Docker-/Compose-Versionen, Reset-Pfad, Trigger-URLs, Request-IDs, Broker-Nachrichten, SQLite-Zeilen, serielle Beobachtungen und die Endzustands-Semantik konkret genannt sind.

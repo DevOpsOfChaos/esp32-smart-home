@@ -14,8 +14,8 @@ Alle Wege laufen ueber den Master.
 ## Aktueller belegter Serverbezug
 
 - real lokal belegt: MQTT-Ingest/SQLite-Ablage und Influx-Schreibpfad
-- real lokal plus real hardware belegt: offizieller serverseitiger Rueckweg fuer `net_erl_01`, SQLite-Audit fuer ausgehende `cmd/set`-Publishes und kombinierter Live-Lauf im aktuellen Repo-Stand
-- dieser Nachweis bleibt bewusst eng auf `net_erl_01`
+- real lokal plus real hardware belegt: offizielle serverseitige Rueckwege fuer `net_erl_01` und `net_zrl_01`, SQLite-Audit fuer ausgehende `cmd/set`-Publishes und kombinierte Live-Laeufe im aktuellen Repo-Stand
+- diese Nachweise bleiben bewusst eng auf `net_erl_01` und `net_zrl_01`
 - offen bleiben ACK/Retry, Offline-Timeout, Langzeitstabilitaet, weitere Basisgeraete und ein vollstaendiger Gesamtprojektnachweis
 
 ## Verbindliche Server-Dokumente

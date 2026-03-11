@@ -21,7 +21,7 @@ Nicht diese Datei:
 | `master <-> net_erl` MQTT-Minimalpfad inkl. Relais-Schalten | nachgewiesen | real hardware, real lokal | `PROTOKOLL/beta11_realer_retest_master_net_erl_mqtt_minimalpfad.txt` |
 | `master <-> net_zrl` Bring-up inkl. HEARTBEAT und `STATE_REPORT` | nachgewiesen | real hardware | `PROTOKOLL/beta15_net_zrl_realer_bringup_und_blockade_offizieller_serverpfad.txt` |
 | `master`, `net_erl`, `net_zrl`, `net_sen`, `bat_sen` Buildbasis | nachgewiesen | build | `PROTOKOLL/beta04_hardware_pinstandard_und_pinfixes.txt`, `PROTOKOLL/beta07_basisgeraete_net_zrl_net_sen_bat_sen.txt` |
-| `net_zrl` offizieller serverseitiger Rueckweg / kombinierter Live-Nachweis | offen | offen | kein offizieller `net_zrl`-Nachweis im Repo |
+| Kombinierter Live-Nachweis im aktuellen Repo-Stand fuer `net_zrl_01` (`Node-RED -> cmd/set -> audit_log egress -> Master -> net_zrl -> MQTT state -> device_last_state`) | nachgewiesen | real hardware, real lokal | `PROTOKOLL/beta16_net_zrl_kombinierter_live_nachweis_offizieller_serverpfad_aktueller_repo_stand.txt` |
 | `net_sen`, `bat_sen` reale Hardwarebasis | offen | offen | kein eigener Hardware-Nachweis im Repo |
 | Server-V1 MQTT-Ingest und SQLite-Ablage | nachgewiesen | real lokal | `PROTOKOLL/beta08_server_mqtt_ingest_realpayloads.txt` |
 | Influx-Schreibpfad fuer numerische Sensorwerte | nachgewiesen | real lokal | `PROTOKOLL/beta09_influx_schreibpfad_verifiziert.txt` |
@@ -40,14 +40,14 @@ Nicht diese Datei:
 - `PROTOKOLL/beta13_cmd_set_audit_sqlite_egress.txt` belegt den aktuellen Repo-Stand fuer genau diese Luecke: ausgehende serverseitige `cmd/set`-Publishes landen jetzt zusaetzlich in `audit_log`, ohne `device_last_state` oder eingehende `state`-/`event`-/`ack`-Semantik zu vermischen.
 - `PROTOKOLL/beta14_kombinierter_live_nachweis_offizieller_rueckweg_net_erl_01_aktueller_repo_stand.txt` belegt den kombinierten offiziellen Live-Lauf im aktuellen Repo-Stand. Der Lauf zeigte zusaetzlich eine reale Betriebsgrenze: Ein blosses `docker compose up --build -d` kann wegen persistiertem `server_nodered_data` ein altes `/data/flows.json` weiterfahren; fuer den echten Test neuer Flow-Generator-Staende muss die persistierte Node-RED-Datenbasis sauber erneuert oder die persistierte Flow-Datei bewusst ersetzt werden.
 - `PROTOKOLL/beta15_net_zrl_realer_bringup_und_blockade_offizieller_serverpfad.txt` belegt den realen `master <-> net_zrl`-Basispfad nach einer minimalen Firmware-Korrektur im HELLO-Broadcast. Dieser Stand ist bewusst kein offizieller Servernachweis fuer `net_zrl`: In derselben Session war der lokale Docker-Desktop-Serverpfad wegen `hasNoVirtualization=true` nicht startbar, daher wurden keine `cmd/set`-, MQTT- oder SQLite-Aussagen fuer `net_zrl` nachgezogen.
-- Der aktuell belegte kombinierte Live-Nachweis gilt nur fuer den engen `net_erl_01`-Pilotpfad. Er ist kein Gesamtprojektnachweis und belegt weder ACK/Retry noch Offline-Timeout, Langzeitstabilitaet oder weitere Basisgeraete.
+- `PROTOKOLL/beta16_net_zrl_kombinierter_live_nachweis_offizieller_serverpfad_aktueller_repo_stand.txt` belegt den offiziellen kombinierten Live-Lauf fuer `net_zrl_01` im aktuellen Repo-Stand. Dafuer wurde der versionierte Node-RED-Generator minimal um den fehlenden `net_zrl_01`-`cmd/set`-Pfad erweitert, `server_nodered_data` bewusst erneuert und danach der reale Rueckweg fuer `relay_1` und `relay_2` jeweils EIN/AUS ueber Broker, SQLite und serielle Logs belegt.
+- Die aktuell belegten kombinierten Live-Nachweise gelten fuer die engen Pilotpfade `net_erl_01` und `net_zrl_01`. Sie sind kein Gesamtprojektnachweis und belegen weder ACK/Retry noch Offline-Timeout, Langzeitstabilitaet oder weitere Basisgeraete.
 
 ## Offene Nachweis- und Doku-Luecken
 - ACK-/Retry-Nachweis fuer Commands
 - Offline-Timeout als reproduzierbarer offizieller Nachweis im aktuellen Repo-Stand
 - Langzeitstabilitaet ueber den kombinierten Live-Lauf hinaus
-- weitere serverseitige Rueckweg-Nachweise fuer andere Basisgeraete als `net_erl_01`
-- offizieller serverseitiger Rueckweg-Nachweis fuer `net_zrl`
+- weitere serverseitige Rueckweg-Nachweise fuer andere Basisgeraete als `net_erl_01` und `net_zrl_01`
 - reale Hardware-Nachweise fuer `net_sen` und `bat_sen`
-- vollstaendiger Gesamtprojektnachweis ueber mehr als den belegten `net_erl_01`-Pilotpfad
+- vollstaendiger Gesamtprojektnachweis ueber die belegten `net_erl_01`- und `net_zrl_01`-Pilotpfade hinaus
 - Hardware-README-Dateien enthalten noch keine belastbaren Mindestdaten zu Platine, Pins, Flash und Variationen

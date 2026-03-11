@@ -17,7 +17,7 @@ Nicht Teil des versionierten Repo-Bestands:
 - automatische Registry in SQLite
 - getrennte Speicherung von `status`, `state`, `event` und `ack`
 - `cfg/report` nach SQLite
-- schmaler `cmd/set`-MQTT-Egress fuer `net_erl_01` ueber versionierte Node-RED-Trigger (`inject` und technische Dashboard-Buttons)
+- schmaler `cmd/set`-MQTT-Egress fuer `net_erl_01` und `net_zrl_01` ueber versionierte Node-RED-Trigger (`inject` und technische Dashboard-Buttons)
 - paralleles SQLite-Audit fuer diesen ausgehenden `cmd/set`-Publish in `audit_log`
 - Sensorpunkte nach InfluxDB
 - Dashboard-Queries fuer Geraete, Raeume, Wetter, Automationen und Audit
@@ -36,7 +36,7 @@ Nicht Teil des versionierten Repo-Bestands:
 ## Grenzen
 
 - `cmd/get` und `cfg/set` sind im aktuellen Flow-Generator noch nicht als versionierter Egress verdrahtet
-- der versionierte `cmd/set`-Egress bleibt bewusst auf den bestehenden `net_erl_01`-Pfad begrenzt; kein generischer Command-Baukasten
+- der versionierte `cmd/set`-Egress bleibt bewusst auf die bestehenden `net_erl_01`- und `net_zrl_01`-Pfade begrenzt; kein generischer Command-Baukasten
 - keine Home-Assistant-Abhaengigkeit
 - keine Fake-Command-Semantik pro Geraet
 - keine komplexen Automationsmonster in V1
