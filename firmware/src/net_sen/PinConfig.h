@@ -10,6 +10,7 @@ constexpr int PIN_RELAY_1      = -1; // nicht bestückt
 constexpr int PIN_RELAY_2      = -1; // nicht bestückt
 constexpr int PIN_SENSOR_SDA   = SmartHome::HardwarePinStandard::PIN_I2C_SDA; // I2C (AHT/ENS/VEML)
 constexpr int PIN_SENSOR_SCL   = SmartHome::HardwarePinStandard::PIN_I2C_SCL;
+constexpr int PIN_DHT22_DATA   = 6;  // realer Minimalpfad fuer net_sen_01
 constexpr int PIN_PIR          = -1; // PIR oder Radar
 constexpr int PIN_INTERNAL_NEOPIXEL = SmartHome::HardwarePinStandard::GPIO_INTERNAL_NEOPIXEL;
 constexpr int PIN_LED_RING     = -1; // WS2812-Ring (optional)

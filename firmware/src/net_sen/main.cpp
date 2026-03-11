@@ -24,6 +24,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <limits.h>
+#include <math.h>
+
+#include <DHT.h>
 
 #if __has_include(<esp_arduino_version.h>)
   #include <esp_arduino_version.h>
@@ -44,6 +47,11 @@ constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "NET-SEN";
 constexpr char DATEI_VERSION[] = "0.2.2";
 const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+constexpr uint8_t DHT_SENSOR_TYP = DHT22;
+constexpr unsigned long DHT_WARMUP_MS = 2500UL;
+constexpr unsigned long DHT_READ_INTERVAL_MS = 2500UL;
+
+DHT dht(PIN_DHT22_DATA, DHT_SENSOR_TYP);
 
 struct NodeState {
     bool master_bekannt;
@@ -61,7 +69,14 @@ struct NodeState {
     uint8_t naechste_seq;
 };
 
+struct SensorRuntime {
+    unsigned long boot_ms;
+    unsigned long letzter_read_ms;
+    bool erster_read_abgeschlossen;
+};
+
 NodeState nodeStatus = {};
+SensorRuntime sensorStatus = {};
 
 void logf(const char* level, const char* format, ...) {
     if (!DEBUG_LOKAL_AKTIV) return;
@@ -96,7 +111,7 @@ void logMac(const char* prefix, const uint8_t* mac) {
 }
 
 uint16_t ermittleCaps() {
-    uint16_t caps = SH_CAP_TEMP | SH_CAP_HUM | SH_CAP_LUX;
+    uint16_t caps = SH_CAP_TEMP | SH_CAP_HUM;
     if (PIN_PIR >= 0) {
         caps |= SH_CAP_MOTION;
     }
@@ -236,6 +251,11 @@ void initialisiereHardware() {
     nodeStatus.motion = false;
     nodeStatus.fault = false;
     nodeStatus.state_report_offen = false;
+
+    dht.begin();
+    sensorStatus.boot_ms = millis();
+    sensorStatus.letzter_read_ms = 0UL;
+    sensorStatus.erster_read_abgeschlossen = false;
 }
 
 void initialisiereFunk() {
@@ -269,13 +289,92 @@ void gibStartmeldungAus() {
     Serial.println(DEVICE_ID);
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
-    Serial.println("Sensor-Basis ohne feste Fachsensor-Treiber");
+    Serial.print("Minimalpfad: DHT22 an GPIO");
+    Serial.println(PIN_DHT22_DATA);
     Serial.println("================================");
 }
 
+int16_t rundeTempZu01C(float temperaturC) {
+    return static_cast<int16_t>(lroundf(temperaturC * 10.0f));
+}
+
+uint16_t rundeHumZu01Pct(float feuchtePct) {
+    long gerundet = lroundf(feuchtePct * 10.0f);
+    if (gerundet < 0L) gerundet = 0L;
+    if (gerundet > 1000L) gerundet = 1000L;
+    return static_cast<uint16_t>(gerundet);
+}
+
+bool dhtStateBereit() {
+    return sensorStatus.erster_read_abgeschlossen;
+}
+
+void setzeDhtLesefehler(const char* grund) {
+    const bool zustandGeaendert =
+        !nodeStatus.fault ||
+        nodeStatus.temp_01c != INT16_MIN ||
+        nodeStatus.hum_01pct != 0xFFFFU;
+
+    nodeStatus.temp_01c = INT16_MIN;
+    nodeStatus.hum_01pct = 0xFFFFU;
+    nodeStatus.fault = true;
+    sensorStatus.erster_read_abgeschlossen = true;
+
+    if (zustandGeaendert) {
+        nodeStatus.state_report_offen = true;
+    }
+
+    logf("WARN", "DHT22 Lesefehler an GPIO%d (%s)", PIN_DHT22_DATA, grund);
+}
+
+void uebernehmeDhtMessung(float temperaturC, float feuchtePct) {
+    const int16_t neueTemp = rundeTempZu01C(temperaturC);
+    const uint16_t neueHum = rundeHumZu01Pct(feuchtePct);
+    const bool tempNeuOderAnders =
+        nodeStatus.temp_01c == INT16_MIN ||
+        abs((int)neueTemp - (int)nodeStatus.temp_01c) >= TEMP_DELTA_01C;
+    const bool humNeuOderAnders =
+        nodeStatus.hum_01pct == 0xFFFFU ||
+        abs((int)neueHum - (int)nodeStatus.hum_01pct) >= HUM_DELTA_01PCT;
+
+    nodeStatus.temp_01c = neueTemp;
+    nodeStatus.hum_01pct = neueHum;
+    nodeStatus.fault = false;
+    sensorStatus.erster_read_abgeschlossen = true;
+
+    if (tempNeuOderAnders || humNeuOderAnders) {
+        nodeStatus.state_report_offen = true;
+    }
+
+    logf("INFO", "DHT22 temp=%d.%dC hum=%u.%u%%", neueTemp / 10, abs(neueTemp % 10), neueHum / 10, neueHum % 10);
+}
+
 void messeSensoren() {
-    // Generische Basis: Sensorwerte bleiben unbestueckt auf den
-    // dokumentierten Sentinel-Werten, bis konkrete Treiber aktiv sind.
+    const unsigned long jetzt = millis();
+
+    // DHT22 braucht nach dem Booten und zwischen zwei Messungen echte Ruhe.
+    if ((jetzt - sensorStatus.boot_ms) < DHT_WARMUP_MS) return;
+    if (sensorStatus.letzter_read_ms != 0UL &&
+        (jetzt - sensorStatus.letzter_read_ms) < DHT_READ_INTERVAL_MS) {
+        return;
+    }
+
+    sensorStatus.letzter_read_ms = jetzt;
+
+    const float feuchtePct = dht.readHumidity();
+    const float temperaturC = dht.readTemperature();
+
+    if (isnan(feuchtePct) || isnan(temperaturC)) {
+        setzeDhtLesefehler("NaN");
+        return;
+    }
+
+    if (feuchtePct < 0.0f || feuchtePct > 100.0f || temperaturC < -40.0f || temperaturC > 80.0f) {
+        setzeDhtLesefehler("ausserhalb DHT22-Bereich");
+        return;
+    }
+
+    uebernehmeDhtMessung(temperaturC, feuchtePct);
 }
 
 void aktualisiereMotion() {
@@ -303,7 +402,7 @@ void verarbeiteHelloAck(const uint8_t* senderMac, const SmartHome::HelloAckPaylo
     stellePeerSicher(nodeStatus.master_mac);
     logf("INFO", "HELLO_ACK empfangen, Master-Kanal=%u", payload.channel);
     logMac("Master-MAC: ", senderMac);
-    nodeStatus.state_report_offen = true;
+    nodeStatus.state_report_offen = dhtStateBereit();
 }
 
 void verarbeiteCmd(const SmartHome::CmdPayload& cmd) {
@@ -405,7 +504,8 @@ void loop() {
         sendeHeartbeat();
     }
 
-    if (nodeStatus.state_report_offen || (jetzt - nodeStatus.letzter_state_ms) >= STATE_INTERVAL_MS) {
+    if (dhtStateBereit() &&
+        (nodeStatus.state_report_offen || (jetzt - nodeStatus.letzter_state_ms) >= STATE_INTERVAL_MS)) {
         sendeStateReport();
     }
 
