@@ -30,6 +30,7 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `06_testplan.md`: Soll-Pruefplan, keine Ist-Aussagen
 - `14_test_und_nachweisstand.md`: belegter Ist-Stand
 - `14_minimalstrecke_net_erl_master.md`: technischer Ablauf und Detailblatt der Minimalstrecke, kein globales Nachweisdokument
+- `16_build_flash_bringup_master_net_erl.md`: kontrolliertes Runbook fuer Build, Portwahl, Flash und seriellen Bring-up von `master` und `net_erl`
 
 ## Historie
 - `../PROTOKOLL/`: historische Einzelstaende, inklusive damaliger Testaussagen
@@ -44,7 +45,6 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `../firmware/test/*/README.md`: Testordner-Rollen
 
 ## Offene Doku-Luecken
-- reproduzierbarer Build-/Flash-/Seriell-Ablauf fuer `master` und `net_erl`
 - konsolidierter realer End-to-End-Nachweis `Node -> Master -> MQTT/Server -> Master -> Node`
 - Hardware-README-Dateien enthalten bisher nur Platzhalter
 - Server-Start und lokaler Betriebsablauf sind nur als Kurzstart, nicht als belastbares Runbook dokumentiert

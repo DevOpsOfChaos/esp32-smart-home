@@ -1,0 +1,60 @@
+Stand: beta11
+Datei: beta11_realer_retest_master_net_erl_mqtt_minimalpfad.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Das vorhandene Runbook fuer `master` und `net_erl` sollte nicht laenger nur als Doku-Behauptung stehen, sondern real auf Hardware und mit laufendem MQTT-System durchgezogen werden.
+- Die lokale Docker-Lage war vorher vermuellt: mehrere alte Compose-Projekte, konkurrierende Container und kein sauber reproduzierbarer Brokerpfad.
+- Im aktuellen Repo-Stand blockierte zusaetzlich eine echte Firmware-Regression in `net_erl` den HELLO-Startpfad: Broadcast `FF:FF:FF:FF:FF:FF` wurde vor dem Senden als ungueltige MAC verworfen.
+
+2. Aenderung
+- Alle laufenden Alt-Container und die zugehoerigen SmartHome-Compose-Reste wurden entfernt.
+- Der aktuelle Server-Stack aus `server/docker-compose.yml` wurde aus den neuesten Repo-Dateien neu aufgebaut und real verifiziert.
+- `server/.env` wurde lokal aus `.env.example` erzeugt; der ignorierte Ordner `server/config/mosquitto/config/` lag fuer den Mosquitto-Mount leer, aber vorhanden vor.
+- `firmware/src/net_erl/main.cpp` wurde minimal korrigiert: Broadcast-MAC wird fuer den HELLO-Pfad in `net_erl` nicht mehr als ungueltig verworfen.
+- `master` und `net_erl` wurden real gebaut, geflasht und mit seriellen Logs sowie MQTT-Mitschnitt geprueft.
+
+3. Begruendung
+- Ohne hartes Aufraeumen der Containerlandschaft war jeder MQTT-Befund wertlos, weil unklar war, welcher Broker gerade wirklich auf Port 1883 hing.
+- Ohne die Broadcast-Korrektur konnte `net_erl` trotz erfolgreichem Flash nie sauber am Master auftauchen. Das war kein Bedienfehler, sondern ein echter Defekt im neuesten Stand.
+- Die Korrektur bleibt bewusst klein und lokal im betroffenen Node, statt das Protokoll oder die Gesamtarchitektur aufzureissen.
+
+4. Verbesserungseffekt
+- Es gibt wieder genau einen nachvollziehbaren lokalen Server-Stack auf Basis der versionierten `server/`-Dateien.
+- Die Minimalstrecke `net_erl -> master -> MQTT` ist auf echter Hardware wieder real sichtbar.
+- Der Rueckweg `MQTT -> master -> net_erl` ist im Minimalpfad real gezeigt: Relais EIN/AUS, STATE_REPORT aktualisiert, MQTT-State geaendert.
+- `smarthome/master/MASTER-001/status`, `smarthome/master/MASTER-001/event`, `smarthome/node/net_erl_01/meta`, `.../status` und `.../state` wurden real beobachtet.
+
+5. Risiken / Trade-offs
+- Das ist weiterhin kein offizieller Gesamtbeleg `Node -> Master -> Server-Logik -> Master -> Node`. Die MQTT-Befehle kamen im Test direkt vom lokalen Testclient, nicht aus einer separaten Node-RED-Bedienaktion.
+- ACK-/Retry-Logik, Offline-Timeout nach Funktrennung und Langzeitstabilitaet wurden in diesem Lauf nicht neu verifiziert.
+- Der Repo-Default fuer Mosquitto bleibt lokal sensibel gegen eine fehlende Host-Struktur: wenn `server/config/mosquitto/config/` lokal gar nicht existiert, scheitert `include_dir /mosquitto/config/local`.
+
+6. Teststatus
+- Reale COM-Port-Zuordnung:
+  - `master -> COM3`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `net_erl -> COM10`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6B:6B:30`
+- Real gelaufene Build-Kommandos:
+  - `cd C:\Users\mries\Documents\Playground\smarthome-esp32\firmware`
+  - `& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e master`
+  - `& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e net_erl`
+- Real gelaufene Upload-Kommandos:
+  - `& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e master -t upload --upload-port COM3`
+  - `& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e net_erl -t upload --upload-port COM10`
+- Real beobachtete serielle Kernaussagen:
+  - `master`: `WLAN verbunden`, `ESP-NOW bereit`, `MQTT verbunden`, `MQTT publish smarthome/master/MASTER-001/event -> {"event":"mqtt_connected"...}`, `Node net_erl_01 ist online`, `HEARTBEAT von net_erl_01`, `COMMAND_SET_RELAY gesendet`
+  - `net_erl`: `HELLO_ACK empfangen, Master-Kanal=6`, `STATE_REPORT gesendet`, periodische `HEARTBEAT gesendet`, `COMMAND_SET_RELAY empfangen`, `Relais physisch EIN/AUS auf GPIO10`
+- Real beobachtete MQTT-Nachrichten:
+  - `smarthome/master/MASTER-001/status`
+  - `smarthome/master/MASTER-001/event` mit `mqtt_connected`
+  - `smarthome/node/net_erl_01/meta`
+  - `smarthome/node/net_erl_01/status`
+  - `smarthome/node/net_erl_01/state` initial `relay_1:false`, danach `relay_1:true`, danach wieder `relay_1:false`
+- Real bestandener Minimaltest:
+  - Ja, fuer `master + net_erl + MQTT-Minimalpfad`
+
+7. Lehrerblick
+- Die Eigenleistung steckt hier nicht in kosmetischer Doku, sondern im realen Durchstich durch Containerbereinigung, Build, Flash, seriellen Nachweis, MQTT-Mitschnitt und einer minimalen Defektkorrektur im neuesten Firmware-Stand.
+- Als Referenz genutzt wurden die vorhandenen Runbooks und die versionierten Repo-Dateien, nicht irgendein Altprojektstand.
+- Fachlich nachvollziehbar ist der Stand, weil Beobachtungen, Befehle, Ports und reale Geraete-IDs sauber benannt sind und die Regression im HELLO-Pfad konkret auf eine nachvollziehbare Code-Stelle zurueckgefuehrt wurde.
