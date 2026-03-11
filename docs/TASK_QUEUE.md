@@ -1,9 +1,9 @@
 # TASK_QUEUE
 
 ## Prioritaet jetzt
-1. Offline-Timeout fuer einen weiteren offiziellen Pfad neben `master <-> net_erl_01` real nachweisen
-2. Reale Hardware-Nachweise fuer `net_sen` und `bat_sen` aufbauen
-3. Hardware-README-Dateien der Basisgeraete von Platzhaltern auf reale Mindestinformationen heben
+1. Reale Hardware-Nachweise fuer `net_sen` und `bat_sen` aufbauen
+2. Hardware-README-Dateien der Basisgeraete von Platzhaltern auf reale Mindestinformationen heben
+3. Weitere Offline-Timeout-Nachweise jenseits der jetzt belegten Pilotpfade `master <-> net_erl_01` und `master <-> net_zrl_01` real aufbauen
 
 ## Danach
 4. Test- und Nachweisdoku nur gegen neue reale Belege nachziehen

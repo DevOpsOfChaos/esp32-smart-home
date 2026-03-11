@@ -1,0 +1,119 @@
+Stand: beta23
+Datei: beta23_master_net_zrl_01_offizieller_offline_timeout_nachweis.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Fuer den offiziellen Pilotpfad `master <-> net_zrl_01` war nach `beta16`, `beta20` und `beta22` der reale Offline-Timeout weiterhin offen.
+- Die Aufgabe blieb eng: kein neues Feature, keine neue Architektur, keine neuen Topics, kein Eingriff an `net_erl_01`, keine Umschreibung alter Protokolle.
+- Harte Testrealitaet vorab: `master` bleibt auf `COM3`; das heute als `net_zrl_01` verwendete Testgeraet auf `COM5` ist weiterhin das bewusst umgewidmete Geraet aus `beta22` und durfte nur nach erneuter Realidentifikation als `net_zrl_01` behandelt werden.
+
+2. Ist-Stand vor dem Nachweis
+- Der Offline-Umschlag ist im aktuellen Master-Stand rein masterseitig implementiert:
+  - `NODE_OFFLINE_TIMEOUT_MS = 15000`
+  - `bat_sen` separat mit `BATTERY_NODE_OFFLINE_TIMEOUT_MS = 900000`
+  - Kontaktauffrischung auf HELLO, HEARTBEAT, STATE und EVENT
+  - bei Timeout: `nodeStates[i].online = false` plus retained Publish auf `smarthome/node/<node_id>/status`
+- Fuer `net_zrl_01` gelten im Node-Stand:
+  - `HEARTBEAT_INTERVAL_MS = 5000`
+  - `STATE_INTERVAL_MS = 30000`
+  - `COVER_MODUS_AKTIV = false`
+- Der Server-Stand war vor dem Nachweis real gesund:
+  - `docker compose ps` -> `mosquitto`, `influxdb`, `nodered` healthy
+  - laufendes `/data/flows.json` bytegleich zu `server/nodered/build-flows.js`
+  - SQLite trennt `status_json`, `state_json`, `ack_json` und `event_json` weiterhin sauber
+
+3. Aenderung
+- Keine Code-, Flow-, Schema- oder Compose-Aenderung.
+- Reale Port- und Geraeteidentifikation vor dem Offline-Fall:
+  - `COM3` bleibt `master`, HWID `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `COM5` wurde erneut real geprueft und bootete als `NET-ZRL v0.2.2`, `Node-ID: net_zrl_01`, HWID `USB VID:PID=303A:1001 SER=8C:D0:B2:A8:B0:89`
+- Reale Begleiterscheinung der Identifikation:
+  - das serielle Oeffnen von `COM5` loeste erneut `rst:0x15 (USB_UART_CHIP_RESET)` aus
+  - diese dadurch ausgeloeste kurze Offline/Online-Umschaltung wurde bewusst nicht als eigentlicher Offline-Nachweis gewertet
+- Realer kontrollierter Offline-Fall:
+  - `python -m esptool --chip esp32c3 --port COM5 --before default_reset --after no_reset chip_id`
+  - Ergebnis: Node auf `COM5` blieb nach erfolgreicher Bootloader-Verbindung ausdruecklich in `Staying in bootloader.`
+  - damit wurde die laufende Node-Firmware real gestoppt, ohne Flash und ohne Topic-/Server-Trick
+- Reale Wiederkehr:
+  - `python -m esptool --chip esp32c3 --port COM5 --before default_reset --after hard_reset chip_id`
+  - danach bootete `net_zrl_01` wieder in die Anwendungs-Firmware und meldete sich erneut beim Master
+
+4. Begruendung
+- Ein theoretischer Timeout aus Code-Lesen allein waere wertlos gewesen. Der Nachweis brauchte einen echten Stop des laufenden Node-Firmwarepfads.
+- Der Bootloader-Hold ueber `esptool` ist genau dafuer geeignet:
+  - kein Flash
+  - kein Architektur-Eingriff
+  - reale Unterbrechung der laufenden Firmware
+- Die erneute COM5-Identifikation war Pflicht, weil die Umwidmung des Geraets aus `beta22` zwar bekannte Testrealitaet ist, aber vor einem neuen Realtest nicht blind unterstellt werden durfte.
+
+5. Verbesserungseffekt
+- Der Offline-Timeout fuer `master <-> net_zrl_01` ist jetzt im aktuellen Repo-Stand real nachgewiesen.
+- Der Umschlag ist auf dem vertraglichen Pfad sichtbar:
+  - MQTT `smarthome/node/net_zrl_01/status` -> `online:false`
+  - `audit_log` -> `status|ingest`
+  - `device_last_state.status_json` -> `online:false`
+- `state` blieb semantisch sauber getrennt und inhaltlich stehen:
+  - waehrend offline blieb `device_last_state.state_json` unveraendert bei `relay_1:false`, `relay_2:false`, `cover_mode:false`
+- Nach Rueckkehr kam `net_zrl_01` wieder sauber online:
+  - `status` wieder `online:true`
+  - `meta` und `state` wurden erneut ingestiert
+- Keine unerwarteten Nebeneffekte auf ACK oder Cover-Zustand:
+  - keine neuen `ack`-Zeilen
+  - `ack_json` blieb unveraendert
+  - `cover_mode` blieb `false`
+
+6. Risiken / Trade-offs
+- Die Portidentifikation ueber den seriellen Monitor auf `COM5` provozierte erneut einen `USB_UART_CHIP_RESET`. Diese Stoerung ist ein Artefakt des Testaufbaus und nicht der eigentliche Offline-Nachweis.
+- Der Offline-Fall ist damit sauber als realer Firmware-Stopp bewiesen, aber nicht als allgemeiner Stromausfall-, Funkloch- oder Mehrgeraetestresstest.
+- Auf dem Wieder-online-Pfad erschienen in SQLite zwei unmittelbare `online:true`-Statuszeilen. Das ist kein neuer Fehler des Tests, sondern die aktuelle Folge des bestehenden Master-Pfads:
+  - erster `online:true`-Publish beim Wiederkontakt in `aktualisiereNodeKontakt`
+  - zweiter `online:true`-Publish im anschliessenden `HELLO`-Pfad
+
+7. Teststatus
+- Reale Server-Basis vor dem Nachweis:
+  - `docker compose ps` -> alle drei Dienste healthy
+  - `FLOWS_MATCH` fuer laufendes `/data/flows.json` gegen den aktuellen Generatorstand
+- Reale Hardware und Ports:
+  - `master -> COM3`, SER `20:6E:F1:6D:92:C0`
+  - `net_zrl_01 -> COM5`, SER `8C:D0:B2:A8:B0:89`
+  - `net_erl_01` blieb parallel extern aktiv und wurde in diesem Task nicht umgesteckt, nicht neu geflasht und nicht anderweitig gestoert
+- Reale letzte sinnvolle Kontakte vor dem eigentlichen Offline-Fall:
+  - Master-Serial: `2026-03-11T20:15:57.621+01:00` `HEARTBEAT von net_zrl_01 (uptime=290s)`
+  - Master-Serial: `2026-03-11T20:16:07.562+01:00` `STATE_REPORT von net_zrl_01 verarbeitet`
+  - MQTT: `2026-03-11T20:16:07.442+01:00` `smarthome/node/net_zrl_01/state` -> `{"node_id":"net_zrl_01","relay_1":false,"relay_2":false,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+  - SQLite-Baseline direkt vor dem Trigger: `audit_log MAX(id) = 658`
+- Realer Offline-Umschlag:
+  - MQTT `status online:false` um `2026-03-11T20:16:22.588+01:00`
+  - Master-Serial `Node net_zrl_01 nach Timeout offline` um `2026-03-11T20:16:22.677+01:00`
+  - Abstand zum letzten beobachteten HEARTBEAT um `2026-03-11T20:16:07.776+01:00`: ca. `14.8 s`, also konsistent mit dem konfigurierten `15000 ms`-Timeout
+- Reale SQLite-Sicht waehrend offline:
+  - `audit_log id=659`, `channel=status`, `direction=ingest`, Payload `online:false`
+  - `device_last_state.status_json = {"node_id":"net_zrl_01","online":false,"device_type":"net_zrl","power_type":"mains","fw":"0.2.2"}`
+  - `device_last_state.state_json` blieb gleichzeitig unveraendert bei `{"node_id":"net_zrl_01","relay_1":false,"relay_2":false,"cover_mode":false,"cover_state":0,"cover_position":null,"fault":false}`
+  - `ack_json` blieb unveraendert vom frueheren ACK-Nachweis; keine neue ACK-Aktivitaet
+- Reale Wiederkehr:
+  - MQTT `status online:true` um `2026-03-11T20:16:27.542+01:00`
+  - Master-Serial `Node net_zrl_01 ist online` um `2026-03-11T20:16:27.611+01:00`
+  - MQTT `state` um `2026-03-11T20:16:27.586+01:00` wieder mit `relay_1:false`, `relay_2:false`, `cover_mode:false`
+- Reale SQLite-Sicht nach Wiederkehr:
+  - `id=660` `status|ingest|online:true`
+  - `id=661` `meta|ingest`
+  - `id=662` `status|ingest|online:true`
+  - `id=663` `state|ingest`
+  - Summen seit Baseline `id > 658`:
+    - `status|ingest|3`
+    - `meta|ingest|1`
+    - `state|ingest|1`
+    - `ack|ingest|0`
+- Ergebnis:
+  - Offline-Timeout-Nachweis fuer `master <-> net_zrl_01` im aktuellen Repo-Stand bestanden
+
+8. Lehrerblick
+- Die Eigenleistung liegt hier nicht in neuer Technik, sondern im sauberen Nachweis:
+  - Portrealitaet nicht erraten
+  - die bekannte COM5-Umwidmung erneut ehrlich verifiziert
+  - die serielle Reset-Begleiterscheinung vom eigentlichen Offline-Fall getrennt
+  - den Node ohne Flash real in den Bootloader-Hold gezwungen und danach die Systemsicht ueber Master, MQTT und SQLite parallel nachgezogen
+- Als Referenz genutzt wurden nur die vorhandene Repo-Doku, der bestehende Firmware-/Serverstand und das vorhandene `esptool`-Werkzeug.
+- Fachlich nachvollziehbar ist der Stand, weil Trigger, Ports, HWIDs, Master-Logs, MQTT-Payloads, SQLite-Zeilen, UTC-/Lokalzeitstempel und die sichtbare Trennung von `status`, `state` und `ack` konkret genannt sind.
