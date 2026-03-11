@@ -28,6 +28,7 @@ Diese V1 stellt das erste reproduzierbare Serverfundament bereit fuer:
 - `docs/00_server_ueberblick.md`
 - `docs/01_server_basisarchitektur.md`
 - `docs/02_dashboard_konzept.md`
+- `docs/03_server_runbook_lokalbetrieb.md`
 - `db/README.md`
 - `flows/README.md`
 - `config/README.md`

@@ -38,6 +38,7 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 
 ## Bereichsdoku
 - `../server/README.md` und `../server/docs/`: Server-Bereichsdoku
+- `../server/docs/03_server_runbook_lokalbetrieb.md`: lokales Betriebs-Runbook fuer den `server/`-Stack
 - `../server/db/README.md`: Datenbasis des Servers
 - `../server/flows/README.md`: Flow-Rolle und Ingest-Semantik
 - `../hardware/*/README.md`: geraetespezifische Hardwareunterlagen
@@ -47,4 +48,3 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 ## Offene Doku-Luecken
 - konsolidierter realer End-to-End-Nachweis `Node -> Master -> MQTT/Server -> Master -> Node`
 - Hardware-README-Dateien enthalten bisher nur Platzhalter
-- Server-Start und lokaler Betriebsablauf sind nur als Kurzstart, nicht als belastbares Runbook dokumentiert
