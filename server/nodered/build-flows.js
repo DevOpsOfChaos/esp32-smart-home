@@ -56,6 +56,7 @@ const ids = {
     injectNetErlOff: "inject_net_erl_off",
     buildNetErlCmdSet: "fn_build_net_erl_cmd_set",
     mqttCmdSetOut: "mqtt_cmd_set_out",
+    linkOutAuditEgress: "link_out_audit_egress",
     linkOutAudit: "link_out_audit",
     linkInAudit: "link_in_audit",
     buildAuditInsert: "fn_build_audit_insert",
@@ -826,18 +827,39 @@ const buildInfluxLineFunc = script(
 const buildNetErlCmdSetFunc = script(
     'const relayState = msg.payload === true || msg.payload === "true" || msg.payload === 1 || msg.payload === "1";',
     'const stateLabel = relayState ? "on" : "off";',
-    'msg.topic = "smarthome/node/net_erl_01/cmd/set";',
-    'msg.payload = JSON.stringify({',
+    'const occurredAt = new Date().toISOString();',
+    'const topic = "smarthome/node/net_erl_01/cmd/set";',
+    'const commandPayload = {',
     '    cmd: "set_relay",',
     '    relay_1: relayState,',
     '    request_id: "nodered_net_erl_01_" + stateLabel + "_" + Date.now()',
-    '});',
-    'return msg;'
+    '};',
+    'const rawJson = JSON.stringify(commandPayload);',
+    'const publishMsg = {',
+    '    topic,',
+    '    payload: rawJson',
+    '};',
+    'const auditMsg = {',
+    '    payload: {',
+    '        topic,',
+    '        scope: "node",',
+    '        entityId: "net_erl_01",',
+    '        channel: "cmd/set",',
+    '        direction: "egress",',
+    '        retain: false,',
+    '        ts: occurredAt,',
+    '        receivedAt: occurredAt,',
+    '        payload: commandPayload,',
+    '        rawJson',
+    '    }',
+    '};',
+    'return [publishMsg, auditMsg];'
 );
 
 const buildAuditInsertFunc = script(
     ...toSqlLines,
     'const event = msg.payload || {};',
+    'const direction = typeof event.direction === "string" && event.direction.trim() ? event.direction.trim() : "ingest";',
     'msg.topic = [',
     '    "INSERT INTO audit_log (topic, device_id, master_id, scope, channel, direction, retain, payload_json, occurred_at)",',
     '    "VALUES (" + [',
@@ -846,7 +868,7 @@ const buildAuditInsertFunc = script(
     '        toSql(event.scope === "master" ? event.entityId : event.masterId),',
     '        toSql(event.scope || "unknown"),',
     '        toSql(event.channel || "unknown"),',
-    '        toSql("ingest"),',
+    '        toSql(direction),',
     '        toSql(event.retain ? 1 : 0),',
     '        toSql(event.rawJson || null),',
     '        toSql(event.ts || event.receivedAt || new Date().toISOString())',
@@ -1463,14 +1485,14 @@ addNode({
     z: ids.tabCommand,
     name: "Build net_erl_01 cmd/set",
     func: buildNetErlCmdSetFunc,
-    outputs: 1,
+    outputs: 2,
     noerr: 0,
     initialize: "",
     finalize: "",
     libs: [],
     x: 510,
     y: 150,
-    wires: [[ids.mqttCmdSetOut]]
+    wires: [[ids.mqttCmdSetOut], [ids.linkOutAuditEgress]]
 });
 
 addNode({
@@ -1493,11 +1515,23 @@ addNode({
 });
 
 addNode({
+    id: ids.linkOutAuditEgress,
+    type: "link out",
+    z: ids.tabCommand,
+    name: "To Audit",
+    mode: "link",
+    links: [ids.linkInAudit],
+    x: 825,
+    y: 210,
+    wires: []
+});
+
+addNode({
     id: ids.linkInAudit,
     type: "link in",
     z: ids.tabLogging,
-    name: "From Ingest",
-    links: [ids.linkOutAudit],
+    name: "From Ingest/Egress",
+    links: [ids.linkOutAudit, ids.linkOutAuditEgress],
     x: 135,
     y: 100,
     wires: [[ids.buildAuditInsert]]

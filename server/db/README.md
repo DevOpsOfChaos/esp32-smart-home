@@ -16,6 +16,8 @@ SQLite wird beim Containerstart ueber `db/schema.sql` initialisiert.
 - retained `event` und retained `ack` werden nur auditiert und nicht in Registry oder `device_last_state` uebernommen
 - `smarthome/server/status` landet als JSON plus Zeitstempel in `server_settings`
 - `cfg/report` landet schluesselweise in `device_config`
+- ausgehende serverseitige `smarthome/node/<node_id>/cmd/set`-Publishes landen zusaetzlich in `audit_log` mit `direction = egress`
+- diese `cmd/set`-Auditierung schreibt bewusst nichts in `device_last_state`; `status`, `state`, `event` und `ack` bleiben eigene Ingest-Pfade
 - `audit_log` wird per Housekeeping-Flow auf 7 Tage begrenzt
 
 ## InfluxDB-Regeln

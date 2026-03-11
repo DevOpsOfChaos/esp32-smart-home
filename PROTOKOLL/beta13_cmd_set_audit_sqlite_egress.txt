@@ -1,0 +1,71 @@
+Stand: beta13
+Datei: beta13_cmd_set_audit_sqlite_egress.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Im aktuellen Repo-Stand war der serverseitige `cmd/set`-Pfad fuer `net_erl_01` bereits versioniert und real als Bedienpfad nachgewiesen, aber der ausgehende Publish selbst landete noch nicht in SQLite.
+- Die Aufgabe war ausdruecklich eng: nur Auditierbarkeit der bereits existierenden ausgehenden `smarthome/node/<node_id>/cmd/set`-Publishes ergaenzen, ohne Topic-, Payload- oder Architekturwechsel.
+
+2. Aenderung
+- `server/nodered/build-flows.js` erzeugt fuer den bestehenden `net_erl_01`-Command-Pfad jetzt zwei getrennte Nachrichten aus demselben Command-Objekt:
+  - MQTT-Publish nach `smarthome/node/net_erl_01/cmd/set`
+  - Audit-Nachricht fuer den bestehenden SQLite-Auditpfad
+- Der bestehende Audit-Builder akzeptiert jetzt neben dem bisherigen Default `direction = ingest` auch explizit gesetzte Richtungen und schreibt fuer diesen Pfad `direction = egress`.
+- Der Audit-Eintrag nutzt das vorhandene Schema unveraendert:
+  - `topic = smarthome/node/net_erl_01/cmd/set`
+  - `device_id = net_erl_01`
+  - `scope = node`
+  - `channel = cmd/set`
+  - `direction = egress`
+  - `retain = 0`
+  - `payload_json = <voller Command-JSON-String inkl. request_id>`
+  - `occurred_at = Publish-Zeit aus dem Command-Builder`
+- `server/db/schema.sql` blieb unveraendert.
+
+3. Begruendung
+- Ein ausgehender Server-Befehl ist semantisch nicht dasselbe wie ein eingehender `state`.
+- Wer `cmd/set` in `device_last_state` oder als kuenstlichen Ingest verbiegt, produziert stille Datenluegen.
+- Das vorhandene `audit_log`-Schema reicht bereits aus. Ein neues Topic, ein neues Tabellenmodell oder ein Payload-Umbau waeren fuer diese Aufgabe schlicht Overengineering.
+
+4. Verbesserungseffekt
+- Ausgehende serverseitige `cmd/set`-Publishes sind jetzt direkt in SQLite nachvollziehbar.
+- `request_id` bleibt im `payload_json` erhalten und ist damit fuer die Rueckverfolgung brokerseitig und in SQLite konsistent sichtbar.
+- `device_last_state` bleibt sauber: keine falschen `status`-/`state`-/`event`-/`ack`-Eintraege allein durch den Command-Publish.
+- Das Muster ist fuer weitere serverseitige `cmd/set`-Publishes wiederverwendbar, ohne eine neue Architektur einzufuehren.
+
+5. Risiken / Trade-offs
+- Der Audit-Eintrag entsteht im Node-RED-Serverpfad parallel zum `mqtt out` aus demselben Command-Objekt. Er beschreibt damit den serverseitigen Publish-Vorgang, nicht eine brokerseitige Delivery-Quittung.
+- Der versionierte Egress-Pfad bleibt bewusst auf den bestehenden `net_erl_01`-Nachweispfad begrenzt. Es wurde kein generischer Multi-Device-Command-Baukasten gebaut.
+- Fuer diesen Nachweis wurde absichtlich ein isolierter lokaler Compose-Stack auf `127.0.0.1` und abweichenden Host-Ports genutzt, damit kein Live-Heimnetzgeraet unbeabsichtigt Befehle empfaengt. Ein neuer Hardware-Rueckweg-Nachweis wird hier deshalb nicht behauptet.
+
+6. Teststatus
+- Reale lokale Compose-Ausfuehrung mit isolierten Host-Ports:
+  - `MQTT_BIND_ADDRESS=127.0.0.1`
+  - `MQTT_HOST_PORT=18883`
+  - `NODERED_BIND_ADDRESS=127.0.0.1`
+  - `NODERED_HOST_PORT=18880`
+  - `INFLUX_BIND_ADDRESS=127.0.0.1`
+  - `INFLUX_HOST_PORT=18086`
+  - `docker compose -p smarthome_audit_test up --build -d`
+- Reale Build-Pruefung des geaenderten Flow-Generators ueber den Node-RED-Image-Build:
+  - `RUN node /opt/smarthome/build-flows.js > /data/flows.json`
+- Reale Baseline vor dem Trigger:
+  - `audit_log` Zeilen: `0`
+  - `device_last_state` Zeilen: `0`
+- Reale Server-Trigger:
+  - `POST http://127.0.0.1:18880/inject/inject_net_erl_on`
+  - `POST http://127.0.0.1:18880/inject/inject_net_erl_off`
+  - beide Antworten: HTTP `200`
+- Reale passive Broker-Beobachtung im Mosquitto-Container:
+  - `2026-03-11T11:27:26+0000|smarthome/node/net_erl_01/cmd/set|{"cmd":"set_relay","relay_1":true,"request_id":"nodered_net_erl_01_on_1773228446655"}`
+  - `2026-03-11T11:27:27+0000|smarthome/node/net_erl_01/cmd/set|{"cmd":"set_relay","relay_1":false,"request_id":"nodered_net_erl_01_off_1773228447531"}`
+- Reale SQLite-Pruefung nach dem Trigger:
+  - `audit_log` enthaelt genau zwei Zeilen mit `direction = egress`, `channel = cmd/set`, `retain = 0` und identischem JSON wie am Broker
+  - `device_last_state` bleibt leer
+  - `SELECT COUNT(*) FROM audit_log WHERE topic='smarthome/node/net_erl_01/cmd/set' AND direction='ingest';` liefert `0`
+
+7. Lehrerblick
+- Die Eigenleistung steckt in der gezielten Korrektur des bestehenden Serverpfads statt in einem Neubau: bestehendes `audit_log` verstanden, den Flow-Generator minimal erweitert, den Nachweis isoliert und reproduzierbar lokal gefahren und die Semantik gegen `device_last_state` sauber gehalten.
+- Als Referenz genutzt wurden nur die versionierten Repo-Dateien, die bestehende Serverdoku und der bereits vorhandene `cmd/set`-Nachweispfad aus `beta12`.
+- Fachlich nachvollziehbar ist der Stand, weil Topic, Payload, `request_id`, SQLite-Befund, Isolationsmodus und Grenzen des Nachweises konkret benannt sind.
