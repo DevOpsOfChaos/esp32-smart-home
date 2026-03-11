@@ -1,0 +1,75 @@
+Stand: beta15
+Datei: beta15_net_zrl_realer_bringup_und_blockade_offizieller_serverpfad.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Der naechste echte Nachweis nach dem engen `net_erl_01`-Pilotpfad sollte `net_zrl` als allgemeine Zwei-Relais-Basis durch dieselbe reale Kette bringen.
+- Die Aufgabe verlangte ausdruecklich den offiziellen Server-/Node-RED-Pfad statt eines lokalen MQTT-Direktclients.
+
+2. Befund vor dem realen Lauf
+- `firmware/src/net_zrl/main.cpp` war im aktuellen Repo-Stand noch nicht sauber bring-up-faehig: `sendeHello()` sendet an `FF:FF:FF:FF:FF:FF`, aber `stellePeerSicher()` verwarf diese Broadcast-MAC weiterhin als ungueltig ueber `SmartHome::isValidMac()`.
+- Damit konnte `net_zrl` den ersten HELLO-Schritt nicht sauber durchlaufen. Ohne minimale Korrektur waere jeder Realtest an einer bereits bekannten Fehlerklasse aus dem frueheren `net_erl`-Pfad gescheitert.
+
+3. Aenderung
+- `firmware/src/net_zrl/main.cpp` wurde minimal an den bestehenden `net_erl`-Fix angenaehert:
+  - neue Hilfsfunktion `istBroadcastMac(...)`
+  - `stellePeerSicher(...)` akzeptiert Broadcast jetzt gezielt fuer den HELLO-Pfad, ohne die normale MAC-Pruefung fuer echte Peer-MACs aufzuweichen
+- Keine weiteren Firmware-, Protokoll-, MQTT- oder Serveraenderungen.
+- `master` und `net_zrl` wurden anschliessend real gebaut und geflasht:
+  - `platformio.exe run -e master`
+  - `platformio.exe run -e net_zrl`
+  - `platformio.exe run -e master -t upload --upload-port COM3`
+  - `platformio.exe run -e net_zrl -t upload --upload-port COM10`
+
+4. Begruendung
+- Der Broadcast-Fix war keine Komfortverbesserung, sondern die kleinste reproduzierbare Reparatur, damit `net_zrl` ueberhaupt real am Master auftauchen kann.
+- Einen offiziellen Servernachweis gegen eine lokal tote Docker-/Node-RED-Basis zu behaupten waere schlicht gelogen.
+
+5. Verbesserungseffekt
+- `net_zrl_01` ist nach dem Fix real auf Hardware mit `master` gekoppelt und bleibt im ESP-NOW-Basispfad online.
+- Reale serielle Beobachtung zeigt:
+  - `master` empfing wiederholt `HEARTBEAT von net_zrl_01`
+  - `master` verarbeitete einen periodischen `STATE_REPORT von net_zrl_01`
+  - `net_zrl` sendete erfolgreich `HEARTBEAT` und `STATE_REPORT` an die Master-MAC `20:6E:F1:6D:92:C0`
+- Der offizielle kombinierte Serverpfad wurde in diesem Lauf nicht erreicht.
+
+6. Risiken / Trade-offs
+- Kein offizieller Node-RED-/MQTT-/SQLite-Nachweis fuer `net_zrl` in diesem Stand.
+- Keine echten Server-Trigger fuer `relay_1` oder `relay_2`, weil der versionierte `server/`-Stack lokal nicht startbar war.
+- Keine Beobachtung von `smarthome/node/net_zrl_01/status|state`, `audit_log` oder `device_last_state`, weil der Broker-/Node-RED-Pfad fehlte.
+- Der versionierte Flow-Generator enthaelt weiterhin nur den engen `cmd/set`-Egress fuer `net_erl_01`; ein offizieller `net_zrl`-Pfad wurde in diesem Lauf bewusst nicht ungetestet hineingeschrieben.
+
+7. Teststatus
+- Reale verwendete Hardware und Portzuordnung:
+  - `master -> COM3`, Chip-MAC `20:6e:f1:6d:92:c0`, `platformio device list` Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `net_zrl -> COM10`, Chip-MAC `20:6e:f1:6b:6b:30`, `platformio device list` Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6B:6B:30`
+- Reale Build-Ergebnisse:
+  - `master` SUCCESS
+  - `net_zrl` SUCCESS
+- Reale Upload-Ergebnisse:
+  - `master` auf `COM3` SUCCESS
+  - `net_zrl` auf `COM10` SUCCESS
+- Reale serielle Beobachtung `master`:
+  - mehrfach `HEARTBEAT von net_zrl_01 (uptime=...)`
+  - `STATE_REPORT von net_zrl_01 verarbeitet`
+  - gleichzeitig periodisch `MQTT connect fehlgeschlagen (state=-2)`
+- Reale serielle Beobachtung `net_zrl`:
+  - mehrfach `HEARTBEAT erfolgreich`
+  - `ESP-NOW Sendestatus an 20:6E:F1:6D:92:C0: OK`
+  - `STATE_REPORT erfolgreich`
+- Reale Schlussfolgerung aus den seriellen Daten:
+  - weil `net_zrl` bereits HEARTBEATs an die konkrete Master-MAC sendet und der Master diese verarbeitet, ist der HELLO-/HELLO_ACK-Grundpfad nach dem Fix real wiederhergestellt
+- Reale Bruchstelle fuer den offiziellen Servernachweis:
+  - `docker version` und `docker compose ps` gegen `desktop-linux` scheiterten reproduzierbar
+  - `C:\Users\mries\AppData\Local\Docker\log\host\com.docker.backend.exe.log` meldet fuer den Docker-Backend-Zustand `docker=stopped`, `dockerAPI=stopped`, `hasNoVirtualization=true`
+  - `master` bestaetigt dieselbe Betriebsrealitaet indirekt ueber `MQTT connect fehlgeschlagen (state=-2)`
+- Nicht ausgefuehrt:
+  - keine offiziellen Server-Trigger fuer `relay_1` / `relay_2`
+  - keine MQTT-State-Beobachtung fuer `net_zrl`
+  - keine SQLite-Audit- oder `device_last_state`-Nachweise fuer `net_zrl`
+
+8. Lehrerblick
+- Die Eigenleistung steckt hier in ehrlicher Fehlertrennung statt Wunschdenken: erst den echten Firmware-Blocker fuer `net_zrl` beseitigt, dann real gebaut, geflasht und den Hardware-Basispfad belegt, und anschliessend die offizielle Serverkette nicht gefaelscht, als die lokale Docker-/Virtualisierungslage sie real blockierte.
+- Als Referenz genutzt wurden die bestehenden Runbooks, der vorhandene `net_erl`-Fix fuer dieselbe Fehlerklasse und die versionierten Repo-Dateien.
+- Fachlich nachvollziehbar ist der Stand, weil Korrektur, Builds, Uploads, MACs, Ports, serielle Beobachtungen und die exakte Server-Blockade konkret genannt sind.

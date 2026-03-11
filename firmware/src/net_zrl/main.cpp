@@ -64,6 +64,10 @@ struct NodeState {
 
 NodeState nodeStatus = {};
 
+bool istBroadcastMac(const uint8_t* mac) {
+    return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
+}
+
 void logf(const char* level, const char* format, ...) {
     if (!DEBUG_LOKAL_AKTIV) return;
 
@@ -97,7 +101,8 @@ void logMac(const char* prefix, const uint8_t* mac) {
 }
 
 bool stellePeerSicher(const uint8_t* mac) {
-    if (mac == nullptr || !SmartHome::isValidMac(mac)) return false;
+    if (mac == nullptr) return false;
+    if (!istBroadcastMac(mac) && !SmartHome::isValidMac(mac)) return false;
     if (esp_now_is_peer_exist(mac)) return true;
 
     esp_now_peer_info_t peerInfo = {};

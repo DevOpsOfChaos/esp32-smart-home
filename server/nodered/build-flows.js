@@ -16,6 +16,7 @@ const ids = {
     uiBase: "cfg_ui_base",
     uiPageActors: "cfg_ui_page_actors",
     uiGroupNetErlTest: "cfg_ui_group_net_erl_test",
+    uiGroupNetZrlTest: "cfg_ui_group_net_zrl_test",
     mqttServerStatus: "mqtt_server_status",
     mqttMasterStatus: "mqtt_master_status",
     mqttMasterEvent: "mqtt_master_event",
@@ -52,9 +53,18 @@ const ids = {
     influxWrite: "http_influx_write",
     uiButtonNetErlOn: "ui_button_net_erl_on",
     uiButtonNetErlOff: "ui_button_net_erl_off",
+    uiButtonNetZrlRelay1On: "ui_button_net_zrl_relay_1_on",
+    uiButtonNetZrlRelay1Off: "ui_button_net_zrl_relay_1_off",
+    uiButtonNetZrlRelay2On: "ui_button_net_zrl_relay_2_on",
+    uiButtonNetZrlRelay2Off: "ui_button_net_zrl_relay_2_off",
     injectNetErlOn: "inject_net_erl_on",
     injectNetErlOff: "inject_net_erl_off",
+    injectNetZrlRelay1On: "inject_net_zrl_relay_1_on",
+    injectNetZrlRelay1Off: "inject_net_zrl_relay_1_off",
+    injectNetZrlRelay2On: "inject_net_zrl_relay_2_on",
+    injectNetZrlRelay2Off: "inject_net_zrl_relay_2_off",
     buildNetErlCmdSet: "fn_build_net_erl_cmd_set",
+    buildNetZrlCmdSet: "fn_build_net_zrl_cmd_set",
     mqttCmdSetOut: "mqtt_cmd_set_out",
     linkOutAuditEgress: "link_out_audit_egress",
     linkOutAudit: "link_out_audit",
@@ -856,6 +866,39 @@ const buildNetErlCmdSetFunc = script(
     'return [publishMsg, auditMsg];'
 );
 
+const buildNetZrlCmdSetFunc = script(
+    'const relayKey = msg.topic === "relay_2" ? "relay_2" : "relay_1";',
+    'const relayState = msg.payload === true || msg.payload === "true" || msg.payload === 1 || msg.payload === "1";',
+    'const stateLabel = relayState ? "on" : "off";',
+    'const occurredAt = new Date().toISOString();',
+    'const topic = "smarthome/node/net_zrl_01/cmd/set";',
+    'const commandPayload = {',
+    '    cmd: "set_relay",',
+    '    [relayKey]: relayState,',
+    '    request_id: "nodered_net_zrl_01_" + relayKey + "_" + stateLabel + "_" + Date.now()',
+    '};',
+    'const rawJson = JSON.stringify(commandPayload);',
+    'const publishMsg = {',
+    '    topic,',
+    '    payload: rawJson',
+    '};',
+    'const auditMsg = {',
+    '    payload: {',
+    '        topic,',
+    '        scope: "node",',
+    '        entityId: "net_zrl_01",',
+    '        channel: "cmd/set",',
+    '        direction: "egress",',
+    '        retain: false,',
+    '        ts: occurredAt,',
+    '        receivedAt: occurredAt,',
+    '        payload: commandPayload,',
+    '        rawJson',
+    '    }',
+    '};',
+    'return [publishMsg, auditMsg];'
+);
+
 const buildAuditInsertFunc = script(
     ...toSqlLines,
     'const event = msg.payload || {};',
@@ -922,7 +965,7 @@ addNode({
     type: "tab",
     label: "50 Command Egress",
     disabled: false,
-    info: "Dashboard-triggered cmd/set publish for the existing net_erl_01 proof path."
+    info: "Dashboard-triggered cmd/set publish for the versioned net_erl_01 and net_zrl_01 proof paths."
 });
 
 addNode({
@@ -1019,6 +1062,21 @@ addNode({
     width: 6,
     height: 1,
     order: 1,
+    showTitle: true,
+    className: "",
+    visible: true,
+    disabled: false,
+    groupType: "default"
+});
+
+addNode({
+    id: ids.uiGroupNetZrlTest,
+    type: "ui-group",
+    name: "net_zrl_01 Test",
+    page: ids.uiPageActors,
+    width: 6,
+    height: 2,
+    order: 2,
     showTitle: true,
     className: "",
     visible: true,
@@ -1439,6 +1497,34 @@ addNode({
 });
 
 [
+    { nodeId: ids.injectNetZrlRelay1On, name: "Trigger net_zrl Relay 1 EIN", topic: "relay_1", payload: "true", x: 190, y: 360 },
+    { nodeId: ids.injectNetZrlRelay1Off, name: "Trigger net_zrl Relay 1 AUS", topic: "relay_1", payload: "false", x: 190, y: 420 },
+    { nodeId: ids.injectNetZrlRelay2On, name: "Trigger net_zrl Relay 2 EIN", topic: "relay_2", payload: "true", x: 190, y: 540 },
+    { nodeId: ids.injectNetZrlRelay2Off, name: "Trigger net_zrl Relay 2 AUS", topic: "relay_2", payload: "false", x: 190, y: 600 }
+].forEach(({ nodeId, name, topic, payload, x, y }) => {
+    addNode({
+        id: nodeId,
+        type: "inject",
+        z: ids.tabCommand,
+        name,
+        props: [
+            { p: "payload" },
+            { p: "topic", vt: "str" }
+        ],
+        repeat: "",
+        crontab: "",
+        once: false,
+        onceDelay: 0.1,
+        topic,
+        payload,
+        payloadType: "bool",
+        x,
+        y,
+        wires: [[ids.buildNetZrlCmdSet]]
+    });
+});
+
+[
     { nodeId: ids.uiButtonNetErlOn, name: "Relay 1 EIN", label: "Relay 1 EIN", payload: "true", order: 1, x: 190, y: 120 },
     { nodeId: ids.uiButtonNetErlOff, name: "Relay 1 AUS", label: "Relay 1 AUS", payload: "false", order: 2, x: 190, y: 180 }
 ].forEach(({ nodeId, name, label, payload, order, x, y }) => {
@@ -1479,6 +1565,49 @@ addNode({
     });
 });
 
+[
+    { nodeId: ids.uiButtonNetZrlRelay1On, name: "net_zrl Relay 1 EIN", label: "Relay 1 EIN", topic: "relay_1", payload: "true", order: 1, x: 200, y: 720 },
+    { nodeId: ids.uiButtonNetZrlRelay1Off, name: "net_zrl Relay 1 AUS", label: "Relay 1 AUS", topic: "relay_1", payload: "false", order: 2, x: 200, y: 780 },
+    { nodeId: ids.uiButtonNetZrlRelay2On, name: "net_zrl Relay 2 EIN", label: "Relay 2 EIN", topic: "relay_2", payload: "true", order: 3, x: 200, y: 840 },
+    { nodeId: ids.uiButtonNetZrlRelay2Off, name: "net_zrl Relay 2 AUS", label: "Relay 2 AUS", topic: "relay_2", payload: "false", order: 4, x: 200, y: 900 }
+].forEach(({ nodeId, name, label, topic, payload, order, x, y }) => {
+    addNode({
+        id: nodeId,
+        type: "ui-button",
+        z: ids.tabCommand,
+        group: ids.uiGroupNetZrlTest,
+        name,
+        label,
+        order,
+        width: 3,
+        height: 1,
+        emulateClick: false,
+        tooltip: "",
+        color: "",
+        bgcolor: "",
+        className: "",
+        icon: "",
+        iconPosition: "left",
+        payload,
+        payloadType: "bool",
+        topic,
+        topicType: "str",
+        buttonColor: "",
+        textColor: "",
+        iconColor: "",
+        enableClick: true,
+        enablePointerdown: false,
+        pointerdownPayload: "",
+        pointerdownPayloadType: "str",
+        enablePointerup: false,
+        pointerupPayload: "",
+        pointerupPayloadType: "str",
+        x,
+        y,
+        wires: [[ids.buildNetZrlCmdSet]]
+    });
+});
+
 addNode({
     id: ids.buildNetErlCmdSet,
     type: "function",
@@ -1492,6 +1621,22 @@ addNode({
     libs: [],
     x: 510,
     y: 150,
+    wires: [[ids.mqttCmdSetOut], [ids.linkOutAuditEgress]]
+});
+
+addNode({
+    id: ids.buildNetZrlCmdSet,
+    type: "function",
+    z: ids.tabCommand,
+    name: "Build net_zrl_01 cmd/set",
+    func: buildNetZrlCmdSetFunc,
+    outputs: 2,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 530,
+    y: 510,
     wires: [[ids.mqttCmdSetOut], [ids.linkOutAuditEgress]]
 });
 
