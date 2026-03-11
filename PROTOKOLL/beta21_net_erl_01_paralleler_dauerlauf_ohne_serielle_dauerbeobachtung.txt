@@ -1,0 +1,98 @@
+Stand: beta21
+Datei: beta21_net_erl_01_paralleler_dauerlauf_ohne_serielle_dauerbeobachtung.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Nach den belegten Pilotpfaden fuer `net_erl_01` ging es hier bewusst nicht um neue Mechanismen, sondern um einen weiteren ruhigen Parallelbetrieb mit offizieller Server-Sicht.
+- `net_erl_01` sollte als bereits belegter Pilotnode ohne serielle Dauerbeobachtung weiterlaufen, waehrend der Rest des Systems lokal weiterbenutzbar bleibt.
+- Bewertet werden sollte nur, ob der offizielle Rueckweg im laufenden Betrieb stabil sichtbar bleibt und ob es serverseitig Anzeichen fuer Regressionen gibt.
+
+2. Aenderung
+- Keine Firmware-, Server-, Flow-, Topic- oder Architektur-Aenderung.
+- Vor dem Lauf wurde nur sichergestellt, dass der bereits nachgewiesene stabile Repo-Stand `0.2.2` real auf beiden bekannten Geraeten lief:
+  - `platformio.exe run -e master`
+  - `platformio.exe run -e net_erl`
+  - `platformio.exe run -e master -t upload --upload-port COM3`
+  - `platformio.exe run -e net_erl -t upload --upload-port COM10`
+- Der laufende Server-Stack blieb unveraendert gesund:
+  - `docker compose ps`
+  - `docker compose exec nodered sh -lc "node /opt/smarthome/build-flows.js > /tmp/expected_flows.json && cmp -s /tmp/expected_flows.json /data/flows.json; status=$?; rm -f /tmp/expected_flows.json; exit $status"`
+- Beobachtung waehrend des offiziellen Laufs nur ueber die erlaubten Pfade:
+  - MQTT `smarthome/node/net_erl_01/status`
+  - MQTT `smarthome/node/net_erl_01/state`
+  - MQTT `smarthome/node/net_erl_01/ack`
+  - SQLite `audit_log`
+  - SQLite `device_last_state`
+- Fester Beobachtungslauf:
+  - reale Startmarke: `2026-03-11T17:27:05.392+01:00`
+  - reale Endmarke: `2026-03-11T18:32:10.334+01:00`
+  - reale Gesamtdauer: ca. `65 Minuten 05 Sekunden`
+- Reale offizielle Node-RED-Schaltvorgaenge fuer `relay_1`:
+  1. `2026-03-11T17:32:07.138+01:00` -> `POST /inject/inject_net_erl_on` -> HTTP `200`
+  2. `2026-03-11T17:47:06.990+01:00` -> `POST /inject/inject_net_erl_off` -> HTTP `200`
+  3. `2026-03-11T18:02:06.808+01:00` -> `POST /inject/inject_net_erl_on` -> HTTP `200`
+  4. `2026-03-11T18:17:06.741+01:00` -> `POST /inject/inject_net_erl_off` -> HTTP `200`
+
+3. Begruendung
+- Ein weiterer kurzer Happy-Path waere wertlos gewesen. Der Lauf musste bewusst langweilig bleiben: lange ruhige Phasen, wenige offizielle Schaltvorgaenge, keine serielle Dauerhilfe.
+- Die Frage war nicht, ob ein neues Feature existiert, sondern ob `net_erl_01` trotz paralleler Arbeiten im System weiter sauber ueber MQTT und SQLite sichtbar bleibt.
+- Alles andere waere wieder die falsche Flucht in neue Technik statt ehrliche Betriebsbeobachtung.
+
+4. Verbesserungseffekt
+- Es gibt jetzt zusaetzlich zum 45-Minuten-Lauf aus `beta19` einen weiteren realen serverseitigen Beobachtungslauf fuer `net_erl_01`, diesmal bewusst ohne serielle Dauerbeobachtung.
+- Der offizielle Bedienpfad blieb auch in diesem Lauf konsistent:
+  - `cmd/set` als `direction = egress` in `audit_log`
+  - danach genau ein `ack` als `direction = ingest`
+  - danach genau ein `state` als `direction = ingest`
+- Der Node blieb auf dem offiziellen Serverpfad sichtbar:
+  - kein unerwartetes MQTT-`status online:false`
+  - `device_last_state.status_json` blieb `online:true`
+  - `device_last_state.state_json` folgte den vier offiziellen Schaltvorgaengen sauber
+  - `device_last_state.ack_json` zeigte am Ende den letzten offiziellen `request_id`-ACK
+
+5. Risiken / Trade-offs
+- Dieser Lauf beweist keine neue Architektur und keinen neuen Mechanismus. Er bestaetigt nur den bestehenden offiziellen `net_erl_01`-Pilotpfad unter ruhigem Parallelbetrieb.
+- Die physische externe Versorgung des Geraets ist aus dem Terminal nicht maschinell verifizierbar. Belastbar dokumentiert sind hier nur die offiziellen Systemsignale und der Verzicht auf serielle Dauerbeobachtung waehrend des Beobachtungsfensters.
+- `device_last_state.status_at` blieb auf dem letzten `online:true`-Publish vor dem Lauf stehen. Das ist in diesem Stand plausibel, weil waehrend des stabilen Laufs kein neuer Statuswechsel stattfand; `status` ist hier kein HEARTBEAT-Spiegel.
+- Kein absichtlich gestoerter Funkbetrieb, keine Mehrgeraetelast und kein neuer Offline-/Retry-Nachweis.
+
+6. Teststatus
+- Reale Hardware und Ports:
+  - `master -> COM3`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `net_erl -> COM10`, Hardware-ID `USB VID:PID=303A:1001 SER=20:6E:F1:6B:6B:30`
+- Reale Firmware-Staende vor Laufstart:
+  - MQTT `smarthome/master/MASTER-001/status` -> `fw:"0.2.2"`
+  - MQTT `smarthome/node/net_erl_01/status` -> `fw:"0.2.2"`
+  - SQLite `device_last_state.status_json` fuer `net_erl_01` -> `online:true`, `fw:"0.2.2"`
+- Reale MQTT-Beobachtung ueber den offiziellen Lauf:
+  - Start mit retained `status online:true` und retained `state relay_1:false`
+  - danach genau `4 x ack`
+  - danach genau `4 x state`
+  - waehrend des gesamten Beobachtungsfensters `0 x status online:false`
+- Reale SQLite-Beobachtung seit Baseline `audit_log id > 377`:
+  - genau `12` neue Zeilen
+  - `4 x cmd/set:egress`
+  - `4 x ack:ingest`
+  - `4 x state:ingest`
+  - `0 x status online:false`
+- Reale ACK-/State-Folgen:
+  1. `request_id = nodered_net_erl_01_on_1773246727122` -> `ack_seq = 1`, `attempts = 1`, `retry_count = 0` -> `state relay_1:true`
+  2. `request_id = nodered_net_erl_01_off_1773247626987` -> `ack_seq = 2`, `attempts = 1`, `retry_count = 0` -> `state relay_1:false`
+  3. `request_id = nodered_net_erl_01_on_1773248526806` -> `ack_seq = 3`, `attempts = 1`, `retry_count = 0` -> `state relay_1:true`
+  4. `request_id = nodered_net_erl_01_off_1773249426738` -> `ack_seq = 4`, `attempts = 1`, `retry_count = 0` -> `state relay_1:false`
+- Reale `device_last_state`-Endsicht:
+  - `status_json = {"node_id":"net_erl_01","online":true,"device_type":"net_erl","power_type":"mains","fw":"0.2.2"}`
+  - `state_json = {"node_id":"net_erl_01","relay_1":false,"fault":false}`
+  - `ack_json = {"node_id":"net_erl_01","request_id":"nodered_net_erl_01_off_1773249426738","channel":"cmd/set","status":"ok","status_code":0,"ack_msg_type":5,"ack_seq":4,"attempts":1,"retry_count":0,"retry_exhausted":false,"source":"node_ack"}`
+- Reale Stoerungen / Auffaelligkeiten:
+  - keine neuen serverseitig sichtbaren Stoerungen waehrend des Laufs
+  - keine unerwarteten Offline-Umschlaege
+  - keine ACK-Luecken
+  - keine sichtbaren Doppelwirkungen
+  - keine Retries
+
+7. Lehrerblick
+- Die Eigenleistung steckt hier nicht in neuer Funktion, sondern in sauberer Betriebswahrheit: stabilen Stand real gebaut und geflasht, offiziellen Serverpfad unveraendert gelassen, danach einen festen ruhigen Lauf nur ueber MQTT und SQLite dokumentiert.
+- Als Referenz genutzt wurden nur die bereits belegte Firmware-/Serverbasis, die bestehende Doku und die offiziellen versionierten Node-RED-Trigger.
+- Fachlich nachvollziehbar ist der Stand, weil Dauer, Triggerzeiten, Request-IDs, ACK-Felder, SQLite-Zeilen und die Abwesenheit von `online:false` konkret belegt sind statt behauptet.
