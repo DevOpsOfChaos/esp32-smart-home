@@ -20,7 +20,8 @@ Stand 2026-03-11:
 - die kombinierten Live-Nachweise im aktuellen Repo-Stand sind fuer diese beiden Pilotpfade belegt:
   `Node-RED -> cmd/set -> audit_log egress -> Master -> net_erl|net_zrl -> MQTT state -> device_last_state`
 - die Server-V1 hat zusaetzlich getrennte Nachweise fuer MQTT-Ingest und Influx-Schreibpfad
-- feste Basisgeraete `net_sen_01` und `bat_sen_01` sind in dieselbe Firmware-Linie integriert, aber nicht als reale Hardwarebasis nachgewiesen
+- der offizielle `net_sen_01`-Servernachweis auf dem real belegten DHT22-Pfad `GPIO6` ist im aktuellen Repo-Stand jetzt ebenfalls dokumentiert
+- `bat_sen_01` bleibt als einzige Basisgeraete-Luecke ohne eigenen realen Hardware-Nachweis offen
 - offen bleiben ACK/Retry, Langzeitstabilitaet, Offline-Timeout, weitere Basisgeraete und ein vollstaendiger Gesamtprojektnachweis
 - belegter Ist-Stand: `docs/14_test_und_nachweisstand.md`
 - Detailblatt der Minimalstrecke: `docs/14_minimalstrecke_net_erl_master.md`

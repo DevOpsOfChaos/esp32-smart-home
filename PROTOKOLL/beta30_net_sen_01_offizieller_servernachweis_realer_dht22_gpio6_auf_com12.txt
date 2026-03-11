@@ -1,0 +1,128 @@
+Stand: beta30
+Datei: beta30_net_sen_01_offizieller_servernachweis_realer_dht22_gpio6_auf_com12.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Nach `beta29` war der lokale Echt-Hardwarepfad von `net_sen_01` auf `COM12` mit plausiblem DHT22 auf `GPIO6` belegt, aber der offizielle Servernachweis blieb offen.
+- Der Auftrag war eng:
+  - `master` bleibt auf `COM3`
+  - `net_sen_01` bleibt auf `COM12`
+  - `net_erl_01` extern nicht stoeren
+  - `net_zrl_01` nicht anfassen
+  - keine Fake-Sensorwerte, keine neuen Topics, keine Architektur-Aenderung
+
+2. Aenderung
+- Keine Codeaenderung.
+- Keine Aenderung an Architektur, MQTT-Vertrag, Node-RED-Generator, SQLite-Schema oder Influx-Konfiguration.
+- Real ausgefuehrt wurden nur Nachweis- und Betriebspruefungen im aktuellen Repo-Stand:
+  - Portlage und USB-IDs geprueft
+  - `server/`-Stack und aktiver Flow-Stand geprueft
+  - `platformio run -e net_sen`
+  - `platformio run -e net_sen -t upload --upload-port COM12`
+  - Live-MQTT-Mitschnitte ohne retained Altlasten fuer `meta`, `status` und `state`
+  - serielle Echtbeobachtung auf `COM12`
+  - SQLite-Abfragen gegen `devices`, `device_last_state` und `audit_log`
+  - Influx-Query fuer die neu geschriebenen `net_sen_01`-Zeitreihen
+
+3. Reale Befunde
+- Reale Portbestaetigung:
+  - `COM3` -> `USB VID:PID=303A:1001 SER=20:6E:F1:6D:92:C0`
+  - `COM12` -> `USB VID:PID=303A:1001 SER=20:6E:F1:6A:DF:5C`
+- Reale Serverbasis:
+  - `server-mosquitto-1`, `server-influxdb-1`, `server-nodered-1` liefen healthy
+  - der aktive Node-RED-Laufzeitstand `/data/flows.json` entsprach dem aktuellen Generatorstand aus `server/nodered/build-flows.js`
+  - ein zusaetzlicher Node-RED-Reset war fuer diesen Nachweis nicht noetig
+- Reale Build-/Uploadsicht fuer `net_sen`:
+  - `platformio run -e net_sen` erfolgreich
+  - `platformio run -e net_sen -t upload --upload-port COM12` erfolgreich
+  - `esptool` meldete den ESP32-C3 auf `COM12` mit MAC `20:6e:f1:6a:df:5c`
+- Reale Live-MQTT-Beobachtung ohne retained Altlasten:
+  - `smarthome/node/net_sen_01/status {"node_id":"net_sen_01","online":true,"device_type":"net_sen","power_type":"mains","fw":"0.2.2"}`
+  - `smarthome/node/net_sen_01/meta {"node_id":"net_sen_01","device_name":"NET-SEN Base","device_type":"net_sen","device_class":3,"power_type":"mains","caps":12,"fw_version":0,"mac":"20:6E:F1:6A:DF:5C"}`
+  - erneut `smarthome/node/net_sen_01/status ... online:true ...`
+  - danach live `smarthome/node/net_sen_01/state {"node_id":"net_sen_01","temp_01c":215,"hum_01pct":533,"lux":null,"motion":false,"fault":false}`
+- Reale serielle Beobachtung auf `COM12` nach dem offiziellen Lauf:
+  - wiederholt `DHT22 READ GPIO6 versuch=...`
+  - wiederholt `DHT22 OK temp=21.5C hum=53.0%` bis `53.1%`
+  - wiederholt `HEARTBEAT gesendet`
+  - wiederholt `ESP-NOW Sendestatus an 20:6E:F1:6D:92:C0: OK`
+  - keine `DHT22 FEHLER ...`
+  - keine `DHT22 HINWEIS ...`
+- Reale SQLite-Sicht ab Laufstart `2026-03-11T21:20:27.8665550Z`:
+  - `devices.net_sen_01` stand danach auf `status = online`
+  - `devices.last_meta_at = 2026-03-11T21:21:04.786Z`
+  - `devices.last_status_at = 2026-03-11T21:21:04.786Z`
+  - `devices.last_state_at = 2026-03-11T21:22:07.261Z`
+  - `device_last_state.status_json = {"node_id":"net_sen_01","online":true,"device_type":"net_sen","power_type":"mains","fw":"0.2.2"}`
+  - `device_last_state.state_json = {"node_id":"net_sen_01","temp_01c":215,"hum_01pct":533,"lux":null,"motion":false,"fault":false}`
+  - `device_last_state.ack_json` blieb leer; `status` und `state` wurden also nicht vermischt
+  - `audit_log` zeigte fuer den neuen Lauf genau:
+    - `status ingest` um `2026-03-11T21:21:04.733Z`
+    - `meta ingest` um `2026-03-11T21:21:04.786Z`
+    - erneut `status ingest` um `2026-03-11T21:21:04.786Z`
+    - `state ingest` um `2026-03-11T21:21:07.240Z` mit `temp_01c=216`, `hum_01pct=527`
+    - `state ingest` um `2026-03-11T21:22:07.261Z` mit `temp_01c=215`, `hum_01pct=533`
+- Reale Influx-Sicht:
+  - frische `smarthome_sensor`-Punkte fuer `node_id = net_sen_01` lagen exakt zu den neuen `state`-Zeiten vor
+  - neu sichtbar waren:
+    - `metric=temp_01c`, `unit=0.1c`, `_time=2026-03-11T21:21:07.240Z`, `_value=216`
+    - `metric=temp_01c`, `unit=0.1c`, `_time=2026-03-11T21:22:07.261Z`, `_value=215`
+    - `metric=hum_01pct`, `unit=0.1pct`, `_time=2026-03-11T21:21:07.240Z`, `_value=527`
+    - `metric=hum_01pct`, `unit=0.1pct`, `_time=2026-03-11T21:22:07.261Z`, `_value=533`
+  - es wurden dabei keine booleschen Statusfelder und keine textuellen Werte nach Influx geschrieben
+
+4. Begruendung
+- Der offizielle Servernachweis ist damit im aktuellen Repo-Stand erbracht:
+  - realer DHT22 auf `GPIO6`
+  - realer Node auf `COM12`
+  - realer Master auf `COM3`
+  - live neues MQTT-`meta`
+  - live neues MQTT-`status`
+  - live neues MQTT-`state`
+  - neue SQLite-Zeilen fuer `devices`, `device_last_state` und `audit_log`
+  - neue numerische Influx-Punkte exakt zu den neuen `state`-Zeiten
+- Der Nachweis wurde nicht ueber retained Altzustand erschlichen:
+  - Live-MQTT wurde ohne retained Altlasten beobachtet
+  - SQLite wurde ab klarem Laufstart gefiltert
+  - der aktive Flow-Stand wurde vorab gegen den Generator verifiziert
+
+5. Verbesserungseffekt
+- Die bisher offene Luecke `net_sen_01 -> Master -> MQTT meta/status/state -> SQLite -> Influx` ist jetzt real geschlossen.
+- `net_sen_01` ist damit nicht mehr nur lokal am Sensorpfad, sondern offiziell serverseitig im aktuellen Repo-Stand belegt.
+- Die naechste reale Prioritaet verschiebt sich weg von `net_sen` hin zu `bat_sen` und den weiterhin offenen Betriebsnachweisen jenseits der belegten Pfade.
+
+6. Risiken / Trade-offs
+- Dieser Lauf belegt keinen `cmd/set`-/ACK-/Retry-Pfad fuer `net_sen_01`; dafuer gibt es im aktuellen V1-Stand keinen entsprechenden offiziellen Nutzpfad.
+- Nicht nachgezogen wurden:
+  - Offline-Timeout fuer `net_sen_01`
+  - Langzeitstabilitaet fuer `net_sen_01`
+  - Mehrgeraetebetrieb
+- Beobachtet, aber fuer diesen Nachweis nicht kritisch:
+  - beim HELLO-Lauf kamen zwei `status online`-Publishes kurz hintereinander; sie blieben semantisch sauber im `status`-Kanal und verschmutzten `state` nicht
+  - `lux` blieb `null`, was fuer den aktuell unbestueckten Feldpfad korrekt ist
+
+7. Teststatus
+- Ausgefuehrt:
+  - `platformio device list`
+  - `Get-CimInstance Win32_SerialPort`
+  - `docker compose ps`
+  - Flow-Vergleich `build-flows.js` gegen `/data/flows.json`
+  - `platformio run -e net_sen`
+  - `platformio run -e net_sen -t upload --upload-port COM12`
+  - Live-MQTT-Subscribes auf `smarthome/node/net_sen_01/#` und `.../state` ohne retained Altlasten
+  - serielle Echtbeobachtung auf `COM12`
+  - SQLite-Abfragen auf `devices`, `device_last_state`, `audit_log`
+  - Influx-Query auf `smarthome_sensor` fuer `node_id = net_sen_01`
+- Nicht ausgefuehrt:
+  - Aenderungen an `master`
+  - Aenderungen an `net_erl_01`
+  - Aenderungen an `net_zrl_01`
+  - Node-RED-Reset oder Stack-Vollreset
+- Ergebnis:
+  - offizieller `net_sen_01`-Servernachweis bestanden
+
+8. Lehrerblick
+- Die Eigenleistung liegt hier nicht im Erfinden eines neuen Pfads, sondern im disziplinierten Realnachweis auf dem vorhandenen aktuellen Repo-Stand.
+- Als Referenz dienten nur die versionierte Repo-Basis, die vorhandene Nachweishistorie und die reale Hardware-/Serverumgebung.
+- Fachlich nachvollziehbar ist der Stand, weil Portidentifikation, Upload, Live-MQTT, serielle DHT22-Werte, SQLite und Influx auf denselben realen Lauf zusammenpassen.
