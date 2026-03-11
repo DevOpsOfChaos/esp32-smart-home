@@ -3,8 +3,8 @@
  Projekt   : SmartHome ESP32
  Geraet    : NET-SEN (Netzbetrieben, Sensor-Basis)
  Datei     : main.cpp
- Version   : 0.2.2
- Stand     : 2026-03-10
+ Version   : 0.2.3
+ Stand     : 2026-03-11
 
  Funktion:
  Allgemeine netzbetriebene Sensor-Basis in derselben ESP-NOW-Linie
@@ -45,11 +45,15 @@
 
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "NET-SEN";
-constexpr char DATEI_VERSION[] = "0.2.2";
+constexpr char DATEI_VERSION[] = "0.2.3";
 const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 constexpr uint8_t DHT_SENSOR_TYP = DHT22;
 constexpr unsigned long DHT_WARMUP_MS = 2500UL;
 constexpr unsigned long DHT_READ_INTERVAL_MS = 2500UL;
+constexpr unsigned long DHT_DIAG_HINT_INTERVAL_MS = 15000UL;
+constexpr int16_t SENSOR_TEMP_UNGUELTIG = INT16_MIN;
+constexpr uint16_t SENSOR_HUM_UNGUELTIG = 0xFFFFU;
+constexpr uint16_t SENSOR_LUX_UNGUELTIG = 0xFFFFU;
 
 DHT dht(PIN_DHT22_DATA, DHT_SENSOR_TYP);
 
@@ -73,6 +77,10 @@ struct NodeState {
 struct SensorRuntime {
     unsigned long boot_ms;
     unsigned long letzter_read_ms;
+    unsigned long letzte_gueltige_messung_ms;
+    unsigned long letzter_diag_hinweis_ms;
+    uint32_t leseversuche;
+    uint32_t fehler_in_folge;
     bool erster_read_abgeschlossen;
 };
 
@@ -251,9 +259,9 @@ void initialisiereHardware() {
         pinMode(PIN_PIR, INPUT);
     }
 
-    nodeStatus.temp_01c = INT16_MIN;
-    nodeStatus.hum_01pct = 0xFFFFU;
-    nodeStatus.lux = 0xFFFFU;
+    nodeStatus.temp_01c = SENSOR_TEMP_UNGUELTIG;
+    nodeStatus.hum_01pct = SENSOR_HUM_UNGUELTIG;
+    nodeStatus.lux = SENSOR_LUX_UNGUELTIG;
     nodeStatus.motion = false;
     nodeStatus.fault = false;
     nodeStatus.state_report_offen = false;
@@ -261,6 +269,10 @@ void initialisiereHardware() {
     dht.begin();
     sensorStatus.boot_ms = millis();
     sensorStatus.letzter_read_ms = 0UL;
+    sensorStatus.letzte_gueltige_messung_ms = 0UL;
+    sensorStatus.letzter_diag_hinweis_ms = 0UL;
+    sensorStatus.leseversuche = 0UL;
+    sensorStatus.fehler_in_folge = 0UL;
     sensorStatus.erster_read_abgeschlossen = false;
 }
 
@@ -299,6 +311,7 @@ void gibStartmeldungAus() {
     Serial.println(PROJECT_VERSION);
     Serial.print("Minimalpfad: DHT22 an GPIO");
     Serial.println(PIN_DHT22_DATA);
+    Serial.println("Sensorlogik: keine Fake-Werte, Plausibilitaetspruefung aktiv");
     Serial.println("================================");
 }
 
@@ -317,44 +330,103 @@ bool dhtStateBereit() {
     return sensorStatus.erster_read_abgeschlossen;
 }
 
+bool hatJemalsGueltigeDhtMessung() {
+    return sensorStatus.letzte_gueltige_messung_ms != 0UL;
+}
+
+void loggeDhtVerdrahtungshinweis() {
+    const unsigned long jetzt = millis();
+    const bool hinweisFaellig =
+        sensorStatus.fehler_in_folge == 1UL ||
+        sensorStatus.fehler_in_folge == 3UL ||
+        (jetzt - sensorStatus.letzter_diag_hinweis_ms) >= DHT_DIAG_HINT_INTERVAL_MS;
+
+    if (!hinweisFaellig) {
+        return;
+    }
+
+    sensorStatus.letzter_diag_hinweis_ms = jetzt;
+
+    if (!hatJemalsGueltigeDhtMessung()) {
+        logf(
+            "WARN",
+            "DHT22 HINWEIS: seit Boot keine gueltige Messung; GPIO%d/VCC/GND/Pull-up pruefen",
+            PIN_DHT22_DATA);
+        return;
+    }
+
+    logf(
+        "WARN",
+        "DHT22 HINWEIS: letzte gueltige Messung vor %lus; Verdrahtung/Sensor pruefen",
+        (jetzt - sensorStatus.letzte_gueltige_messung_ms) / 1000UL);
+}
+
 void setzeDhtLesefehler(const char* grund) {
     const bool zustandGeaendert =
         !nodeStatus.fault ||
-        nodeStatus.temp_01c != INT16_MIN ||
-        nodeStatus.hum_01pct != 0xFFFFU;
+        nodeStatus.temp_01c != SENSOR_TEMP_UNGUELTIG ||
+        nodeStatus.hum_01pct != SENSOR_HUM_UNGUELTIG;
 
-    nodeStatus.temp_01c = INT16_MIN;
-    nodeStatus.hum_01pct = 0xFFFFU;
+    nodeStatus.temp_01c = SENSOR_TEMP_UNGUELTIG;
+    nodeStatus.hum_01pct = SENSOR_HUM_UNGUELTIG;
     nodeStatus.fault = true;
     sensorStatus.erster_read_abgeschlossen = true;
+    sensorStatus.fehler_in_folge++;
 
     if (zustandGeaendert) {
         nodeStatus.state_report_offen = true;
     }
 
-    logf("WARN", "DHT22 Lesefehler an GPIO%d (%s)", PIN_DHT22_DATA, grund);
+    logf(
+        "WARN",
+        "DHT22 FEHLER GPIO%d: %s (versuch=%lu, fehler_in_folge=%lu)",
+        PIN_DHT22_DATA,
+        grund,
+        sensorStatus.leseversuche,
+        sensorStatus.fehler_in_folge);
+    loggeDhtVerdrahtungshinweis();
+}
+
+const char* pruefeDhtMessung(float temperaturC, float feuchtePct) {
+    if (isnan(feuchtePct) || isnan(temperaturC)) {
+        return "NaN";
+    }
+
+    if (feuchtePct < 0.0f || feuchtePct > 100.0f || temperaturC < -40.0f || temperaturC > 80.0f) {
+        return "ausserhalb DHT22-Bereich";
+    }
+
+    const int16_t gerundeteTemp = rundeTempZu01C(temperaturC);
+    const uint16_t gerundeteHum = rundeHumZu01Pct(feuchtePct);
+    if (gerundeteTemp == 0 && gerundeteHum == 0U) {
+        return "0.0C/0.0% unplausibel (typisches Nullframe-/Verdrahtungsbild)";
+    }
+
+    return nullptr;
 }
 
 void uebernehmeDhtMessung(float temperaturC, float feuchtePct) {
     const int16_t neueTemp = rundeTempZu01C(temperaturC);
     const uint16_t neueHum = rundeHumZu01Pct(feuchtePct);
     const bool tempNeuOderAnders =
-        nodeStatus.temp_01c == INT16_MIN ||
+        nodeStatus.temp_01c == SENSOR_TEMP_UNGUELTIG ||
         abs((int)neueTemp - (int)nodeStatus.temp_01c) >= TEMP_DELTA_01C;
     const bool humNeuOderAnders =
-        nodeStatus.hum_01pct == 0xFFFFU ||
+        nodeStatus.hum_01pct == SENSOR_HUM_UNGUELTIG ||
         abs((int)neueHum - (int)nodeStatus.hum_01pct) >= HUM_DELTA_01PCT;
 
     nodeStatus.temp_01c = neueTemp;
     nodeStatus.hum_01pct = neueHum;
     nodeStatus.fault = false;
     sensorStatus.erster_read_abgeschlossen = true;
+    sensorStatus.letzte_gueltige_messung_ms = millis();
+    sensorStatus.fehler_in_folge = 0UL;
 
     if (tempNeuOderAnders || humNeuOderAnders) {
         nodeStatus.state_report_offen = true;
     }
 
-    logf("INFO", "DHT22 temp=%d.%dC hum=%u.%u%%", neueTemp / 10, abs(neueTemp % 10), neueHum / 10, neueHum % 10);
+    logf("INFO", "DHT22 OK temp=%d.%dC hum=%u.%u%%", neueTemp / 10, abs(neueTemp % 10), neueHum / 10, neueHum % 10);
 }
 
 void messeSensoren() {
@@ -368,17 +440,19 @@ void messeSensoren() {
     }
 
     sensorStatus.letzter_read_ms = jetzt;
+    sensorStatus.leseversuche++;
+    logf("INFO", "DHT22 READ GPIO%d versuch=%lu", PIN_DHT22_DATA, sensorStatus.leseversuche);
 
-    const float feuchtePct = dht.readHumidity();
-    const float temperaturC = dht.readTemperature();
-
-    if (isnan(feuchtePct) || isnan(temperaturC)) {
-        setzeDhtLesefehler("NaN");
+    if (!dht.read()) {
+        setzeDhtLesefehler("Lib-Read fehlgeschlagen (Timeout/Checksum)");
         return;
     }
 
-    if (feuchtePct < 0.0f || feuchtePct > 100.0f || temperaturC < -40.0f || temperaturC > 80.0f) {
-        setzeDhtLesefehler("ausserhalb DHT22-Bereich");
+    const float feuchtePct = dht.readHumidity();
+    const float temperaturC = dht.readTemperature();
+    const char* fehlergrund = pruefeDhtMessung(temperaturC, feuchtePct);
+    if (fehlergrund != nullptr) {
+        setzeDhtLesefehler(fehlergrund);
         return;
     }
 

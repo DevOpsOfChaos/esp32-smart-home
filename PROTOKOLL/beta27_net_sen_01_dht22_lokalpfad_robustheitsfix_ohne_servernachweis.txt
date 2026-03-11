@@ -1,0 +1,54 @@
+Stand: beta27
+Datei: beta27_net_sen_01_dht22_lokalpfad_robustheitsfix_ohne_servernachweis.txt
+Datum: 2026-03-11
+Autor: Codex
+
+1. Anlass
+- Nach `beta26` ist der lokale Bring-up von `net_sen_01` bis `HELLO_ACK` auf `COM12` belegt.
+- Der naechste Engpass liegt damit nicht im Serverpfad, sondern im lokalen DHT22-Hardwarepfad.
+- Der bisherige Code akzeptierte `0.0C / 0.0%` als formell gueltige Messung, solange die DHT-Library keinen `NaN`- oder Bereichsfehler lieferte.
+
+2. Aenderung
+- Nur minimaler Robustheitsfix fuer `net_sen`:
+  - `firmware/src/net_sen/main.cpp`
+    - DHT-Leseversuch jetzt mit explizitem `dht.read()` vor der Wertuebernahme
+    - klare Fehlersemantik ueber Sentinel-Werte (`INT16_MIN`, `0xFFFF`) und `fault=true`
+    - Plausibilitaetspruefung gegen das typische Nullframe-Bild `0.0C / 0.0%`
+    - serielle Marker `DHT22 READ`, `DHT22 OK`, `DHT22 FEHLER`, `DHT22 HINWEIS`
+    - wiederkehrender Verdrahtungshinweis, ohne den Boot-/HELLO-Pfad zu blockieren
+- knappe Doku fuer den echten Hardwarecheck:
+  - `hardware/net_sen/README.md`
+  - `docs/TASK_QUEUE.md` priorisiert jetzt zuerst den lokalen DHT22-Hardware-Nachweis und erst danach den offiziellen Servernachweis
+
+3. Begruendung
+- Die Adafruit-DHT-Library setzt ihren 5-Byte-Datenpuffer vor jedem Read auf `0` und akzeptiert ein Paket als erfolgreich, wenn die Pruefsumme passt.
+- Ein komplettes Nullframe kann deshalb technisch als "gueltiger" Read durchgehen und anschliessend als `0.0C / 0.0%` erscheinen.
+- Genau dieses Bild ist fuer den lokalen Nachweis toxisch, weil es einen Verdrahtungs- oder Sensorfehler wie einen Erfolg aussehen laesst.
+- Der Fix bleibt bewusst lokal im `net_sen`-Pfad und aendert weder Architektur, MQTT-Vertrag noch Server.
+
+4. Verbesserungseffekt
+- Ungueltige oder fehlende DHT22-Werte gehen nicht mehr still als Erfolg durch.
+- `net_sen_01` kann weiter sauber booten, `HELLO` senden und `HELLO_ACK` halten, auch wenn der DHT22 fehlt oder falsch verdrahtet ist.
+- Der spaetere echte Hardware-Nachweis wird enger und schneller:
+  - gueltige Messung = `HELLO_ACK` plus `DHT22 OK ...`
+  - Sensorproblem = `DHT22 FEHLER ...` bzw. `DHT22 HINWEIS ...`
+
+5. Risiken / Trade-offs
+- Kein neuer Realnachweis ist dadurch automatisch erbracht.
+- Die Plausibilitaetspruefung faengt gezielt das bekannte Nullframe-Bild ab, beweist aber keinen physisch korrekt verdrahteten Sensor.
+- Ein offizieller Servernachweis fuer `net_sen_01` bleibt weiterhin offen und wurde hier bewusst nicht behauptet.
+
+6. Teststatus
+- Ausgefuehrt:
+  - Pflichtdoku, Protokolle und relevante Firmware-Dateien gelesen
+  - DHT-Library und Master-State-Semantik gelesen
+  - `platformio run -e net_sen`
+- Nicht ausgefuehrt:
+  - neuer Flash auf `COM12`
+  - neuer realer serieller Hardwarelauf
+  - Server-/MQTT-/SQLite-/Influx-Nachweis fuer `net_sen_01`
+
+7. Lehrerblick
+- Die Eigenleistung liegt in der sauberen Fehleranalyse des bestehenden DHT22-Pfads und im minimalen, nachvollziehbaren Robustheitsfix ohne Themenflucht in den Serverbereich.
+- Als Referenz wurden nur der aktuelle Repo-Stand, die vorhandenen Nachweise und die konkret verwendete Adafruit-DHT-Library genutzt.
+- Fachlich nachvollziehbar ist der Stand, weil Ursache, Codefix, Payload-Sentinels und serielle Diagnosemarker direkt zusammenpassen.
