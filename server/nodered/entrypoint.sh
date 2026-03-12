@@ -7,6 +7,7 @@ SQLITE_DIR="$(dirname "$SQLITE_TARGET")"
 
 mkdir -p "$SQLITE_DIR"
 sqlite3 "$SQLITE_TARGET" < /opt/smarthome/schema.sql
+node /opt/smarthome/build-flows.js > /data/flows.json
 
 if [ -n "${MQTT_USERNAME:-}" ] && [ -n "${MQTT_PASSWORD:-}" ]; then
   node <<'EOF'

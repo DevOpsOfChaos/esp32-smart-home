@@ -1,0 +1,67 @@
+Stand: beta33
+Datei: beta33_server_dashboard_v1_realstand.txt
+Datum: 2026-03-12
+Autor: Codex
+
+1. Anlass
+- Das reale Server-/Dashboard-Stack hatte die MQTT-, SQLite- und Influx-Basis bereits, aber im UI fehlte fast alles, was fuer einen ehrlichen V1 noetig ist:
+  - responsive Geraete-Uebersicht
+  - Detailseite
+  - einfache Aktor-/Cover-Bedienung
+  - Wetter-/Konfig-/Log-/Automationsseiten
+- Gleichzeitig durfte keine zweite "Produkt-UI" fuer Simulation aufgebaut werden. Ziel war der reale Dashboard-Pfad; die bestehende `[SIM]`-Seite durfte nur als getrennte Validierungssicht bleiben.
+
+2. Aenderung
+- Aktualisiert:
+  - `server/nodered/build-flows.js`
+  - `server/nodered/entrypoint.sh`
+- Neu bzw. deutlich erweitert im realen Dashboard:
+  - responsive Startseite `/dashboard/` mit einer Karte pro Geraet
+  - getrennte Seiten fuer Raeume, Geraete, Sensoren, Aktoren, Rollaeden, Wetter, Diagramme, Automationen, Konfiguration und Logs
+  - generische Detailseite `/dashboard/geraet?device=<id>`
+  - serverseitige Darstellung von Batterie-/Netzsymbolik, sortierten Werten und Cover-/Relais-Bedienung
+  - einfache V1-Automationsmaske auf Basis von SQLite und Node-RED
+  - dunkles Theme mit expliziten Kontrasten statt zufaelliger Standardfarben
+- Wichtiger Betriebsfix:
+  - `entrypoint.sh` generiert `flows.json` jetzt bei jedem Containerstart neu, damit aenderungen am Flow-Generator nicht durch das persistente `/data`-Volume verdeckt werden
+
+3. Begruendung
+- Das Dashboard war vorher zu nah an einem Technik-Dump und zu weit vom Produktziel entfernt.
+- Ein echter V1 braucht zuerst vernuenftige Navigation, Geraetekarten, Detailkontext und einfache Bedienung. Alles andere ist Nebel.
+- Der Runtime-Fix im Entrypoint war noetig, weil sonst jede Flow-Aenderung nur im Image, aber nicht im laufenden Server landete.
+
+4. Verbesserungseffekt
+- Das reale Dashboard zeigt bekannte Geraete jetzt als nutzbare Karten statt als isolierte Testbuttons.
+- Relais lassen sich direkt schalten, Cover koennen auf/stop/ab gefahren werden, und der Slider wird sichtbar gesperrt, wenn Kalibrierung oder MQTT-Zielpfad fehlen.
+- Detailseiten erlauben Umbenennung, Raumzuordnung, technische Sicht und den Einstiegspunkt fuer Zeitreihen.
+- Logs, Konfiguration und eine einfache Automations-V1 sind im gleichen realen UI-Pfad erreichbar.
+- Die alte `[SIM]`-Seite bleibt nur als klar getrennte Validierungssicht bestehen.
+
+5. Risiken / Trade-offs
+- Diagramme sind noch nur teilweise erreicht:
+  - die Seiten und Filter sind da
+  - die Influx-Abfrage laeuft serverseitig
+  - die Diagrammausgabe im Dashboard liefert aktuell noch keine sichtbare Kurve, obwohl die Influx-Daten vorhanden sind
+- Cover-Zielposition per Slider ist bewusst nicht aktiv, weil der aktuelle echte MQTT-/Firmware-Pfad dafuer noch nicht sauber vorhanden ist.
+- Die `[SIM]`-Seite existiert weiter, weil sie als abgesonderte Validierungssicht fuer `sim_*` technisch nuetzlich bleibt. Sie ist nicht die Produkt-Startseite.
+
+6. Teststatus
+- Lokal real ausgefuehrt:
+  - `node server/nodered/build-flows.js > $null`
+  - `docker compose up -d --build nodered`
+  - Browser-Checks auf:
+    - `/dashboard/`
+    - `/dashboard/geraet?device=test_net_sen_01`
+    - `/dashboard/automationen`
+    - `/dashboard/logs`
+    - `/dashboard/konfiguration`
+- Ergebnis:
+  - Node-RED startet ohne Theme-Warnungen oder Flow-Fehler
+  - reale Uebersicht, Automationen, Logs und Konfiguration laden im Browser
+  - dunkles Theme ist aktiv
+  - Diagramm-UI ist sichtbar, aber die Kurvenausgabe bleibt noch offen
+
+7. Lehrerblick
+- Die Eigenleistung steckt in der produktnahen Verdrahtung des bestehenden Serverstacks statt in einem parallelen Demo-Dashboard.
+- Als Referenz dienten nur die vorhandene Serverarchitektur, das Dashboard-Konzept, die lokalen Runbooks und die bestehenden SQLite-/Influx-/MQTT-Strukturen.
+- Der Stand ist fachlich nachvollziehbar, weil er die reale Datenbasis nutzt, technische Grenzen nicht kaschiert und ungestuetzte Features bewusst nur als gesperrte Teilfunktion zeigt.
