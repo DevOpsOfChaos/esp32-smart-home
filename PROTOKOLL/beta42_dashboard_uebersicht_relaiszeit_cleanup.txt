@@ -1,0 +1,77 @@
+Stand: beta42
+Datei: beta42_dashboard_uebersicht_relaiszeit_cleanup.txt
+Datum: 2026-03-12
+Autor: Codex
+
+1. Anlass
+- Der reale Dashboard-V1-Stand nach `c3a5765` war funktional, aber im Uebersichts-/Geraetekartenpfad weiter unnoetig unruhig:
+  - Relaiskarten zeigten neben den Schaltflaechen weiterhin redundante Textreste wie `Relais 1: aus`, `Relais 2: aus` oder Sammeltexte wie `Alle Ausgaenge aus`
+  - negative Nicht-Ereignisse wie `Stoerung: nein` liefen als Uebersichtsmuell mit
+  - `Zuletzt gesehen` blieb auf der Uebersicht eine rohe Timestamp-Ausgabe statt einer alltagstauglichen relativen Lesart
+  - Relaisnamen waren trotz bestehender UI-Konfigurationsspur weiterhin auf `Relais 1` / `Relais 2` festgenagelt
+
+2. Aenderung
+- Aktualisiert:
+  - `server/nodered/build-flows.js`
+- Neu bzw. bereinigt im produktiven Flow-Generator:
+  - Uebersichtskarten blenden negative Fault-/Stoerungsbooleans im Normalfall aus
+  - Relaiszustandszeilen in den Secondary-Pills werden fuer Relaiskarten nicht mehr doppelt neben den Controls gezeigt
+  - Relais-Sammeltexte werden auf Karten und im Relais-Steuerkopf entfernt; die Controls selbst tragen die Zustandsaussage
+  - `Zuletzt gesehen` in der Uebersicht wird jetzt relativ dargestellt:
+  - `vor x Sekunden`
+  - `vor x Minuten`
+  - `vor x Stunden`
+  - ab >24 h faellt die Anzeige auf eine lesbare lokale Datums-/Zeitdarstellung zurueck
+  - exakte Zeitstempel im Detailpfad werden lokal formatiert statt roh auszugeben
+  - Relaisnamen koennen jetzt ueber das Geraetedetail als UI-Konfiguration gespeichert werden:
+  - `ui_relay_1_name`
+  - `ui_relay_2_name`
+  - Quelle bleibt ehrlich `server/ui` in `device_config`; keine Firmware-, `cfg/set`- oder Geraete-Semantik wurde erfunden
+  - die Relais-Controls wurden visuell zu klareren EIN/AUS-Toggles mit Status-Pill und Schiebeschalter verdichtet
+  - die Konfigurationsseite benennt die neue Relaisnamen-Spur explizit als Geraetedetail-/UI-Konfiguration
+  - die Tabelle `Gemaeldete Geraetekonfiguration` im Detail zeigt nur noch echte `cfg/report`-Eintraege statt UI-Overrides mitzubehaupten
+
+3. Begruendung
+- Die Uebersicht soll scannbar sein. Wenn Controls den Relaiszustand bereits sichtbar machen, sind zusaetzliche Textduplikate nicht Information, sondern Laerm.
+- `Stoerung: nein` ist im Alltag keine relevante Uebersichtsinformation. Ein echter Fault bleibt sichtbar, aber das Nichtvorhandensein eines Faults muss nicht als eigener Satz mitlaufen.
+- Relaisnamen gehoeren in die vorhandene UI-/SQLite-Konfigurationsspur, nicht in eine erfundene Geraetekonfiguration oder in Firmware.
+
+4. Verbesserungseffekt
+- Relaiskarten lesen sich jetzt kompakter und weniger wie Debug-Ausgaben.
+- Der Relaispfad kann lokal benannt werden, ohne die Backend-Semantik von `relay_1` / `relay_2` zu verfaelschen.
+- Zeitangaben auf der Uebersicht sind im Alltag brauchbar, waehrend der Detailpfad weiterhin exakte lokale Zeitstempel zeigt.
+- Der Rollladenpfad bleibt im Kern unveraendert; es gab nur den kleinen Konsistenzfix am Detail-Buttontext.
+
+5. Risiken / Trade-offs
+- Relaisnamen sind bewusst nur Dashboard-/SQLite-UI-Konfiguration. Sie aendern weder MQTT-Payloads noch Firmware-Verhalten.
+- Die End-to-End-Schaltvalidierung lief fuer den bestehenden Testgeraete-Pfad `test_net_erl_01` serverlokal ueber offiziellen `cmd/set`-Egress plus nachfolgende offizielle `state`-Publishes auf MQTT. Das ist Browser-/Servervalidierung, kein neuer Hardware-Nachweis.
+- Nicht angefasst wurden Diagramme, Firmware, README-/Shared-Docs und der Rollladenpfad jenseits kleiner UI-Konsistenz.
+
+6. Teststatus
+- Lokal ausgefuehrt:
+  - `docker compose config`
+  - `node server/nodered/build-flows.js > $null`
+  - `docker compose up -d --build`
+  - `docker compose ps`
+  - `docker compose logs --tail=120 nodered`
+  - danach nochmals gezielt:
+  - `node server/nodered/build-flows.js > $null`
+  - `docker compose up -d --build nodered`
+- Browser-/Live-Pruefung:
+  - `/dashboard/`
+  - `/dashboard/geraet?device=test_net_erl_01`
+  - `/dashboard/geraet?device=test_net_zrl_01`
+  - `/dashboard/konfiguration`
+- Konkret verifiziert:
+  - Uebersicht zeigt keine `Stoerung: nein`-Pills mehr fuer die geprueften Relais-/Sensorgeraete
+  - Uebersicht zeigt relative `Zuletzt gesehen`-Texte fuer frische und mehrere Stunden alte Geraete
+  - `test_net_erl_01` liess sich im Detail mit einem temporaeren UI-Relaisnamen (`Stehlampe`) speichern; der Name erschien unmittelbar im Detail und auf der Uebersicht
+  - derselbe UI-Relaisname liess sich wieder leeren; die Ansicht fiel sauber auf `Relais 1` zurueck und der `device_config`-Eintrag wurde wieder entfernt
+  - Relais-Click auf der Uebersicht erzeugte einen neuen `cmd/set`-Egress-Eintrag fuer `test_net_erl_01` in `audit_log`
+  - ein dazu passender offizieller `state`-Publish auf `smarthome/node/test_net_erl_01/state` schaltete die Karte sichtbar auf `Aus`
+  - der Testzustand von `test_net_erl_01` wurde danach wieder auf den urspruenglichen `relay_1:true`-Stand zurueckgesetzt
+  - Rollladen-Detail fuer `test_net_zrl_01` laedt weiterhin mit bestehendem Widget, gesperrtem Slider und cfg/report-Zeile `cover_calibrated`
+
+7. Lehrerblick
+- Eigenleistung liegt im FlowFuse-/Node-RED-Generator, in der UI-/Query-Logik und in der ehrlichen Anbindung an die bestehende SQLite-/MQTT-Spur.
+- Es wurde nichts aus Firmware oder Fremdsystemen nachgeschoben, keine neue Architektur behauptet und keine Fake-Hardwareaussage erzeugt.

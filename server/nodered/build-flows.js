@@ -1687,7 +1687,9 @@ const dashboardSharedStyle = String.raw`
 
     .sh-lamp-button {
         width: 100%;
-        justify-content: flex-start;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         padding: 0.72rem;
         border-radius: 18px;
         border: 1px solid rgba(53, 70, 86, 0.88);
@@ -1695,6 +1697,14 @@ const dashboardSharedStyle = String.raw`
         color: var(--sh-text);
         gap: 0.68rem;
         text-align: left;
+    }
+
+    .sh-lamp-shell {
+        min-width: 0;
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        gap: 0.68rem;
     }
 
     .sh-lamp-visual {
@@ -1727,6 +1737,8 @@ const dashboardSharedStyle = String.raw`
     }
 
     .sh-lamp-copy {
+        min-width: 0;
+        flex: 1 1 auto;
         display: grid;
         gap: 0.12rem;
     }
@@ -1739,6 +1751,66 @@ const dashboardSharedStyle = String.raw`
     .sh-lamp-copy small {
         color: var(--sh-text-muted);
         font-size: 0.78rem;
+    }
+
+    .sh-lamp-side {
+        display: grid;
+        gap: 0.26rem;
+        justify-items: end;
+        flex: 0 0 auto;
+    }
+
+    .sh-lamp-state-pill {
+        min-width: 3.1rem;
+        text-align: center;
+        border-radius: 999px;
+        border: 1px solid rgba(63, 81, 100, 0.9);
+        background: rgba(15, 23, 32, 0.92);
+        color: #9fb6cb;
+        padding: 0.16rem 0.52rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .sh-lamp-button.is-on .sh-lamp-state-pill {
+        border-color: rgba(232, 191, 93, 0.72);
+        background: rgba(74, 54, 13, 0.92);
+        color: #ffe59c;
+    }
+
+    .sh-lamp-switch {
+        position: relative;
+        width: 3.3rem;
+        height: 1.82rem;
+        border-radius: 999px;
+        border: 1px solid rgba(67, 84, 103, 0.92);
+        background: linear-gradient(180deg, rgba(29, 42, 55, 0.98), rgba(15, 22, 31, 0.98));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .sh-lamp-switch-thumb {
+        position: absolute;
+        top: 0.12rem;
+        left: 0.14rem;
+        width: 1.42rem;
+        height: 1.42rem;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #d8e2ec, #a8bacd);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+        transition: transform 0.18s ease;
+    }
+
+    .sh-lamp-button.is-on .sh-lamp-switch {
+        border-color: rgba(232, 191, 93, 0.74);
+        background: linear-gradient(180deg, rgba(189, 134, 29, 0.96), rgba(133, 88, 10, 0.96));
+        box-shadow: 0 0 0 1px rgba(255, 214, 107, 0.18);
+    }
+
+    .sh-lamp-button.is-on .sh-lamp-switch-thumb {
+        transform: translateX(1.56rem);
+        background: linear-gradient(180deg, #fff7d1, #ffe082);
     }
 
     .sh-cover-widget {
@@ -2225,8 +2297,7 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
 
                 <div class="sh-control-section" v-if="payload.page && payload.page.show_controls !== false && device.controls && device.controls.kind === 'relay'">
                     <div class="sh-section-head">
-                        <span class="sh-control-label">Licht / Relais</span>
-                        <span class="sh-muted">{{ device.controls.summary_label }}</span>
+                        <span class="sh-control-label">Schaltkanäle</span>
                     </div>
                     <div class="sh-lamp-grid">
                         <button
@@ -2234,13 +2305,23 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
                             v-for="relay in device.controls.relays"
                             :key="device.device_id + '-' + relay.key"
                             :class="{ 'is-on': relay.active }"
+                            type="button"
+                            :aria-pressed="relay.active ? 'true' : 'false'"
                             @click="relaySet(device.device_id, relay.key, !relay.active)">
-                            <span class="sh-lamp-visual">
-                                <i :class="'mdi ' + relay.icon"></i>
+                            <span class="sh-lamp-shell">
+                                <span class="sh-lamp-visual">
+                                    <i :class="'mdi ' + relay.icon"></i>
+                                </span>
+                                <span class="sh-lamp-copy">
+                                    <strong>{{ relay.label }}</strong>
+                                    <small>{{ relay.action_label }}</small>
+                                </span>
                             </span>
-                            <span class="sh-lamp-copy">
-                                <strong>{{ relay.label }}</strong>
-                                <small>{{ relay.state_label }} · {{ relay.action_label }}</small>
+                            <span class="sh-lamp-side">
+                                <span class="sh-lamp-state-pill">{{ relay.state_label }}</span>
+                                <span class="sh-lamp-switch" aria-hidden="true">
+                                    <span class="sh-lamp-switch-thumb"></span>
+                                </span>
                             </span>
                         </button>
                     </div>
@@ -2289,7 +2370,7 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
                 </div>
 
                 <div class="sh-card-footer">
-                    <span class="sh-muted">Zuletzt gesehen: {{ device.last_seen_label }}</span>
+                    <span class="sh-muted" :title="device.last_seen_exact_label">Zuletzt gesehen: {{ device.last_seen_label }}</span>
                     <a class="sh-btn" :href="device.detail_url">Details</a>
                 </div>
             </article>
@@ -2442,7 +2523,7 @@ const deviceDetailTemplate = `
                     <div class="sh-form-shell">
                         <div class="sh-section-head">
                             <span class="sh-control-label">Gerätezuordnung</span>
-                            <span class="sh-muted">Schreibbar: Anzeigename und Raum</span>
+                            <span class="sh-muted">{{ detail.device.relay_name_fields && detail.device.relay_name_fields.length ? 'Schreibbar: Anzeigename, Raum und Dashboard-Relaisnamen' : 'Schreibbar: Anzeigename und Raum' }}</span>
                         </div>
                         <div class="sh-form-row">
                             <div class="sh-field">
@@ -2457,8 +2538,22 @@ const deviceDetailTemplate = `
                                 </datalist>
                             </div>
                         </div>
+                        <div class="sh-form-row" v-if="detail.device.relay_name_fields && detail.device.relay_name_fields.length">
+                            <div class="sh-field" v-for="field in detail.device.relay_name_fields" :key="'relay-name-' + field.key">
+                                <label :for="'detail-relay-name-' + field.key">{{ field.label }}</label>
+                                <input
+                                    :id="'detail-relay-name-' + field.key"
+                                    class="sh-input"
+                                    v-model="form.relay_names[field.key]"
+                                    type="text"
+                                    :placeholder="field.placeholder" />
+                            </div>
+                        </div>
+                        <p class="sh-muted" v-if="detail.device.relay_name_fields && detail.device.relay_name_fields.length">
+                            Relaisnamen wirken nur im Dashboard und werden als UI-Konfiguration in SQLite gespeichert.
+                        </p>
                         <div class="sh-control-row">
-                            <button class="sh-btn" @click="saveMeta">Name / Raum speichern</button>
+                            <button class="sh-btn" @click="saveMeta">{{ detail.device.relay_name_fields && detail.device.relay_name_fields.length ? 'Anzeige / Raum / Relais speichern' : 'Anzeige / Raum speichern' }}</button>
                         </div>
                     </div>
                     <hr class="sh-divider" />
@@ -2480,8 +2575,7 @@ const deviceDetailTemplate = `
                     <div v-if="detail.device.controls">
                         <div class="sh-control-section" v-if="detail.device.controls.kind === 'relay'">
                             <div class="sh-section-head">
-                                <span class="sh-control-label">Licht / Relais</span>
-                                <span class="sh-muted">{{ detail.device.controls.summary_label }}</span>
+                                <span class="sh-control-label">Schaltkanäle</span>
                             </div>
                             <div class="sh-lamp-grid">
                                 <button
@@ -2489,13 +2583,23 @@ const deviceDetailTemplate = `
                                     v-for="relay in detail.device.controls.relays"
                                     :key="relay.key"
                                     :class="{ 'is-on': relay.active }"
+                                    type="button"
+                                    :aria-pressed="relay.active ? 'true' : 'false'"
                                     @click="relaySet(relay.key, !relay.active)">
-                                    <span class="sh-lamp-visual">
-                                        <i :class="'mdi ' + relay.icon"></i>
+                                    <span class="sh-lamp-shell">
+                                        <span class="sh-lamp-visual">
+                                            <i :class="'mdi ' + relay.icon"></i>
+                                        </span>
+                                        <span class="sh-lamp-copy">
+                                            <strong>{{ relay.label }}</strong>
+                                            <small>{{ relay.action_label }}</small>
+                                        </span>
                                     </span>
-                                    <span class="sh-lamp-copy">
-                                        <strong>{{ relay.label }}</strong>
-                                        <small>{{ relay.state_label }} · {{ relay.action_label }}</small>
+                                    <span class="sh-lamp-side">
+                                        <span class="sh-lamp-state-pill">{{ relay.state_label }}</span>
+                                        <span class="sh-lamp-switch" aria-hidden="true">
+                                            <span class="sh-lamp-switch-thumb"></span>
+                                        </span>
                                     </span>
                                 </button>
                             </div>
@@ -2745,7 +2849,7 @@ export default {
         return {
             detail: { room_options: [], sensor_metrics: [], chart_metrics: [], chart_unavailable_reason: "" },
             chart: {},
-            form: { display_name: "", room_name: "" },
+            form: { display_name: "", room_name: "", relay_names: {} },
             chartForm: { range: "24h", step: "auto", metrics: [] },
             removedMessage: "",
             autoChartLoaded: false
@@ -2769,7 +2873,8 @@ export default {
         saveMeta() {
             this.sendAction("save", {
                 display_name: this.form.display_name,
-                room_name: this.form.room_name
+                room_name: this.form.room_name,
+                relay_names: this.form.relay_names || {}
             });
         },
         removeDevice() {
@@ -2846,6 +2951,11 @@ export default {
             this.detail = payload;
             this.form.display_name = payload.device ? (payload.device.display_name_input || payload.device.display_name || "") : "";
             this.form.room_name = payload.device ? (payload.device.room_name || "") : "";
+            const relayNameFields = Array.isArray(payload.device?.relay_name_fields) ? payload.device.relay_name_fields : [];
+            this.form.relay_names = relayNameFields.reduce((acc, field) => {
+                acc[field.key] = field.value || "";
+                return acc;
+            }, {});
             const chartMetrics = Array.isArray(payload.chart_metrics) ? payload.chart_metrics : [];
             const allowedMetrics = new Set(chartMetrics.map((item) => item.key));
             this.chartForm.metrics = this.chartForm.metrics.filter((item) => allowedMetrics.has(item));
@@ -3559,7 +3669,7 @@ const configTemplate = `
             </section>
             <section class="sh-panel">
                 <h3>Geräte-Konfiguration</h3>
-                <p class="sh-muted">Schreibbar sind Anzeigename und Raumzuordnung pro Gerät.</p>
+                <p class="sh-muted">Schreibbar sind Anzeigename, Raumzuordnung und UI-Relaisnamen im Gerätedetail.</p>
                 <div class="sh-form-row">
                     <div class="sh-field">
                         <label>Gerät</label>
@@ -3575,7 +3685,7 @@ const configTemplate = `
                     <a class="sh-btn" v-if="selectedDeviceId" :href="'/dashboard/geraet?device=' + encodeURIComponent(selectedDeviceId)">Gerät öffnen</a>
                     <a class="sh-btn sh-btn-muted" href="/dashboard/geraete">Geräteübersicht</a>
                 </div>
-                <p class="sh-muted">Gemeldete cfg/report-Werte bleiben im Gerätedetail sichtbar, sind dort aber nur lesbar.</p>
+                <p class="sh-muted">Gerätemeldungen aus cfg/report bleiben im Gerätedetail sichtbar; UI-Namen werden getrennt nur serverseitig gespeichert.</p>
             </section>
             <section class="sh-panel">
                 <h3>Technische Einstellungen</h3>
@@ -3744,6 +3854,44 @@ const dashboardCommonHelperLines = [
     '    return null;',
     '};',
     'const slugify = (value) => normalizeString(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");',
+    'const dashboardTimeZone = normalizeString(env.get("TZ")) || "Europe/Berlin";',
+    'const makeLocalDateFormatter = (options) => new Intl.DateTimeFormat("de-DE", Object.assign({ timeZone: dashboardTimeZone }, options));',
+    'const parseTimestamp = (value) => {',
+    '    const text = normalizeString(value);',
+    '    if (!text) return null;',
+    '    const tsMs = Date.parse(text);',
+    '    return Number.isFinite(tsMs) ? tsMs : null;',
+    '};',
+    'const formatRelativeUnit = (count, singular, plural) => "vor " + String(count) + " " + (count === 1 ? singular : plural);',
+    'const formatLocalTimestamp = (value, options = {}) => {',
+    '    const tsMs = parseTimestamp(value);',
+    '    if (tsMs === null) return normalizeString(value) || "-";',
+    '    const date = new Date(tsMs);',
+    '    if (Number.isNaN(date.getTime())) return normalizeString(value) || "-";',
+    '    const includeSeconds = options.includeSeconds !== false;',
+    '    const includeYear = options.includeYear !== false;',
+    '    return makeLocalDateFormatter({',
+    '        day: "2-digit",',
+    '        month: "2-digit",',
+    '        ...(includeYear ? { year: "numeric" } : {}),',
+    '        hour: "2-digit",',
+    '        minute: "2-digit",',
+    '        ...(includeSeconds ? { second: "2-digit" } : {})',
+    '    }).format(date);',
+    '};',
+    'const formatRelativeSeenLabel = (value) => {',
+    '    const tsMs = parseTimestamp(value);',
+    '    if (tsMs === null) return normalizeString(value) || "-";',
+    '    const ageMs = Date.now() - tsMs;',
+    '    if (!Number.isFinite(ageMs) || ageMs < 0) return formatLocalTimestamp(value, { includeSeconds: false });',
+    '    const ageSeconds = Math.max(1, Math.floor(ageMs / 1000));',
+    '    if (ageSeconds < 60) return formatRelativeUnit(ageSeconds, "Sekunde", "Sekunden");',
+    '    const ageMinutes = Math.floor(ageSeconds / 60);',
+    '    if (ageMinutes < 60) return formatRelativeUnit(ageMinutes, "Minute", "Minuten");',
+    '    const ageHours = Math.floor(ageMinutes / 60);',
+    '    if (ageHours < 24) return formatRelativeUnit(ageHours, "Stunde", "Stunden");',
+    '    return formatLocalTimestamp(value, { includeSeconds: false });',
+    '};',
     'const metaKeys = new Set(["source", "sim_case", "master_id", "node_id", "device_id", "device_type", "device_class", "power_source", "room", "room_slug", "ts", "timestamp"]);',
     'const labelMap = {',
     '    relay_1: "Relais 1",',
@@ -3769,6 +3917,8 @@ const dashboardCommonHelperLines = [
     '    if (value === 2) return "fährt ab";',
     '    return "gestoppt";',
     '};',
+    'const defaultRelayLabel = (key) => key === "relay_2" ? "Relais 2" : "Relais 1";',
+    'const resolveRelayLabel = (key, relayLabels = {}) => normalizeString(relayLabels[key]) || defaultRelayLabel(key);',
     'const humanizeKey = (key) => labelMap[key] || String(key || "")',
     '    .replace(/_/g, " ")',
     '    .replace(/\\b\\w/g, (match) => match.toUpperCase());',
@@ -3825,9 +3975,7 @@ const dashboardCommonHelperLines = [
     '        .filter(Boolean)',
     '        .join(", ");',
     '};',
-    'const makeChartDateFormatter = (options) => new Intl.DateTimeFormat("de-DE", Object.assign({',
-    '    timeZone: normalizeString(env.get("TZ")) || "Europe/Berlin"',
-    '}, options));',
+    'const makeChartDateFormatter = (options) => makeLocalDateFormatter(options);',
     'const formatChartTimeLabel = (tsMs, minTs, maxTs, variant = "tick") => {',
     '    const tsValue = normalizeNumber(tsMs);',
     '    if (tsValue === null) return "-";',
@@ -4011,15 +4159,16 @@ const dashboardCommonHelperLines = [
     '    if (powerSource === "battery") return { kind_label: "Batteriegerät", type_icon: "mdi-battery-outline", surface_class: "is-battery-card" };',
     '    return { kind_label: "Gerät", type_icon: "mdi-chip", surface_class: "" };',
     '};',
-    'const buildRelayControls = (relayKeys, flatState) => {',
+    'const buildRelayControls = (relayKeys, flatState, relayLabels = {}) => {',
     '    const relays = relayKeys.map((key) => {',
     '        const active = normalizeBool(flatState[key]) === true;',
+    '        const label = resolveRelayLabel(key, relayLabels);',
     '        return {',
     '            key,',
-    '            label: key === "relay_2" ? "Relais 2" : "Relais 1",',
+    '            label,',
     '            active,',
     '            state_label: active ? "Ein" : "Aus",',
-    '            action_label: active ? "Ausschalten" : "Einschalten",',
+    '            action_label: active ? "Tippen zum Ausschalten" : "Tippen zum Einschalten",',
     '            icon: active ? "mdi-lightbulb-on" : "mdi-lightbulb-outline"',
     '        };',
     '    });',
@@ -4027,8 +4176,7 @@ const dashboardCommonHelperLines = [
     '    return {',
     '        kind: "relay",',
     '        relays,',
-    '        active_count: activeCount,',
-    '        summary_label: activeCount === 0 ? "Alle Ausgänge aus" : activeCount === relays.length ? "Alle Ausgänge aktiv" : String(activeCount) + " von " + String(relays.length) + " aktiv"',
+    '        active_count: activeCount',
     '    };',
     '};',
     'const buildCoverControls = (flatState, coverCalibrated) => {',
@@ -4057,12 +4205,16 @@ const dashboardCommonHelperLines = [
     '    if (options.controlKind !== "cover" && key === "cover_position") return false;',
     '    return true;',
     '});',
+    'const isNegativeStateNoiseKey = (key) => /(fault|alarm|error|warn|disturb|stoer|stoe)/i.test(normalizeMetricKey(key));',
     'const filterSecondaryValues = (rows, options = {}) => rows.filter((row) => {',
     '    const key = row && row.key ? row.key : "";',
+    '    const boolValue = normalizeBool(row && row.raw_value);',
     '    if (key === "cover") return false;',
+    '    if (boolValue === false && isNegativeStateNoiseKey(key)) return false;',
     '    if (options.controlKind === "cover") {',
     '        return !["relay_1", "relay_2", "cover_mode", "cover_position", "cover_calibrated"].includes(key);',
     '    }',
+    '    if (options.controlKind === "relay" && ["relay_1", "relay_2"].includes(key)) return false;',
     '    return !["cover_mode", "cover_state", "cover_position", "cover_calibrated"].includes(key);',
     '});',
     'const formatValueText = (key, value, unit, role) => {',
@@ -4103,7 +4255,7 @@ const dashboardCommonHelperLines = [
     '    }',
     '    return value === null || value === undefined || value === "" ? "-" : String(value);',
     '};',
-    'const isoLabel = (value) => normalizeString(value) || "-";',
+    'const isoLabel = (value) => formatLocalTimestamp(value);',
     'const colorPalette = ["#1d4ed8", "#0f766e", "#b45309", "#be123c", "#6d28d9", "#0f172a"];',
     'const chartGeometry = { width: 640, height: 280, left: 72, right: 618, top: 28, bottom: 212 };',
     'const flattenState = (payload) => {',
@@ -4301,6 +4453,8 @@ msg.topic = [
     "    dc.meta_json AS capability_meta_json,",
     "    cfg_cover.config_value AS cover_calibrated,",
     "    cfg_name.config_value AS ui_display_name,",
+    "    cfg_relay_1_name.config_value AS ui_relay_1_name,",
+    "    cfg_relay_2_name.config_value AS ui_relay_2_name,",
     "    (SELECT provider FROM weather_settings WHERE id = 1) AS weather_provider,",
     "    (SELECT location_label FROM weather_settings WHERE id = 1) AS weather_location_label,",
     "    (SELECT latitude FROM weather_settings WHERE id = 1) AS weather_latitude,",
@@ -4315,6 +4469,8 @@ msg.topic = [
     "LEFT JOIN device_capabilities AS dc ON dc.device_id = d.device_id",
     "LEFT JOIN device_config AS cfg_cover ON cfg_cover.device_id = d.device_id AND cfg_cover.config_key = 'cover_calibrated'",
     "LEFT JOIN device_config AS cfg_name ON cfg_name.device_id = d.device_id AND cfg_name.config_key = 'ui_display_name'",
+    "LEFT JOIN device_config AS cfg_relay_1_name ON cfg_relay_1_name.device_id = d.device_id AND cfg_relay_1_name.config_key = 'ui_relay_1_name'",
+    "LEFT JOIN device_config AS cfg_relay_2_name ON cfg_relay_2_name.device_id = d.device_id AND cfg_relay_2_name.config_key = 'ui_relay_2_name'",
     "ORDER BY",
     "    CASE WHEN d.device_role = 'master' THEN 0 ELSE 1 END,",
     "    lower(COALESCE(r.name, '')),",
@@ -4371,9 +4527,14 @@ for (const row of rows) {
             status_json: status,
             state_json: state,
             flat_state: flatState,
+            relay_name_config: {
+                relay_1: normalizeString(row.ui_relay_1_name),
+                relay_2: normalizeString(row.ui_relay_2_name)
+            },
             simulation: row.device_id.startsWith("sim_") || meta.source === "simulation" || normalizeString(row.display_name).startsWith("[SIM]"),
             last_seen_at: row.last_seen_at || "",
-            last_seen_label: isoLabel(row.last_seen_at),
+            last_seen_label: formatRelativeSeenLabel(row.last_seen_at),
+            last_seen_exact_label: isoLabel(row.last_seen_at),
             last_state_at: row.last_state_at || "",
             cover_calibrated: normalizeBool(row.cover_calibrated),
             capabilities: [],
@@ -4416,7 +4577,7 @@ const devices = Array.from(byDevice.values()).map((device) => {
         const currentValue = flatState[capability.key];
         seenKeys.add(capability.key);
         const valueText = formatValueText(capability.key, currentValue, capability.unit, capability.role);
-        const row = { key: capability.key, label: humanizeKey(capability.key), value_text: valueText };
+        const row = { key: capability.key, label: humanizeKey(capability.key), value_text: valueText, raw_value: currentValue };
         if (capability.role === "sensor") {
             primaryValues.push(row);
             sensorMetrics.push({ key: capability.key, label: humanizeKey(capability.key), unit: capability.unit || null });
@@ -4431,7 +4592,7 @@ const devices = Array.from(byDevice.values()).map((device) => {
             continue;
         }
         const valueText = formatValueText(key, value, null, "unknown");
-        const row = { key, label: humanizeKey(key), value_text: valueText };
+        const row = { key, label: humanizeKey(key), value_text: valueText, raw_value: value };
         if (/temp|hum|lux|battery|co2|voc|rain|pressure|power|energy|position/i.test(key) && !/cover_state/i.test(key)) {
             primaryValues.push(row);
             if (!/cover_position/i.test(key)) {
@@ -4450,7 +4611,7 @@ const devices = Array.from(byDevice.values()).map((device) => {
     if (isRollladen && relayKeys.length >= 2) {
         device.controls = buildCoverControls(flatState, device.cover_calibrated === true);
     } else if (relayKeys.length) {
-        device.controls = buildRelayControls(relayKeys, flatState);
+        device.controls = buildRelayControls(relayKeys, flatState, device.relay_name_config);
     }
 
     const controlKind = device.controls ? device.controls.kind : null;
@@ -4467,7 +4628,7 @@ const devices = Array.from(byDevice.values()).map((device) => {
         ? "Dieses Gerät meldet Sensorwerte, aber keine im aktuellen Influx-Schema chartbaren Zeitreihen."
         : "";
     device.summary_label = controlKind === "relay"
-        ? device.controls.summary_label
+        ? ""
         : controlKind === "cover"
             ? device.controls.state_text
             : device.highlight_values.length === 0 && device.primary_values[0]
@@ -4715,6 +4876,8 @@ msg.topic = [
     "    r.slug AS room_slug,",
     "    r.name AS room_name,",
     "    cfg_name.config_value AS ui_display_name,",
+    "    cfg_relay_1_name.config_value AS ui_relay_1_name,",
+    "    cfg_relay_2_name.config_value AS ui_relay_2_name,",
     "    cfg_cover.config_value AS cover_calibrated,",
     "    NULL AS capability_key,",
     "    NULL AS capability_role,",
@@ -4733,6 +4896,8 @@ msg.topic = [
     "LEFT JOIN device_last_state AS ls ON ls.device_id = d.device_id",
     "LEFT JOIN rooms AS r ON r.id = d.room_id",
     "LEFT JOIN device_config AS cfg_name ON cfg_name.device_id = d.device_id AND cfg_name.config_key = 'ui_display_name'",
+    "LEFT JOIN device_config AS cfg_relay_1_name ON cfg_relay_1_name.device_id = d.device_id AND cfg_relay_1_name.config_key = 'ui_relay_1_name'",
+    "LEFT JOIN device_config AS cfg_relay_2_name ON cfg_relay_2_name.device_id = d.device_id AND cfg_relay_2_name.config_key = 'ui_relay_2_name'",
     "LEFT JOIN device_config AS cfg_cover ON cfg_cover.device_id = d.device_id AND cfg_cover.config_key = 'cover_calibrated'",
     "WHERE d.device_id = " + toSql(deviceId),
     "UNION ALL",
@@ -4741,6 +4906,8 @@ msg.topic = [
     "    dc.device_id,",
     "    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,",
     "    NULL, NULL,",
+    "    NULL,",
+    "    NULL,",
     "    NULL,",
     "    NULL,",
     "    dc.capability_key,",
@@ -4761,6 +4928,8 @@ msg.topic = [
     "    NULL, NULL,",
     "    NULL,",
     "    NULL,",
+    "    NULL,",
+    "    NULL,",
     "    NULL, NULL, NULL, NULL, NULL, NULL, NULL,",
     "    cfg.config_key,",
     "    cfg.config_value,",
@@ -4774,6 +4943,8 @@ msg.topic = [
     "    'room' AS row_type,",
     "    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,",
     "    NULL, NULL,",
+    "    NULL,",
+    "    NULL,",
     "    NULL,",
     "    NULL,",
     "    NULL, NULL, NULL, NULL, NULL, NULL, NULL,",
@@ -4820,6 +4991,10 @@ const flatState = flattenState(state);
 const uiDisplayName = normalizeString(deviceRow.ui_display_name);
 const displayName = uiDisplayName || normalizeString(deviceRow.display_name) || deviceRow.device_id;
 const onlineBool = normalizeBool(status.online);
+const relayNameConfig = {
+    relay_1: normalizeString(deviceRow.ui_relay_1_name),
+    relay_2: normalizeString(deviceRow.ui_relay_2_name)
+};
 const capabilities = rows
     .filter((row) => row.row_type === "capability" && row.capability_key)
     .map((row) => ({
@@ -4842,7 +5017,8 @@ for (const capability of capabilities) {
     const row = {
         key: capability.key,
         label: humanizeKey(capability.key),
-        value_text: formatValueText(capability.key, currentValue, capability.unit, capability.role)
+        value_text: formatValueText(capability.key, currentValue, capability.unit, capability.role),
+        raw_value: currentValue
     };
     if (capability.role === "sensor") {
         primaryValues.push(row);
@@ -4855,7 +5031,7 @@ for (const capability of capabilities) {
 
 for (const [key, value] of Object.entries(flatState)) {
     if (seenKeys.has(key)) continue;
-    const row = { key, label: humanizeKey(key), value_text: formatValueText(key, value, null, "unknown") };
+    const row = { key, label: humanizeKey(key), value_text: formatValueText(key, value, null, "unknown"), raw_value: value };
     if (/temp|hum|lux|battery|power|energy|position/i.test(key) && !/cover_state/i.test(key)) {
         primaryValues.push(row);
         if (!/cover_position/i.test(key)) {
@@ -4876,7 +5052,7 @@ let controls = null;
 if (isRollladen && relayKeys.length >= 2) {
     controls = buildCoverControls(flatState, normalizeBool(deviceRow.cover_calibrated) === true);
 } else if (relayKeys.length) {
-    controls = buildRelayControls(relayKeys, flatState);
+    controls = buildRelayControls(relayKeys, flatState, relayNameConfig);
 }
 
 const controlKind = controls ? controls.kind : null;
@@ -4905,10 +5081,18 @@ result.device = {
     delete_supported: deviceRow.device_role !== "master",
     controls,
     summary_label: controlKind === "relay"
-        ? controls.summary_label
+        ? ""
         : controlKind === "cover"
             ? controls.state_text
             : "",
+    relay_name_fields: controlKind === "relay"
+        ? relayKeys.map((key) => ({
+            key,
+            label: defaultRelayLabel(key),
+            value: relayNameConfig[key] || "",
+            placeholder: defaultRelayLabel(key)
+        }))
+        : [],
     primary_values: primaryRows,
     info_rows: [
         { key: "device_class", label: "Klasse", value_text: deviceRow.device_class || "-" },
@@ -4934,7 +5118,7 @@ result.technical_rows = [
     { key: "model", label: "Modell", value_text: normalizeString(deviceRow.model) || "-" }
 ];
 result.config_rows = rows
-    .filter((row) => row.row_type === "config" && row.config_key)
+    .filter((row) => row.row_type === "config" && row.config_key && row.config_source === "cfg/report")
     .map((row) => ({
         key: row.config_key,
         value_text: row.config_type === "json" ? (row.config_value || "-") : (row.config_value || "-"),
@@ -4957,13 +5141,15 @@ if (!deviceId) {
 const displayName = normalizeString(request.display_name);
 const roomName = normalizeString(request.room_name);
 const roomSlug = slugify(roomName);
+const relayNames = request.relay_names && typeof request.relay_names === "object" ? request.relay_names : {};
+const requestedAt = new Date().toISOString();
 const messages = [];
 
 if (displayName) {
     messages.push({
         topic: [
             "INSERT INTO device_config (device_id, config_key, config_value, config_type, source_channel, last_requested_at, updated_at)",
-            "VALUES (" + [toSql(deviceId), toSql("ui_display_name"), toSql(displayName), toSql("text"), toSql("server/ui"), toSql(new Date().toISOString()), toSql(new Date().toISOString())].join(", ") + ")",
+            "VALUES (" + [toSql(deviceId), toSql("ui_display_name"), toSql(displayName), toSql("text"), toSql("server/ui"), toSql(requestedAt), toSql(requestedAt)].join(", ") + ")",
             "ON CONFLICT(device_id, config_key) DO UPDATE SET",
             "config_value = excluded.config_value,",
             "config_type = excluded.config_type,",
@@ -4977,6 +5163,34 @@ if (displayName) {
         topic: "DELETE FROM device_config WHERE device_id = " + toSql(deviceId) + " AND config_key = 'ui_display_name';"
     });
 }
+
+[
+    { key: "relay_1", configKey: "ui_relay_1_name" },
+    { key: "relay_2", configKey: "ui_relay_2_name" }
+].forEach((entry) => {
+    if (!Object.prototype.hasOwnProperty.call(relayNames, entry.key)) {
+        return;
+    }
+    const relayName = normalizeString(relayNames[entry.key]);
+    if (relayName) {
+        messages.push({
+            topic: [
+                "INSERT INTO device_config (device_id, config_key, config_value, config_type, source_channel, last_requested_at, updated_at)",
+                "VALUES (" + [toSql(deviceId), toSql(entry.configKey), toSql(relayName), toSql("text"), toSql("server/ui"), toSql(requestedAt), toSql(requestedAt)].join(", ") + ")",
+                "ON CONFLICT(device_id, config_key) DO UPDATE SET",
+                "config_value = excluded.config_value,",
+                "config_type = excluded.config_type,",
+                "source_channel = excluded.source_channel,",
+                "last_requested_at = excluded.last_requested_at,",
+                "updated_at = excluded.updated_at"
+            ].join(" ")
+        });
+        return;
+    }
+    messages.push({
+        topic: "DELETE FROM device_config WHERE device_id = " + toSql(deviceId) + " AND config_key = " + toSql(entry.configKey) + ";"
+    });
+});
 
 if (roomName && roomSlug) {
     messages.push({
