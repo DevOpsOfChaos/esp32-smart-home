@@ -208,6 +208,10 @@ void logMac(const char* prefix, const uint8_t* mac) {
     logf("INFO", "%s%s", prefix, macText);
 }
 
+bool istBroadcastMac(const uint8_t* mac) {
+    return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
+}
+
 uint16_t ermittleCaps() {
     uint16_t caps = SH_CAP_BATTERY;
 
@@ -225,7 +229,8 @@ uint16_t ermittleCaps() {
 }
 
 bool stellePeerSicher(const uint8_t* mac) {
-    if (mac == nullptr || !SmartHome::isValidMac(mac)) return false;
+    if (mac == nullptr) return false;
+    if (!istBroadcastMac(mac) && !SmartHome::isValidMac(mac)) return false;
     if (esp_now_is_peer_exist(mac)) return true;
 
     esp_now_peer_info_t peerInfo = {};
@@ -382,7 +387,9 @@ void initialisiereFunk() {
         return;
     }
 
-    stellePeerSicher(BROADCAST_MAC);
+    if (!stellePeerSicher(BROADCAST_MAC)) {
+        logf("WARN", "Broadcast-Peer konnte nicht vorbereitet werden");
+    }
     logf("INFO", "ESP-NOW bereit auf Kanal %d", WLAN_KANAL);
 }
 
@@ -564,9 +571,12 @@ void setup() {
     }
 
     nodeStatus = {};
+    logf("INFO", "setup() gestartet");
     gibStartmeldungAus();
+    logf("INFO", "Initialisiere Hardware");
     initialisiereHardware();
     logBatterieKonfiguration();
+    logf("INFO", "Initialisiere Funk");
     initialisiereFunk();
     messeBatterie();
     logBatterieMessung("boot");
@@ -574,7 +584,9 @@ void setup() {
     esp_now_register_send_cb(onEspNowSent);
     esp_now_register_recv_cb(onEspNowReceive);
 
-    sendeHello();
+    if (!sendeHello()) {
+        logf("WARN", "Erstes HELLO konnte lokal nicht gesendet werden");
+    }
 }
 
 void loop() {
