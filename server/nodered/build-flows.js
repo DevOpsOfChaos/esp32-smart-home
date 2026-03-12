@@ -1314,18 +1314,23 @@ const renderDashboardNavHtml = () => "";
 const dashboardSharedStyle = String.raw`
 <style>
     .sh-page {
-        --sh-surface-base: #0b1117;
-        --sh-surface-panel: #121a23;
-        --sh-surface-card: #18222d;
-        --sh-surface-input: #0f161f;
-        --sh-border: #2a3846;
-        --sh-border-soft: #22303c;
-        --sh-text: #e7eef5;
-        --sh-text-muted: #9fb0c1;
-        --sh-chip-bg: #1a2632;
-        --sh-chip-text: #dbe7f3;
+        --sh-surface-base: #091017;
+        --sh-surface-panel: #101822;
+        --sh-surface-card: #15202b;
+        --sh-surface-card-strong: #182736;
+        --sh-surface-input: #0d141c;
+        --sh-border: #243445;
+        --sh-border-soft: #1c2a37;
+        --sh-text: #ecf3fa;
+        --sh-text-muted: #9db0c3;
+        --sh-chip-bg: #182432;
+        --sh-chip-text: #dce8f4;
         padding: 0.35rem 0 0.65rem;
         color: var(--sh-text);
+    }
+
+    .sh-page * {
+        box-sizing: border-box;
     }
 
     .sh-toolbar {
@@ -1334,7 +1339,7 @@ const dashboardSharedStyle = String.raw`
         justify-content: space-between;
         align-items: flex-start;
         flex-wrap: wrap;
-        margin-bottom: 0.9rem;
+        margin-bottom: 0.8rem;
     }
 
     .sh-toolbar h2 {
@@ -1362,19 +1367,27 @@ const dashboardSharedStyle = String.raw`
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
-        padding: 0.48rem 0.7rem;
+        padding: 0.52rem 0.82rem;
         border-radius: 999px;
         border: 1px solid var(--sh-border);
-        background: var(--sh-surface-card);
+        background: linear-gradient(180deg, rgba(22, 33, 45, 0.95), rgba(11, 19, 27, 0.98));
         color: var(--sh-text);
         text-decoration: none;
         font-size: 0.88rem;
         line-height: 1;
         cursor: pointer;
+        transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .sh-nav-link:hover,
+    .sh-btn:hover {
+        transform: translateY(-1px);
+        border-color: #36516b;
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.18);
     }
 
     .sh-btn-muted {
-        background: #1d2834;
+        background: linear-gradient(180deg, rgba(30, 41, 54, 0.92), rgba(18, 27, 37, 0.98));
     }
 
     .sh-btn-danger {
@@ -1387,43 +1400,46 @@ const dashboardSharedStyle = String.raw`
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
-        margin-bottom: 0.9rem;
+        margin-bottom: 0.8rem;
     }
 
     .sh-chip {
         display: inline-flex;
         align-items: center;
         gap: 0.25rem;
-        padding: 0.32rem 0.56rem;
+        padding: 0.34rem 0.62rem;
         border-radius: 999px;
         background: var(--sh-chip-bg);
         color: var(--sh-chip-text);
         font-size: 0.82rem;
         line-height: 1;
+        border: 1px solid transparent;
     }
 
     .sh-chip-online {
-        background: #133325;
-        color: #93efbf;
+        background: rgba(21, 78, 53, 0.82);
+        color: #9af3c2;
+        border-color: rgba(86, 185, 129, 0.3);
     }
 
     .sh-chip-offline {
-        background: #381b20;
-        color: #ffb0ba;
+        background: rgba(86, 28, 38, 0.86);
+        color: #ffb5bf;
+        border-color: rgba(185, 89, 105, 0.28);
     }
 
     .sh-chip-unknown {
-        background: #232d37;
+        background: #232e39;
         color: #b6c2cc;
     }
 
     .sh-chip-sim {
-        background: #423213;
+        background: rgba(66, 50, 19, 0.88);
         color: #ffd98a;
     }
 
     .sh-chip-power {
-        background: #1b2f42;
+        background: rgba(25, 49, 76, 0.92);
         color: #a9d2ff;
     }
 
@@ -1431,15 +1447,18 @@ const dashboardSharedStyle = String.raw`
     .sh-empty,
     .sh-panel {
         border: 1px solid var(--sh-border);
-        border-radius: 16px;
-        background: var(--sh-surface-panel);
-        padding: 0.8rem 0.95rem;
-        margin-bottom: 0.95rem;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(18, 27, 38, 0.97), rgba(11, 18, 25, 0.99));
+        padding: 0.82rem 0.95rem;
+        margin-bottom: 0.88rem;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
     }
 
     .sh-weather-grid,
     .sh-config-grid,
-    .sh-detail-grid {
+    .sh-detail-grid,
+    .sh-detail-top-grid,
+    .sh-detail-bottom-grid {
         display: grid;
         gap: 0.8rem;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1448,11 +1467,26 @@ const dashboardSharedStyle = String.raw`
     .sh-device-grid,
     .sh-room-grid {
         display: grid;
-        gap: 0.85rem;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.76rem;
+        grid-template-columns: repeat(auto-fit, minmax(265px, 1fr));
+        align-items: stretch;
     }
 
-    .sh-device-card,
+    .sh-device-card {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--sh-border);
+        border-radius: 20px;
+        background:
+            radial-gradient(circle at top right, rgba(123, 200, 255, 0.11), transparent 36%),
+            linear-gradient(180deg, rgba(21, 32, 43, 0.98), rgba(11, 18, 24, 0.99));
+        padding: 0.82rem;
+        min-height: 16.9rem;
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+    }
+
     .sh-room-card {
         border: 1px solid var(--sh-border);
         border-radius: 18px;
@@ -1461,13 +1495,36 @@ const dashboardSharedStyle = String.raw`
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
     }
 
+    .sh-device-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -2rem -3rem auto;
+        width: 8rem;
+        height: 8rem;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(123, 200, 255, 0.12), transparent 68%);
+        pointer-events: none;
+    }
+
+    .sh-device-card.is-relay-card::after {
+        background: radial-gradient(circle, rgba(255, 214, 107, 0.17), transparent 68%);
+    }
+
+    .sh-device-card.is-cover-card::after {
+        background: radial-gradient(circle, rgba(125, 211, 252, 0.18), transparent 68%);
+    }
+
+    .sh-device-card.is-battery-card::after {
+        background: radial-gradient(circle, rgba(134, 239, 172, 0.16), transparent 68%);
+    }
+
     .sh-card-head,
     .sh-room-head {
         display: flex;
         justify-content: space-between;
         gap: 0.7rem;
         align-items: flex-start;
-        margin-bottom: 0.65rem;
+        margin-bottom: 0.55rem;
     }
 
     .sh-card-head h3,
@@ -1476,11 +1533,71 @@ const dashboardSharedStyle = String.raw`
         font-size: 1rem;
     }
 
+    .sh-card-topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 0.55rem;
+    }
+
+    .sh-device-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.38rem;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #a8c4de;
+    }
+
+    .sh-identity {
+        min-width: 0;
+    }
+
+    .sh-identity h3 {
+        line-height: 1.18;
+        margin-bottom: 0.2rem;
+    }
+
+    .sh-card-summary {
+        margin: 0 0 0.68rem;
+        color: #d6e4f2;
+        font-size: 0.92rem;
+    }
+
     .sh-card-badges {
         display: flex;
         gap: 0.35rem;
         flex-wrap: wrap;
         justify-content: flex-end;
+    }
+
+    .sh-primary-grid {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+        margin-bottom: 0.62rem;
+    }
+
+    .sh-primary-tile {
+        border: 1px solid rgba(45, 65, 84, 0.8);
+        border-radius: 14px;
+        padding: 0.58rem 0.62rem;
+        background: rgba(9, 16, 23, 0.45);
+    }
+
+    .sh-primary-tile span {
+        display: block;
+        font-size: 0.78rem;
+        color: var(--sh-text-muted);
+        margin-bottom: 0.16rem;
+    }
+
+    .sh-primary-tile strong {
+        display: block;
+        font-size: 1.02rem;
+        line-height: 1.1;
     }
 
     .sh-value-list {
@@ -1502,20 +1619,24 @@ const dashboardSharedStyle = String.raw`
     .sh-checkbox-list {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.4rem;
+        gap: 0.42rem;
         margin-top: 0.45rem;
     }
 
     .sh-secondary-pill {
         border-radius: 999px;
-        background: #1a2632;
-        padding: 0.26rem 0.48rem;
+        background: rgba(24, 36, 50, 0.88);
+        padding: 0.3rem 0.52rem;
         font-size: 0.82rem;
+        border: 1px solid rgba(45, 65, 84, 0.72);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
     }
 
     .sh-control-section {
-        margin-top: 0.75rem;
-        padding-top: 0.65rem;
+        margin-top: 0.78rem;
+        padding-top: 0.72rem;
         border-top: 1px solid var(--sh-border-soft);
     }
 
@@ -1533,14 +1654,187 @@ const dashboardSharedStyle = String.raw`
         margin-bottom: 0.45rem;
     }
 
+    .sh-section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.65rem;
+        margin-bottom: 0.55rem;
+    }
+
+    .sh-section-head h3 {
+        margin: 0;
+    }
+
+    .sh-control-label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #9fc2de;
+    }
+
     .sh-control-row .sh-btn.active {
         background: #403519;
         border-color: #a98d43;
         color: #ffe4a0;
     }
 
+    .sh-lamp-grid {
+        display: grid;
+        gap: 0.52rem;
+        grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+    }
+
+    .sh-lamp-button {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 0.72rem;
+        border-radius: 18px;
+        border: 1px solid rgba(53, 70, 86, 0.88);
+        background: linear-gradient(180deg, rgba(19, 28, 38, 0.96), rgba(9, 14, 20, 0.99));
+        color: var(--sh-text);
+        gap: 0.68rem;
+        text-align: left;
+    }
+
+    .sh-lamp-visual {
+        flex: 0 0 2.4rem;
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(67, 84, 103, 0.92);
+        background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.12), rgba(17, 27, 39, 0.98));
+        color: #afc4d8;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .sh-lamp-button.is-on {
+        border-color: rgba(184, 151, 79, 0.72);
+        background: linear-gradient(180deg, rgba(57, 43, 17, 0.92), rgba(29, 21, 8, 0.98));
+    }
+
+    .sh-lamp-button.is-on .sh-lamp-visual {
+        color: #ffe082;
+        border-color: rgba(232, 191, 93, 0.82);
+        background: radial-gradient(circle at 35% 30%, rgba(255, 247, 193, 0.95), rgba(255, 179, 0, 0.22) 42%, rgba(54, 39, 10, 0.95) 100%);
+        box-shadow:
+            0 0 0 1px rgba(255, 214, 107, 0.18),
+            0 0 18px rgba(255, 193, 7, 0.22);
+        animation: shPulseGlow 2.2s ease-in-out infinite;
+    }
+
+    .sh-lamp-copy {
+        display: grid;
+        gap: 0.12rem;
+    }
+
+    .sh-lamp-copy strong {
+        font-size: 0.93rem;
+        font-weight: 600;
+    }
+
+    .sh-lamp-copy small {
+        color: var(--sh-text-muted);
+        font-size: 0.78rem;
+    }
+
+    .sh-cover-widget {
+        display: grid;
+        gap: 0.62rem;
+    }
+
+    .sh-cover-visual {
+        display: grid;
+        gap: 0.55rem;
+        padding: 0.72rem;
+        border-radius: 18px;
+        border: 1px solid rgba(45, 65, 84, 0.84);
+        background: linear-gradient(180deg, rgba(17, 28, 39, 0.96), rgba(8, 13, 19, 0.99));
+    }
+
+    .sh-cover-frame {
+        display: flex;
+        justify-content: center;
+    }
+
+    .sh-cover-window {
+        position: relative;
+        width: min(100%, 10.5rem);
+        aspect-ratio: 0.92;
+        border-radius: 16px 16px 12px 12px;
+        padding: 0.46rem;
+        background: linear-gradient(180deg, #dbe9f5, #8aa5be 55%, #5c7387);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+        overflow: hidden;
+    }
+
+    .sh-cover-glass {
+        position: absolute;
+        inset: 0.44rem;
+        border-radius: 12px 12px 8px 8px;
+        background:
+            linear-gradient(180deg, rgba(207, 230, 249, 0.94), rgba(138, 190, 228, 0.82)),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.18), transparent 50%);
+    }
+
+    .sh-cover-shutter {
+        position: absolute;
+        left: 0.44rem;
+        right: 0.44rem;
+        top: 0.44rem;
+        min-height: 0;
+        border-radius: 12px 12px 8px 8px;
+        background:
+            linear-gradient(180deg, rgba(238, 242, 246, 0.96), rgba(179, 191, 204, 0.98)),
+            repeating-linear-gradient(180deg, rgba(118, 128, 139, 0.48) 0 5px, rgba(255, 255, 255, 0.08) 5px 9px);
+        overflow: hidden;
+        box-shadow: inset 0 -1px 0 rgba(46, 57, 70, 0.24);
+    }
+
+    .sh-cover-shutter--unknown {
+        height: 58%;
+        opacity: 0.86;
+        background:
+            linear-gradient(180deg, rgba(207, 212, 219, 0.88), rgba(128, 139, 149, 0.94)),
+            repeating-linear-gradient(135deg, rgba(87, 99, 111, 0.34) 0 8px, rgba(229, 236, 242, 0.18) 8px 16px);
+    }
+
+    .sh-cover-shutter.is-moving-up::before,
+    .sh-cover-shutter.is-moving-down::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0 5px, rgba(87, 99, 111, 0.18) 5px 10px);
+    }
+
+    .sh-cover-shutter.is-moving-up::before {
+        animation: shShutterDriftUp 0.9s linear infinite;
+    }
+
+    .sh-cover-shutter.is-moving-down::before {
+        animation: shShutterDriftDown 0.9s linear infinite;
+    }
+
+    .sh-cover-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.42rem;
+        justify-content: center;
+    }
+
+    .sh-cover-button-row {
+        justify-content: center;
+    }
+
     .sh-slider-row input[type="range"] {
         flex: 1 1 180px;
+    }
+
+    .sh-slider-row.is-disabled {
+        opacity: 0.72;
     }
 
     .sh-card-footer,
@@ -1550,7 +1844,9 @@ const dashboardSharedStyle = String.raw`
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        margin-top: 0.8rem;
+        margin-top: auto;
+        padding-top: 0.78rem;
+        border-top: 1px solid var(--sh-border-soft);
     }
 
     .sh-input,
@@ -1581,6 +1877,27 @@ const dashboardSharedStyle = String.raw`
     .sh-field label {
         font-size: 0.84rem;
         color: var(--sh-text-muted);
+    }
+
+    .sh-form-shell {
+        margin-top: 0.72rem;
+        padding-top: 0.72rem;
+        border-top: 1px solid var(--sh-border-soft);
+    }
+
+    .sh-danger-box {
+        margin-top: 0.82rem;
+        display: grid;
+        gap: 0.6rem;
+        border: 1px solid rgba(122, 62, 62, 0.72);
+        border-radius: 16px;
+        padding: 0.8rem;
+        background: linear-gradient(180deg, rgba(37, 18, 20, 0.96), rgba(20, 10, 12, 0.99));
+    }
+
+    .sh-danger-box strong {
+        display: block;
+        margin-bottom: 0.15rem;
     }
 
     .sh-technical-table,
@@ -1652,14 +1969,60 @@ const dashboardSharedStyle = String.raw`
         border-top: 1px solid var(--sh-border-soft);
     }
 
+    @keyframes shPulseGlow {
+        0%,
+        100% {
+            box-shadow:
+                0 0 0 1px rgba(255, 214, 107, 0.18),
+                0 0 14px rgba(255, 193, 7, 0.18);
+        }
+        50% {
+            box-shadow:
+                0 0 0 1px rgba(255, 214, 107, 0.28),
+                0 0 24px rgba(255, 193, 7, 0.28);
+        }
+    }
+
+    @keyframes shShutterDriftUp {
+        from { transform: translateY(0); }
+        to { transform: translateY(-10px); }
+    }
+
+    @keyframes shShutterDriftDown {
+        from { transform: translateY(0); }
+        to { transform: translateY(10px); }
+    }
+
+    @media (min-width: 960px) {
+        .sh-detail-top-grid {
+            grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
+        }
+
+        .sh-detail-bottom-grid {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+    }
+
     @media (max-width: 640px) {
         .sh-toolbar-actions {
             justify-content: flex-start;
         }
 
         .sh-card-head,
-        .sh-room-head {
+        .sh-room-head,
+        .sh-card-topline,
+        .sh-section-head,
+        .sh-card-footer {
             flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .sh-device-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .sh-lamp-grid {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -1710,12 +2073,12 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
         <div class="sh-empty" v-if="!deviceList.length">${emptyText}</div>
 
         <div class="sh-device-grid" v-else>
-            <article class="sh-device-card" v-for="device in deviceList" :key="device.device_id">
-                <div class="sh-card-head">
-                    <div>
-                        <h3>{{ device.display_name }}</h3>
-                        <p class="sh-muted">{{ device.device_id }}<span v-if="device.room_name"> | {{ device.room_name }}</span></p>
-                    </div>
+            <article class="sh-device-card" :class="device.surface_class" v-for="device in deviceList" :key="device.device_id">
+                <div class="sh-card-topline">
+                    <span class="sh-device-kicker">
+                        <i :class="'mdi ' + device.type_icon"></i>
+                        {{ device.kind_label }}
+                    </span>
                     <div class="sh-card-badges">
                         <span class="sh-chip sh-chip-power">
                             <i :class="'mdi ' + device.power_icon"></i>
@@ -1726,8 +2089,17 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
                     </div>
                 </div>
 
-                <div class="sh-value-list" v-if="device.primary_values && device.primary_values.length">
-                    <div class="sh-value-row" v-for="item in device.primary_values" :key="device.device_id + '-' + item.key">
+                <div class="sh-card-head">
+                    <div class="sh-identity">
+                        <h3>{{ device.display_name }}</h3>
+                        <p class="sh-muted">{{ device.device_id }}<span v-if="device.room_name"> · {{ device.room_name }}</span></p>
+                    </div>
+                </div>
+
+                <p class="sh-card-summary" v-if="device.summary_label">{{ device.summary_label }}</p>
+
+                <div class="sh-primary-grid" v-if="device.highlight_values && device.highlight_values.length">
+                    <div class="sh-primary-tile" v-for="item in device.highlight_values" :key="device.device_id + '-' + item.key">
                         <span>{{ item.label }}</span>
                         <strong>{{ item.value_text }}</strong>
                     </div>
@@ -1740,35 +2112,73 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
                 </div>
 
                 <div class="sh-control-section" v-if="payload.page && payload.page.show_controls !== false && device.controls && device.controls.kind === 'relay'">
-                    <div class="sh-control-row">
+                    <div class="sh-section-head">
+                        <span class="sh-control-label">Licht / Relais</span>
+                        <span class="sh-muted">{{ device.controls.summary_label }}</span>
+                    </div>
+                    <div class="sh-lamp-grid">
                         <button
-                            class="sh-btn"
+                            class="sh-lamp-button"
                             v-for="relay in device.controls.relays"
                             :key="device.device_id + '-' + relay.key"
-                            :class="{ active: relay.active }"
+                            :class="{ 'is-on': relay.active }"
                             @click="relaySet(device.device_id, relay.key, !relay.active)">
-                            <i :class="'mdi ' + (relay.active ? 'mdi-lightbulb-on' : 'mdi-lightbulb-off')"></i>
-                            {{ relay.label }} {{ relay.active ? 'AUS' : 'EIN' }}
+                            <span class="sh-lamp-visual">
+                                <i :class="'mdi ' + relay.icon"></i>
+                            </span>
+                            <span class="sh-lamp-copy">
+                                <strong>{{ relay.label }}</strong>
+                                <small>{{ relay.state_label }} · {{ relay.action_label }}</small>
+                            </span>
                         </button>
                     </div>
                 </div>
 
                 <div class="sh-control-section" v-if="payload.page && payload.page.show_controls !== false && device.controls && device.controls.kind === 'cover'">
-                    <div class="sh-control-row">
-                        <button class="sh-btn" @click="coverMove(device.device_id, 'up')"><i class="mdi mdi-arrow-up"></i> Auf</button>
-                        <button class="sh-btn" @click="coverMove(device.device_id, 'stop')"><i class="mdi mdi-stop"></i> Stopp</button>
-                        <button class="sh-btn" @click="coverMove(device.device_id, 'down')"><i class="mdi mdi-arrow-down"></i> Ab</button>
+                    <div class="sh-section-head">
+                        <span class="sh-control-label">Rollladen</span>
+                        <span class="sh-muted">{{ device.controls.calibration_label }}</span>
                     </div>
-                    <div class="sh-slider-row">
-                        <input type="range" min="0" max="100" :value="device.controls.position_value" disabled />
-                        <strong>{{ device.controls.position_text }}</strong>
+                    <div class="sh-cover-widget">
+                        <div class="sh-cover-visual">
+                            <div class="sh-cover-frame">
+                                <div class="sh-cover-window">
+                                    <div class="sh-cover-glass"></div>
+                                    <div
+                                        class="sh-cover-shutter"
+                                        v-if="device.controls.position_known"
+                                        :class="device.controls.motion_class"
+                                        :style="device.controls.shutter_style"></div>
+                                    <div
+                                        class="sh-cover-shutter sh-cover-shutter--unknown"
+                                        v-else
+                                        :class="device.controls.motion_class"></div>
+                                </div>
+                            </div>
+                            <div class="sh-cover-meta">
+                                <span class="sh-secondary-pill">Position: {{ device.controls.position_text }}</span>
+                                <span class="sh-secondary-pill">
+                                    <i :class="'mdi ' + device.controls.state_icon"></i>
+                                    {{ device.controls.state_text }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="sh-control-row sh-cover-button-row">
+                            <button class="sh-btn" @click="coverMove(device.device_id, 'up')"><i class="mdi mdi-arrow-up"></i> Auf</button>
+                            <button class="sh-btn" @click="coverMove(device.device_id, 'stop')"><i class="mdi mdi-stop"></i> Stopp</button>
+                            <button class="sh-btn" @click="coverMove(device.device_id, 'down')"><i class="mdi mdi-arrow-down"></i> Ab</button>
+                        </div>
+                        <div class="sh-slider-row" :class="{ 'is-disabled': !device.controls.slider_enabled }">
+                            <input type="range" min="0" max="100" :value="device.controls.position_value" :disabled="!device.controls.slider_enabled" />
+                            <strong>{{ device.controls.position_text }}</strong>
+                        </div>
+                        <p class="sh-muted">{{ device.controls.slider_note }}</p>
                     </div>
-                    <p class="sh-muted">{{ device.controls.slider_note }}</p>
                 </div>
 
                 <div class="sh-card-footer">
-                    <a class="sh-btn" :href="device.detail_url">Details</a>
                     <span class="sh-muted">Zuletzt gesehen: {{ device.last_seen_label }}</span>
+                    <a class="sh-btn" :href="device.detail_url">Details</a>
                 </div>
             </article>
         </div>
@@ -1871,7 +2281,7 @@ const deviceDetailTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <p class="sh-muted">Status, Werte und sichtbare Konfiguration des gewählten Geräts.</p>
+                <p class="sh-muted">Kompakte technische Sicht mit Direktbedienung, Zuordnung und Zeitreihen.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="reload">Neu laden</button>
@@ -1889,13 +2299,13 @@ const deviceDetailTemplate = `
         </div>
 
         <div v-else>
-            <div class="sh-detail-grid">
-                <section class="sh-panel">
-                    <div class="sh-card-head">
-                        <div>
-                            <h3>{{ detail.device.display_name }}</h3>
-                            <p class="sh-muted">{{ detail.device.device_id }}</p>
-                        </div>
+            <div class="sh-detail-top-grid">
+                <section class="sh-panel" :class="detail.device.surface_class">
+                    <div class="sh-card-topline">
+                        <span class="sh-device-kicker">
+                            <i :class="'mdi ' + detail.device.type_icon"></i>
+                            {{ detail.device.kind_label }}
+                        </span>
                         <div class="sh-card-badges">
                             <span class="sh-chip sh-chip-power">
                                 <i :class="'mdi ' + detail.device.power_icon"></i>
@@ -1904,24 +2314,41 @@ const deviceDetailTemplate = `
                             <span class="sh-chip" :class="detail.device.online_class">{{ detail.device.online_label }}</span>
                         </div>
                     </div>
-                    <div class="sh-form-row">
-                        <div class="sh-field">
-                            <label for="detail-display-name">Anzeigename</label>
-                            <input id="detail-display-name" class="sh-input" v-model="form.display_name" type="text" />
-                        </div>
-                        <div class="sh-field">
-                            <label for="detail-room-name">Raum</label>
-                            <input id="detail-room-name" class="sh-input" v-model="form.room_name" type="text" list="detail-room-options" />
-                            <datalist id="detail-room-options">
-                                <option v-for="room in detail.room_options" :key="room.slug" :value="room.name"></option>
-                            </datalist>
+                    <div class="sh-card-head">
+                        <div class="sh-identity">
+                            <h3>{{ detail.device.display_name }}</h3>
+                            <p class="sh-muted">{{ detail.device.device_id }}</p>
                         </div>
                     </div>
-                    <div class="sh-control-row">
-                        <button class="sh-btn" @click="saveMeta">Name/Raum speichern</button>
-                        <button class="sh-btn sh-btn-danger" v-if="detail.device.delete_supported" @click="removeDevice">Gerät aus SQLite entfernen</button>
+                    <p class="sh-card-summary" v-if="detail.device.summary_label">{{ detail.device.summary_label }}</p>
+                    <div class="sh-primary-grid" v-if="detail.device.primary_values && detail.device.primary_values.length">
+                        <div class="sh-primary-tile" v-for="item in detail.device.primary_values" :key="'detail-value-' + item.key">
+                            <span>{{ item.label }}</span>
+                            <strong>{{ item.value_text }}</strong>
+                        </div>
                     </div>
-                    <p class="sh-muted">Schreibbar sind hier Anzeigename und Raumzuordnung. Eingehende MQTT-Nachrichten können ein gelöschtes Gerät später erneut anlegen.</p>
+                    <div class="sh-form-shell">
+                        <div class="sh-section-head">
+                            <span class="sh-control-label">Gerätezuordnung</span>
+                            <span class="sh-muted">Schreibbar: Anzeigename und Raum</span>
+                        </div>
+                        <div class="sh-form-row">
+                            <div class="sh-field">
+                                <label for="detail-display-name">Anzeigename</label>
+                                <input id="detail-display-name" class="sh-input" v-model="form.display_name" type="text" />
+                            </div>
+                            <div class="sh-field">
+                                <label for="detail-room-name">Raum</label>
+                                <input id="detail-room-name" class="sh-input" v-model="form.room_name" type="text" list="detail-room-options" />
+                                <datalist id="detail-room-options">
+                                    <option v-for="room in detail.room_options" :key="room.slug" :value="room.name"></option>
+                                </datalist>
+                            </div>
+                        </div>
+                        <div class="sh-control-row">
+                            <button class="sh-btn" @click="saveMeta">Name / Raum speichern</button>
+                        </div>
+                    </div>
                     <hr class="sh-divider" />
                     <div class="sh-value-list">
                         <div class="sh-value-row" v-for="item in detail.device.info_rows" :key="item.key">
@@ -1929,142 +2356,210 @@ const deviceDetailTemplate = `
                             <strong>{{ item.value_text }}</strong>
                         </div>
                     </div>
-                    <div class="sh-secondary-list" v-if="detail.device.primary_values && detail.device.primary_values.length">
-                        <span class="sh-secondary-pill" v-for="item in detail.device.primary_values" :key="'detail-value-' + item.key">
-                            {{ item.label }}: {{ item.value_text }}
-                        </span>
-                    </div>
-                </section>
-
-                <section class="sh-panel" v-if="detail.device.controls">
-                    <h3>Steuerung</h3>
-                    <div class="sh-control-section" v-if="detail.device.controls.kind === 'relay'">
-                        <div class="sh-control-row">
-                            <button
-                                class="sh-btn"
-                                v-for="relay in detail.device.controls.relays"
-                                :key="relay.key"
-                                :class="{ active: relay.active }"
-                                @click="relaySet(relay.key, !relay.active)">
-                                <i :class="'mdi ' + (relay.active ? 'mdi-lightbulb-on' : 'mdi-lightbulb-off')"></i>
-                                {{ relay.label }} {{ relay.active ? 'AUS' : 'EIN' }}
-                            </button>
-                        </div>
-                    </div>
-                    <div class="sh-control-section" v-else-if="detail.device.controls.kind === 'cover'">
-                        <div class="sh-control-row">
-                            <button class="sh-btn" @click="coverMove('up')"><i class="mdi mdi-arrow-up"></i> Auf</button>
-                            <button class="sh-btn" @click="coverMove('stop')"><i class="mdi mdi-stop"></i> Stopp</button>
-                            <button class="sh-btn" @click="coverMove('down')"><i class="mdi mdi-arrow-down"></i> Ab</button>
-                        </div>
-                        <div class="sh-slider-row">
-                            <input type="range" min="0" max="100" :value="detail.device.controls.position_value" disabled />
-                            <strong>{{ detail.device.controls.position_text }}</strong>
-                        </div>
-                        <p class="sh-muted">{{ detail.device.controls.slider_note }}</p>
-                    </div>
                 </section>
 
                 <section class="sh-panel">
-                    <h3>Diagramme</h3>
-                    <div class="sh-chart-toolbar" v-if="detail.sensor_metrics && detail.sensor_metrics.length">
-                        <div class="sh-field">
-                            <label>Zeitraum</label>
-                            <select class="sh-select" v-model="chartForm.range">
-                                <option value="1h">1h</option>
-                                <option value="6h">6h</option>
-                                <option value="24h">24h</option>
-                                <option value="7d">7d</option>
-                                <option value="30d">30d</option>
-                            </select>
-                        </div>
-                        <div class="sh-field">
-                            <label>Schrittweite</label>
-                            <select class="sh-select" v-model="chartForm.step">
-                                <option value="auto">Auto</option>
-                                <option value="1m">1m</option>
-                                <option value="5m">5m</option>
-                                <option value="15m">15m</option>
-                                <option value="1h">1h</option>
-                            </select>
+                    <div class="sh-section-head">
+                        <div>
+                            <h3>Steuerung</h3>
+                            <p class="sh-muted">Direkt auf den offiziellen cmd/set-Pfad verdrahtet.</p>
                         </div>
                     </div>
-                    <div class="sh-checkbox-list" v-if="detail.sensor_metrics && detail.sensor_metrics.length">
-                        <label class="sh-secondary-pill" v-for="metric in detail.sensor_metrics" :key="metric.key">
-                            <input type="checkbox" :value="metric.key" v-model="chartForm.metrics" />
-                            {{ metric.label }}
-                        </label>
-                    </div>
-                    <div class="sh-control-row" v-if="detail.sensor_metrics && detail.sensor_metrics.length">
-                        <button class="sh-btn" @click="loadChart">Diagramm laden</button>
-                    </div>
-                    <div class="sh-empty" v-else>Keine sensorischen Zeitreihen für dieses Gerät verfügbar.</div>
-
-                    <div class="sh-chart-shell" v-if="chart.series && chart.series.length">
-                        <div class="sh-chart-meta">
-                            <span class="sh-chip">{{ chart.title }}</span>
-                            <span class="sh-chip">{{ chart.range_label }}</span>
-                            <span class="sh-chip">{{ chart.step_label }}</span>
+                    <div v-if="detail.device.controls">
+                        <div class="sh-control-section" v-if="detail.device.controls.kind === 'relay'">
+                            <div class="sh-section-head">
+                                <span class="sh-control-label">Licht / Relais</span>
+                                <span class="sh-muted">{{ detail.device.controls.summary_label }}</span>
+                            </div>
+                            <div class="sh-lamp-grid">
+                                <button
+                                    class="sh-lamp-button"
+                                    v-for="relay in detail.device.controls.relays"
+                                    :key="relay.key"
+                                    :class="{ 'is-on': relay.active }"
+                                    @click="relaySet(relay.key, !relay.active)">
+                                    <span class="sh-lamp-visual">
+                                        <i :class="'mdi ' + relay.icon"></i>
+                                    </span>
+                                    <span class="sh-lamp-copy">
+                                        <strong>{{ relay.label }}</strong>
+                                        <small>{{ relay.state_label }} · {{ relay.action_label }}</small>
+                                    </span>
+                                </button>
+                            </div>
                         </div>
-                        <svg viewBox="0 0 640 260" width="100%" height="260" role="img" aria-label="Sensorverlauf">
-                            <line x1="40" y1="20" x2="40" y2="220" stroke="#b9c7d5" stroke-width="1" />
-                            <line x1="40" y1="220" x2="620" y2="220" stroke="#b9c7d5" stroke-width="1" />
-                            <path
-                                v-for="series in chart.series"
-                                :key="'series-' + series.metric"
-                                :d="seriesPath(series)"
-                                fill="none"
-                                :stroke="series.color"
-                                stroke-width="2.2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round" />
-                        </svg>
-                        <div class="sh-chart-legend">
-                            <span v-for="series in chart.series" :key="'legend-' + series.metric">
-                                <i :style="{ background: series.color }"></i>
-                                {{ series.label }}: {{ series.last_value_text }}
-                            </span>
+                        <div class="sh-control-section" v-else-if="detail.device.controls.kind === 'cover'">
+                            <div class="sh-section-head">
+                                <span class="sh-control-label">Rollladen</span>
+                                <span class="sh-muted">{{ detail.device.controls.calibration_label }}</span>
+                            </div>
+                            <div class="sh-cover-widget">
+                                <div class="sh-cover-visual">
+                                    <div class="sh-cover-frame">
+                                        <div class="sh-cover-window">
+                                            <div class="sh-cover-glass"></div>
+                                            <div
+                                                class="sh-cover-shutter"
+                                                v-if="detail.device.controls.position_known"
+                                                :class="detail.device.controls.motion_class"
+                                                :style="detail.device.controls.shutter_style"></div>
+                                            <div
+                                                class="sh-cover-shutter sh-cover-shutter--unknown"
+                                                v-else
+                                                :class="detail.device.controls.motion_class"></div>
+                                        </div>
+                                    </div>
+                                    <div class="sh-cover-meta">
+                                        <span class="sh-secondary-pill">Position: {{ detail.device.controls.position_text }}</span>
+                                        <span class="sh-secondary-pill">
+                                            <i :class="'mdi ' + detail.device.controls.state_icon"></i>
+                                            {{ detail.device.controls.state_text }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="sh-control-row sh-cover-button-row">
+                                    <button class="sh-btn" @click="coverMove('up')"><i class="mdi mdi-arrow-up"></i> Auf</button>
+                                    <button class="sh-btn" @click="coverMove('stop')"><i class="mdi mdi-stop"></i> Stopp</button>
+                                    <button class="sh-btn" @click="coverMove('down')"><i class="mdi mdi-arrow-down"></i> Ab</button>
+                                </div>
+                                <div class="sh-slider-row" :class="{ 'is-disabled': !detail.device.controls.slider_enabled }">
+                                    <input type="range" min="0" max="100" :value="detail.device.controls.position_value" :disabled="!detail.device.controls.slider_enabled" />
+                                    <strong>{{ detail.device.controls.position_text }}</strong>
+                                </div>
+                                <p class="sh-muted">{{ detail.device.controls.slider_note }}</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="sh-empty" v-else-if="chart.message">{{ chart.message }}</div>
+                    <div class="sh-empty" v-else>Für dieses Gerät ist aktuell keine Direktbedienung vorhanden.</div>
+                    <div class="sh-danger-box" v-if="detail.device.delete_supported">
+                        <div>
+                            <strong>Gerät aus SQLite entfernen</strong>
+                            <p class="sh-muted">Löscht nur Registry- und UI-Daten. Neue MQTT-Nachrichten können das Gerät später erneut anlegen.</p>
+                        </div>
+                        <button class="sh-btn sh-btn-danger" @click="removeDevice">Gerät entfernen</button>
+                    </div>
                 </section>
             </div>
 
             <section class="sh-panel">
-                <h3>Technische Details</h3>
-                <table class="sh-technical-table">
-                    <thead>
-                        <tr>
-                            <th>Feld</th>
-                            <th>Wert</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="item in detail.technical_rows" :key="'tech-' + item.key">
-                            <td>{{ item.label }}</td>
-                            <td>{{ item.value_text }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <h3>Gemeldete Gerätekonfiguration</h3>
-                <table class="sh-technical-table" v-if="detail.config_rows && detail.config_rows.length">
-                    <thead>
-                        <tr>
-                            <th>Key</th>
-                            <th>Wert</th>
-                            <th>Quelle</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="item in detail.config_rows" :key="'cfg-' + item.key">
-                            <td>{{ item.key }}</td>
-                            <td>{{ item.value_text }}</td>
-                            <td>{{ item.source }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="sh-empty" v-else>Keine cfg/report-Daten vorhanden.</div>
+                <div class="sh-section-head">
+                    <div>
+                        <h3>Diagramme</h3>
+                        <p class="sh-muted">Nur für numerische Sensorzeitreihen mit Influx-Datenbasis.</p>
+                    </div>
+                </div>
+                <div class="sh-chart-toolbar" v-if="detail.sensor_metrics && detail.sensor_metrics.length">
+                    <div class="sh-field">
+                        <label>Zeitraum</label>
+                        <select class="sh-select" v-model="chartForm.range">
+                            <option value="1h">1h</option>
+                            <option value="6h">6h</option>
+                            <option value="24h">24h</option>
+                            <option value="7d">7d</option>
+                            <option value="30d">30d</option>
+                        </select>
+                    </div>
+                    <div class="sh-field">
+                        <label>Schrittweite</label>
+                        <select class="sh-select" v-model="chartForm.step">
+                            <option value="auto">Auto</option>
+                            <option value="1m">1m</option>
+                            <option value="5m">5m</option>
+                            <option value="15m">15m</option>
+                            <option value="1h">1h</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sh-checkbox-list" v-if="detail.sensor_metrics && detail.sensor_metrics.length">
+                    <label class="sh-secondary-pill" v-for="metric in detail.sensor_metrics" :key="metric.key">
+                        <input type="checkbox" :value="metric.key" v-model="chartForm.metrics" />
+                        {{ metric.label }}
+                    </label>
+                </div>
+                <div class="sh-control-row" v-if="detail.sensor_metrics && detail.sensor_metrics.length">
+                    <button class="sh-btn" @click="loadChart">Diagramm laden</button>
+                </div>
+                <div class="sh-empty" v-else>Keine sensorischen Zeitreihen für dieses Gerät verfügbar.</div>
+
+                <div class="sh-chart-shell" v-if="chart.series && chart.series.length">
+                    <div class="sh-chart-meta">
+                        <span class="sh-chip">{{ chart.title }}</span>
+                        <span class="sh-chip">{{ chart.range_label }}</span>
+                        <span class="sh-chip">{{ chart.step_label }}</span>
+                    </div>
+                    <svg viewBox="0 0 640 260" width="100%" height="260" role="img" aria-label="Sensorverlauf">
+                        <line x1="40" y1="20" x2="40" y2="220" stroke="#b9c7d5" stroke-width="1" />
+                        <line x1="40" y1="220" x2="620" y2="220" stroke="#b9c7d5" stroke-width="1" />
+                        <path
+                            v-for="series in chart.series"
+                            :key="'series-' + series.metric"
+                            :d="seriesPath(series)"
+                            fill="none"
+                            :stroke="series.color"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    <div class="sh-chart-legend">
+                        <span v-for="series in chart.series" :key="'legend-' + series.metric">
+                            <i :style="{ background: series.color }"></i>
+                            {{ series.label }}: {{ series.last_value_text }}
+                        </span>
+                    </div>
+                </div>
+                <div class="sh-empty" v-else-if="chart.message">{{ chart.message }}</div>
             </section>
+
+            <div class="sh-detail-bottom-grid">
+                <section class="sh-panel">
+                    <div class="sh-section-head">
+                        <div>
+                            <h3>Technische Details</h3>
+                            <p class="sh-muted">Read-only Sicht auf bekannte Metadaten und Zeitstempel.</p>
+                        </div>
+                    </div>
+                    <table class="sh-technical-table">
+                        <thead>
+                            <tr>
+                                <th>Feld</th>
+                                <th>Wert</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="item in detail.technical_rows" :key="'tech-' + item.key">
+                                <td>{{ item.label }}</td>
+                                <td>{{ item.value_text }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="sh-panel">
+                    <div class="sh-section-head">
+                        <div>
+                            <h3>Gemeldete Gerätekonfiguration</h3>
+                            <p class="sh-muted">Aus cfg/report, aktuell read-only.</p>
+                        </div>
+                    </div>
+                    <table class="sh-technical-table" v-if="detail.config_rows && detail.config_rows.length">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Wert</th>
+                                <th>Quelle</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="item in detail.config_rows" :key="'cfg-' + item.key">
+                                <td>{{ item.key }}</td>
+                                <td>{{ item.value_text }}</td>
+                                <td>{{ item.source }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="sh-empty" v-else>Keine cfg/report-Daten vorhanden.</div>
+                </section>
+            </div>
         </div>
     </div>
 </template>
@@ -2952,6 +3447,67 @@ const dashboardCommonHelperLines = [
     '    ].join(" ").toLowerCase();',
     '    return /\\brollladen\\b|\\brolladen\\b|\\bshutter\\b/.test(hints);',
     '};',
+    'const clampPercent = (value) => {',
+    '    const numberValue = normalizeNumber(value);',
+    '    if (numberValue === null) return null;',
+    '    return Math.max(0, Math.min(100, Math.round(numberValue)));',
+    '};',
+    'const classifyDeviceVisual = (deviceInfo = {}, options = {}) => {',
+    '    const controlKind = normalizeString(options.controlKind);',
+    '    const relayCount = normalizeNumber(options.relayCount) || 0;',
+    '    const sensorCount = normalizeNumber(options.sensorCount) || 0;',
+    '    const deviceRole = normalizeString(deviceInfo.device_role).toLowerCase();',
+    '    const deviceClass = normalizeString(deviceInfo.device_class).toLowerCase();',
+    '    const hardwareType = normalizeString(deviceInfo.hardware_type).toLowerCase();',
+    '    const powerSource = normalizeString(deviceInfo.power_source).toLowerCase();',
+    '    if (controlKind === "cover") return { kind_label: "Rollladen", type_icon: "mdi-window-shutter", surface_class: "is-cover-card" };',
+    '    if (controlKind === "relay") return { kind_label: relayCount > 1 ? "Relais 2-fach" : "Relais", type_icon: relayCount > 1 ? "mdi-lightbulb-group-outline" : "mdi-lightbulb-outline", surface_class: "is-relay-card" };',
+    '    if (deviceRole === "master" || /master/.test(deviceClass)) return { kind_label: "Bridge", type_icon: "mdi-router-wireless", surface_class: "is-master-card" };',
+    '    if (sensorCount > 0 && (powerSource === "battery" || /bat_sen/.test(deviceClass) || /battery/.test(hardwareType))) return { kind_label: "Batteriesensor", type_icon: "mdi-home-battery-outline", surface_class: "is-battery-card" };',
+    '    if (sensorCount > 0) return { kind_label: "Sensor", type_icon: "mdi-thermometer-lines", surface_class: "is-sensor-card" };',
+    '    if (powerSource === "battery") return { kind_label: "Batteriegerät", type_icon: "mdi-battery-outline", surface_class: "is-battery-card" };',
+    '    return { kind_label: "Gerät", type_icon: "mdi-chip", surface_class: "" };',
+    '};',
+    'const buildRelayControls = (relayKeys, flatState) => {',
+    '    const relays = relayKeys.map((key) => {',
+    '        const active = normalizeBool(flatState[key]) === true;',
+    '        return {',
+    '            key,',
+    '            label: key === "relay_2" ? "Relais 2" : "Relais 1",',
+    '            active,',
+    '            state_label: active ? "Ein" : "Aus",',
+    '            action_label: active ? "Ausschalten" : "Einschalten",',
+    '            icon: active ? "mdi-lightbulb-on" : "mdi-lightbulb-outline"',
+    '        };',
+    '    });',
+    '    const activeCount = relays.filter((relay) => relay.active).length;',
+    '    return {',
+    '        kind: "relay",',
+    '        relays,',
+    '        active_count: activeCount,',
+    '        summary_label: activeCount === 0 ? "Alle Ausgänge aus" : activeCount === relays.length ? "Alle Ausgänge aktiv" : String(activeCount) + " von " + String(relays.length) + " aktiv"',
+    '    };',
+    '};',
+    'const buildCoverControls = (flatState, coverCalibrated) => {',
+    '    const positionNumber = clampPercent(flatState.cover_position);',
+    '    const stateNumber = normalizeNumber(flatState.cover_state);',
+    '    const movingUp = stateNumber === 1;',
+    '    const movingDown = stateNumber === 2;',
+    '    const positionKnown = positionNumber !== null;',
+    '    return {',
+    '        kind: "cover",',
+    '        position_value: positionKnown ? positionNumber : 0,',
+    '        position_text: positionKnown ? String(positionNumber) + " %" : "Position unbekannt",',
+    '        position_known: positionKnown,',
+    '        state_text: coverStateLabel(stateNumber),',
+    '        state_icon: movingUp ? "mdi-arrow-up" : movingDown ? "mdi-arrow-down" : "mdi-stop",',
+    '        motion_class: movingUp ? "is-moving-up" : movingDown ? "is-moving-down" : "is-resting",',
+    '        shutter_style: positionKnown ? "height:" + String(positionNumber) + "%;" : "",',
+    '        slider_enabled: false,',
+    '        calibration_label: coverCalibrated === true ? "kalibriert" : "nicht kalibriert",',
+    '        slider_note: coverCalibrated === true ? "Zielposition ist über die aktuelle MQTT-Bridge noch nicht verdrahtet." : "Slider gesperrt: Rollladen ist nicht kalibriert oder die Kalibrierung wurde noch nicht gemeldet."',
+    '    };',
+    '};',
     'const filterPrimaryValues = (rows, options = {}) => rows.filter((row) => {',
     '    const key = row && row.key ? row.key : "";',
     '    if (key === "cover") return false;',
@@ -3282,29 +3838,27 @@ const devices = Array.from(byDevice.values()).map((device) => {
     const relayKeys = ["relay_1", "relay_2"].filter((key) => flatState[key] !== undefined || capabilities.some((item) => item.key === key));
     const isRollladen = isRollladenDevice(flatState, device.meta, { device_class: device.device_class, hardware_type: device.hardware_type });
     if (isRollladen && relayKeys.length >= 2) {
-        const positionNumber = normalizeNumber(flatState.cover_position);
-        device.controls = {
-            kind: "cover",
-            position_value: positionNumber === null ? 0 : Math.max(0, Math.min(100, positionNumber)),
-            position_text: positionNumber === null ? "Position unbekannt" : String(Math.round(positionNumber)) + " %",
-            slider_note: device.cover_calibrated === true
-                ? "Zielposition ist über die aktuelle MQTT-Bridge noch nicht verdrahtet."
-                : "Slider gesperrt: Rollladen ist nicht kalibriert oder die Kalibrierung wurde noch nicht gemeldet."
-        };
+        device.controls = buildCoverControls(flatState, device.cover_calibrated === true);
     } else if (relayKeys.length) {
-        device.controls = {
-            kind: "relay",
-            relays: relayKeys.map((key) => ({
-                key,
-                label: key === "relay_2" ? "Relais 2" : "Relais 1",
-                active: normalizeBool(flatState[key]) === true
-            }))
-        };
+        device.controls = buildRelayControls(relayKeys, flatState);
     }
 
-    device.primary_values = filterPrimaryValues(primaryValues, { controlKind: device.controls ? device.controls.kind : null }).slice(0, 8);
-    device.secondary_values = filterSecondaryValues(secondaryValues, { controlKind: device.controls ? device.controls.kind : null }).slice(0, 8);
+    const controlKind = device.controls ? device.controls.kind : null;
+    const visual = classifyDeviceVisual(device, { controlKind, relayCount: relayKeys.length, sensorCount: sensorMetrics.length });
+    device.kind_label = visual.kind_label;
+    device.type_icon = visual.type_icon;
+    device.surface_class = visual.surface_class;
+    device.primary_values = filterPrimaryValues(primaryValues, { controlKind }).slice(0, 6);
+    device.highlight_values = device.primary_values.slice(0, controlKind === "cover" ? 1 : 3);
+    device.secondary_values = filterSecondaryValues(secondaryValues, { controlKind }).slice(0, 6);
     device.sensor_metrics = sensorMetrics.filter((item, index, list) => list.findIndex((current) => current.key === item.key) === index);
+    device.summary_label = controlKind === "relay"
+        ? device.controls.summary_label
+        : controlKind === "cover"
+            ? device.controls.state_text
+            : device.highlight_values.length === 0 && device.primary_values[0]
+                ? device.primary_values[0].label + ": " + device.primary_values[0].value_text
+                : "";
     device.info_rows = [
         { key: "device_class", label: "Klasse", value_text: device.device_class || "-" },
         { key: "origin_master_id", label: "Master", value_text: device.origin_master_id || "-" },
@@ -3701,25 +4255,19 @@ const relayKeys = ["relay_1", "relay_2"].filter((key) => flatState[key] !== unde
 const isRollladen = isRollladenDevice(flatState, meta, { device_class: deviceRow.device_class, hardware_type: deviceRow.hardware_type });
 let controls = null;
 if (isRollladen && relayKeys.length >= 2) {
-    const positionNumber = normalizeNumber(flatState.cover_position);
-    controls = {
-        kind: "cover",
-        position_value: positionNumber === null ? 0 : Math.max(0, Math.min(100, positionNumber)),
-        position_text: positionNumber === null ? "Position unbekannt" : String(Math.round(positionNumber)) + " %",
-        slider_note: normalizeBool(deviceRow.cover_calibrated) === true
-            ? "Zielposition ist über die aktuelle MQTT-Bridge noch nicht verdrahtet."
-            : "Slider gesperrt: Rollladen ist nicht kalibriert oder die Kalibrierung fehlt in cfg/report."
-    };
+    controls = buildCoverControls(flatState, normalizeBool(deviceRow.cover_calibrated) === true);
 } else if (relayKeys.length) {
-    controls = {
-        kind: "relay",
-        relays: relayKeys.map((key) => ({
-            key,
-            label: key === "relay_2" ? "Relais 2" : "Relais 1",
-            active: normalizeBool(flatState[key]) === true
-        }))
-    };
+    controls = buildRelayControls(relayKeys, flatState);
 }
+
+const controlKind = controls ? controls.kind : null;
+const visual = classifyDeviceVisual({
+    device_role: deviceRow.device_role,
+    device_class: deviceRow.device_class,
+    hardware_type: deviceRow.hardware_type,
+    power_source: deviceRow.power_source
+}, { controlKind, relayCount: relayKeys.length, sensorCount: sensorMetrics.length });
+const primaryRows = filterPrimaryValues(primaryValues, { controlKind }).slice(0, 6);
 
 result.device = {
     device_id: deviceRow.device_id,
@@ -3732,9 +4280,17 @@ result.device = {
     power_label: deviceRow.power_source === "battery" ? "BAT" : deviceRow.power_source === "mains" ? "AC" : "?",
     online_label: onlineBool === true ? "online" : onlineBool === false ? "offline" : "unbekannt",
     online_class: onlineBool === true ? "sh-chip-online" : onlineBool === false ? "sh-chip-offline" : "sh-chip-unknown",
+    kind_label: visual.kind_label,
+    type_icon: visual.type_icon,
+    surface_class: visual.surface_class,
     delete_supported: deviceRow.device_role !== "master",
     controls,
-    primary_values: filterPrimaryValues(primaryValues, { controlKind: controls ? controls.kind : null }).slice(0, 10),
+    summary_label: controlKind === "relay"
+        ? controls.summary_label
+        : controlKind === "cover"
+            ? controls.state_text
+            : "",
+    primary_values: primaryRows,
     info_rows: [
         { key: "device_class", label: "Klasse", value_text: deviceRow.device_class || "-" },
         { key: "origin_master_id", label: "Master", value_text: deviceRow.origin_master_id || "-" },

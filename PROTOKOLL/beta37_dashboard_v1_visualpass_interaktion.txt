@@ -1,0 +1,51 @@
+Stand: beta37
+Datei: beta37_dashboard_v1_visualpass_interaktion.txt
+Datum: 2026-03-12
+Autor: Codex
+
+1. Anlass
+- Der reale Dashboard-V1-Stand aus `beta33` und dem Konsistenz-Cleanup aus `beta34` war funktional, aber im Alltag noch zu technisch und zu unruhig:
+  - die Startseite zeigte Geräte zwar korrekt, aber die Karten lasen sich noch wie verdichtete Statusblöcke
+  - Relais-Bedienung wirkte wie reine Textbuttons statt wie klar erkennbare Schaltflächen
+  - die Rollladen-Sicht war ehrlich, aber visuell noch zu nah an einer Buttonliste
+  - das Gerätedetail war technisch brauchbar, aber die wichtigen Aktionen gingen zwischen Tabellen und Erklärungstexten unter
+
+2. Änderung
+- Aktualisiert:
+  - `server/nodered/build-flows.js`
+- Verfeinert im realen Dashboard-V1:
+  - Gerätekarten auf `/dashboard/` mit klarerer Hierarchie, kompakteren Abständen, Typ-Kicker, stärkeren Primärwerten und ruhigerem Footer
+  - dunkle Flächen und Kontraste in den angefassten Karten/Detailbereichen sichtbar nachgeschärft
+  - Relais-Steuerung als kleine lampenartige Kachelsteuerung mit sichtbarem EIN/AUS-Zustand, ohne die Backend-Semantik von `relay_1`/`relay_2` zu kaschieren
+  - Rollladen-Steuerung als konservatives Fenster-/Shutter-Widget mit sichtbarer Position, Fahrzustand, Auf/Stopp/Ab und gesperrtem Slider-Hinweis
+  - Gerätedetail in eine dichtere Struktur aus Übersicht, Steuerung, Diagrammen, technischen Details und klar abgesetzter Löschzone umgebaut
+
+3. Wirkung
+- Die Startseite ist schneller scanbar:
+  - Sensorwerte springen direkter ins Auge
+  - reine Technikdaten dominieren die Karten nicht mehr
+  - Aktor-Karten wirken weniger wie Debug-Container
+- Relais-Geräte lesen sich visuell näher an einem echten Schaltobjekt, bleiben aber fachlich sauber als Relaiskanäle benannt.
+- Rollladen-Geräte haben jetzt eine eigene, sichtbar andere Interaktionsform statt nur derselben Buttonlogik in anderer Reihenfolge.
+- Das Gerätedetail trennt schreibbare Metadaten, Live-Bedienung, Diagrammzugang und destruktive Aktion klarer.
+
+4. Grenzen
+- Die aktuelle reale `net_zrl`-Firmware publiziert im belegten Realpfad weiterhin keine belastbar kalibrierte `cover_position`; im echten Firmwarepfad bleibt der Wert typischerweise `null`.
+- Das Widget zeigt deshalb nur gemeldete Position, wenn sie tatsächlich vorhanden ist, und es animiert keinen erfundenen glatten Fahrverlauf.
+- Der Slider bleibt bewusst read-only, weil der aktuelle ehrliche MQTT-/Bridge-Pfad keine saubere Zielpositionssteuerung abbildet.
+- Relais-Kanäle bleiben technisch `Relais 1` / `Relais 2`; die UI macht daraus bewusst keine erfundenen Raum- oder Lampennamen.
+- Die Browser-Prüfung nutzte den aktuellen lokalen SQLite-/Dashboard-Stand inklusive vorhandener Testgeräte wie `test_net_erl_01` und `test_net_zrl_01`; das ist UI-Validierung, kein neuer Hardware-Nachweis.
+
+5. Prüfungen
+- Lokal ausgeführt:
+  - `node server/nodered/build-flows.js > $null`
+  - `docker compose up -d --build nodered`
+  - Browser-Checks auf:
+    - `/dashboard/`
+    - `/dashboard/geraet?device=test_net_erl_01`
+    - `/dashboard/geraet?device=test_net_zrl_01`
+- Ergebnis:
+  - Flow-Generator läuft syntaktisch sauber
+  - Node-RED startet mit dem aktualisierten Stand healthy
+  - Übersicht, Relais-Detail und Rollladen-Detail laden im Browser mit der verfeinerten Darstellung
+  - Rollladen-Slider bleibt im unkalibrierten Stand sichtbar gesperrt
