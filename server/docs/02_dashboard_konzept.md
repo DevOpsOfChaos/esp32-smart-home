@@ -1,31 +1,42 @@
-# Dashboard Konzept V1
+# Dashboard-Konzept V1
 
 ## Seiten
 
-- Uebersicht
-- Raeume
-- Geraete
+- Übersicht
+- Räume
+- Geräte
 - Sensoren
 - Aktoren
-- Rollaeden
+- Rollläden
 - Wetter
 - Diagramme
 - Automationen
 - Konfiguration
 - Ereignisse/Logs
-- [SIM] Validierung
+- `[SIM]`-Validierung als technischer Sonderpfad
 
 ## V1-Ziel
 
-- neue Geraete sofort sichtbar
-- responsive Grundstruktur fuer Handy und Desktop
+- neue Geräte sofort sichtbar
+- responsive Grundstruktur für Handy und Desktop
+- Seitenwechsel primär über das FlowFuse-Seitenmenü
+- Gerätedetail nur als kontextuelle Unterseite, nicht als Hauptnavigation
 - manuelle Raum- und Wetterpflege direkt im Dashboard
-- technische MQTT-Aktionen sichtbar, aber bewusst generisch
-- `sim_*`-Serverdaten fuer Testlaeufe separat sichtbar machen, ohne reale Pilot-IDs in dieselbe Sicht zu ziehen
+- gerätetypische Bedienung statt generischer Sammel-Controls
+- `sim_*`-Serverdaten separat sichtbar machen, ohne reale Pilot-IDs in dieselbe Sicht zu ziehen
+
+## Bedienregeln
+
+- `net_zrl` zeigt Rollladen-Bedienung nur im echten Rollladenmodus
+- Geräte mit Relaisausgängen zeigen sonst Relais-/Schalt-Controls
+- die Konfigurationsseite ist ein ehrlicher Hub
+- serverseitig schreibbar ist aktuell das Wetter-Setup
+- geräteseitig schreibbar sind aktuell Anzeigename und Raumzuordnung
+- gemeldete `cfg/report`-Werte bleiben sichtbar, aber read-only
 
 ## Bewusst offen
 
 - Feinschliff der UI
 - historische Diagramme aus Influx-Abfragen
 - echte Raumauswahl-Widgets statt technischer Textfelder
-- semantische Geraete-Controls pro Geraetetyp
+- weitergehende Server-Settings mit verdrahteter Live-Wirkung

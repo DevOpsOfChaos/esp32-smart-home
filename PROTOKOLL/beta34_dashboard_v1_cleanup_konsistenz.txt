@@ -1,0 +1,61 @@
+Stand: beta34
+Datei: beta34_dashboard_v1_cleanup_konsistenz.txt
+Datum: 2026-03-12
+Autor: Codex
+
+1. Anlass
+- Der reale Dashboard-V1-Stand aus `beta33` war funktional, aber in mehreren Punkten inkonsistent:
+  - doppelte Navigation durch Seitenmenü plus Zusatzlinks in fast jeder Seite
+  - kontextlose Detailseite und `[SIM]`-Seite auf derselben Hauptebene wie Produktseiten
+  - ASCII-Ersatztexte statt normaler deutscher UI-Texte
+  - `net_zrl` zeigte teils Rollladen-Bedienung auch außerhalb eines echten Rollladenmodus
+  - die Konfigurationsseite zeigte überwiegend Technikdaten, aber nicht die tatsächlich nutzbaren Konfigurationspfade
+
+2. Änderung
+- Aktualisiert:
+  - `server/nodered/build-flows.js`
+  - `server/docs/02_dashboard_konzept.md`
+- Bereinigt im Dashboard:
+  - per-Seiten-Linkleisten entfernt; das FlowFuse-Seitenmenü ist wieder die primäre Navigation
+  - `Gerätedetail` und `[SIM]` aus der Hauptnavigation genommen; beide bleiben per Direktlink erreichbar
+  - Konfigurationsseite als ehrlicher Hub umgebaut:
+  - Serverpfad: Wetter-Setup verlinkt und als schreibbarer V1-Pfad benannt
+  - Gerätepfad: Geräteauswahl mit Direktlink ins Gerätedetail
+  - technische SQLite-Werte klar als read-only markiert
+  - `net_zrl`-Logik korrigiert:
+  - Rollladen-Controls nur noch im echten Rollladenmodus
+  - sonst Relais-Bedienung statt falscher Rollladensteuerung
+  - überflüssige `cover_*`-Restanzeigen aus nicht passenden Karten entfernt
+  - mehrere betroffene UI-Texte auf normales Deutsch mit Umlauten umgestellt
+
+3. Wirkung
+- Die Navigation ist konsistenter und weniger redundant.
+- Die Konfiguration zeigt jetzt die tatsächlich funktionierenden Wege statt einer irreführenden Sammelansicht.
+- Rollladen-UI erscheint nur noch dort, wo sie fachlich ehrlich ist.
+- Die Hauptseiten wirken kompakter, weil doppelte Überschriften und lange Erklärungstexte reduziert wurden.
+
+4. Grenzen
+- Wetter bleibt weiterhin nur Konfiguration; ein produktiver Wetter-Feed ist serverseitig noch nicht verdrahtet.
+- `cfg/report`-Werte bleiben sichtbare Gerätekonfiguration, aber weiterhin read-only.
+- Diagramme bleiben auf echte Influx-Zeitreihen begrenzt; nicht jede sichtbare Gerätekennzahl ist dadurch automatisch als Verlauf verfügbar.
+- `[SIM]` bleibt als technischer Validierungspfad bestehen und ist bewusst kein Hauptbestandteil des Produkt-Dashboards.
+
+5. Prüfungen
+- Lokal ausgeführt:
+  - `node server/nodered/build-flows.js > $null`
+  - `docker compose up -d --build nodered`
+  - Browser-Checks auf:
+    - `/dashboard/`
+    - `/dashboard/geraete`
+    - `/dashboard/geraet?device=net_zrl_01`
+    - `/dashboard/geraet?device=test_net_zrl_01`
+    - `/dashboard/konfiguration`
+    - `/dashboard/wetter`
+    - `/dashboard/simulation`
+- Ergebnis:
+  - Flow-Generator läuft syntaktisch sauber
+  - Node-RED startet mit dem aktualisierten Stand
+  - Seitenmenü zeigt nur noch die Hauptseiten
+  - Detail- und `[SIM]`-Seite bleiben per Direktlink erreichbar
+  - `net_zrl_01` ohne Rollladenmodus zeigt Relais statt Rollladensteuerung
+  - `test_net_zrl_01` im Rollladenmodus zeigt weiter Rollladensteuerung

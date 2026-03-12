@@ -1309,23 +1309,7 @@ const simDashboardTemplate = String.raw`
 </style>
 `;
 
-const dashboardNavLinks = [
-    { href: "/dashboard/", label: "Uebersicht" },
-    { href: "/dashboard/raeume", label: "Raeume" },
-    { href: "/dashboard/geraete", label: "Geraete" },
-    { href: "/dashboard/sensoren", label: "Sensoren" },
-    { href: "/dashboard/aktoren", label: "Aktoren" },
-    { href: "/dashboard/rollaeden", label: "Rollaeden" },
-    { href: "/dashboard/wetter", label: "Wetter" },
-    { href: "/dashboard/diagramme", label: "Diagramme" },
-    { href: "/dashboard/automationen", label: "Automationen" },
-    { href: "/dashboard/konfiguration", label: "Konfiguration" },
-    { href: "/dashboard/logs", label: "Logs" }
-];
-
-const renderDashboardNavHtml = () => dashboardNavLinks
-    .map((item) => `<a class="sh-nav-link" href="${item.href}">${item.label}</a>`)
-    .join("");
+const renderDashboardNavHtml = () => "";
 
 const dashboardSharedStyle = String.raw`
 <style>
@@ -1686,8 +1670,7 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>${title}</h2>
-                <p>${intro}</p>
+                <p class="sh-muted">${intro}</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="refresh">Neu laden</button>
@@ -1696,11 +1679,11 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
         </div>
 
         <div class="sh-status-row" v-if="payload.summary">
-            <span class="sh-chip">{{ payload.summary.total_devices || 0 }} Geraete</span>
+            <span class="sh-chip">{{ payload.summary.total_devices || 0 }} Geräte</span>
             <span class="sh-chip sh-chip-online">{{ payload.summary.online_devices || 0 }} online</span>
             <span class="sh-chip sh-chip-offline">{{ payload.summary.offline_devices || 0 }} offline</span>
-            <span class="sh-chip" v-if="payload.summary.sensor_devices">{{ payload.summary.sensor_devices }} Sensor-Geraete</span>
-            <span class="sh-chip" v-if="payload.summary.actuator_devices">{{ payload.summary.actuator_devices }} Aktor-Geraete</span>
+            <span class="sh-chip" v-if="payload.summary.sensor_devices">{{ payload.summary.sensor_devices }} Sensor-Geräte</span>
+            <span class="sh-chip" v-if="payload.summary.actuator_devices">{{ payload.summary.actuator_devices }} Aktor-Geräte</span>
         </div>
 
         <div class="sh-weather-card" v-if="payload.page && payload.page.key === 'overview' && payload.weather">
@@ -1773,7 +1756,7 @@ const buildDeviceGridTemplate = ({ viewKey, title, intro, emptyText }) => `
                 <div class="sh-control-section" v-if="payload.page && payload.page.show_controls !== false && device.controls && device.controls.kind === 'cover'">
                     <div class="sh-control-row">
                         <button class="sh-btn" @click="coverMove(device.device_id, 'up')"><i class="mdi mdi-arrow-up"></i> Auf</button>
-                        <button class="sh-btn" @click="coverMove(device.device_id, 'stop')"><i class="mdi mdi-stop"></i> Stop</button>
+                        <button class="sh-btn" @click="coverMove(device.device_id, 'stop')"><i class="mdi mdi-stop"></i> Stopp</button>
                         <button class="sh-btn" @click="coverMove(device.device_id, 'down')"><i class="mdi mdi-arrow-down"></i> Ab</button>
                     </div>
                     <div class="sh-slider-row">
@@ -1830,8 +1813,7 @@ const roomsTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>Raeume</h2>
-                <p>Aktuelle Raumbelegung aus SQLite plus Fallback auf Geraetedaten.</p>
+                <p class="sh-muted">Raumzuordnung aus SQLite und bekannten Gerätedaten.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="refresh">Neu laden</button>
@@ -1839,14 +1821,14 @@ const roomsTemplate = `
             </div>
         </div>
 
-        <div class="sh-empty" v-if="!roomList.length">Noch keine Raeume sichtbar. Raeume entstehen ueber die Geraete-Detailseite oder aus vorhandenen Zuordnungen.</div>
+        <div class="sh-empty" v-if="!roomList.length">Noch keine Räume sichtbar. Räume entstehen über das Gerätedetail oder aus vorhandenen Zuordnungen.</div>
 
         <div class="sh-room-grid" v-else>
             <article class="sh-room-card" v-for="room in roomList" :key="room.slug">
                 <div class="sh-room-head">
                     <div>
                         <h3>{{ room.name }}</h3>
-                        <p class="sh-muted">{{ room.device_count }} Geraete</p>
+                        <p class="sh-muted">{{ room.device_count }} Geräte</p>
                     </div>
                     <div class="sh-card-badges">
                         <span class="sh-chip sh-chip-online">{{ room.online_count }} online</span>
@@ -1889,12 +1871,11 @@ const deviceDetailTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>Geraete-Detail</h2>
-                <p>Serverseitige Detailansicht mit SQLite-Metadaten und Influx-Historie.</p>
+                <p class="sh-muted">Status, Werte und sichtbare Konfiguration des gewählten Geräts.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="reload">Neu laden</button>
-                ${renderDashboardNavHtml()}
+                <a class="sh-btn sh-btn-muted" href="/dashboard/geraete">Zur Geräteübersicht</a>
             </div>
         </div>
 
@@ -1903,7 +1884,7 @@ const deviceDetailTemplate = `
         </div>
 
         <div v-else-if="!detail.device" class="sh-empty">
-            Kein Geraet ausgewaehlt. Oeffne die Seite ueber einen Detail-Link aus der Uebersicht oder nutze
+            Kein Gerät ausgewählt. Öffne die Seite über einen Detail-Link aus der Übersicht oder über
             <a href="/dashboard/geraete">/dashboard/geraete</a>.
         </div>
 
@@ -1938,9 +1919,9 @@ const deviceDetailTemplate = `
                     </div>
                     <div class="sh-control-row">
                         <button class="sh-btn" @click="saveMeta">Name/Raum speichern</button>
-                        <button class="sh-btn sh-btn-danger" v-if="detail.device.delete_supported" @click="removeDevice">Geraet aus SQLite entfernen</button>
+                        <button class="sh-btn sh-btn-danger" v-if="detail.device.delete_supported" @click="removeDevice">Gerät aus SQLite entfernen</button>
                     </div>
-                    <p class="sh-muted">Die Umbenennung wirkt serverseitig im Dashboard. Aktive MQTT-Nachrichten koennen geloeschte Geraete spaeter wieder anlegen.</p>
+                    <p class="sh-muted">Schreibbar sind hier Anzeigename und Raumzuordnung. Eingehende MQTT-Nachrichten können ein gelöschtes Gerät später erneut anlegen.</p>
                     <hr class="sh-divider" />
                     <div class="sh-value-list">
                         <div class="sh-value-row" v-for="item in detail.device.info_rows" :key="item.key">
@@ -1973,7 +1954,7 @@ const deviceDetailTemplate = `
                     <div class="sh-control-section" v-else-if="detail.device.controls.kind === 'cover'">
                         <div class="sh-control-row">
                             <button class="sh-btn" @click="coverMove('up')"><i class="mdi mdi-arrow-up"></i> Auf</button>
-                            <button class="sh-btn" @click="coverMove('stop')"><i class="mdi mdi-stop"></i> Stop</button>
+                            <button class="sh-btn" @click="coverMove('stop')"><i class="mdi mdi-stop"></i> Stopp</button>
                             <button class="sh-btn" @click="coverMove('down')"><i class="mdi mdi-arrow-down"></i> Ab</button>
                         </div>
                         <div class="sh-slider-row">
@@ -2015,9 +1996,9 @@ const deviceDetailTemplate = `
                         </label>
                     </div>
                     <div class="sh-control-row" v-if="detail.sensor_metrics && detail.sensor_metrics.length">
-                        <button class="sh-btn" @click="loadChart">Chart laden</button>
+                        <button class="sh-btn" @click="loadChart">Diagramm laden</button>
                     </div>
-                    <div class="sh-empty" v-else>Keine sensorischen Zeitreihen fuer dieses Geraet verfuegbar.</div>
+                    <div class="sh-empty" v-else>Keine sensorischen Zeitreihen für dieses Gerät verfügbar.</div>
 
                     <div class="sh-chart-shell" v-if="chart.series && chart.series.length">
                         <div class="sh-chart-meta">
@@ -2065,7 +2046,7 @@ const deviceDetailTemplate = `
                         </tr>
                     </tbody>
                 </table>
-                <h3>Konfiguration</h3>
+                <h3>Gemeldete Gerätekonfiguration</h3>
                 <table class="sh-technical-table" v-if="detail.config_rows && detail.config_rows.length">
                     <thead>
                         <tr>
@@ -2175,7 +2156,7 @@ export default {
                 if (payload.kind === "detail_removed") {
                     this.detail = { room_options: [], sensor_metrics: [] };
                     this.chart = {};
-                    this.removedMessage = payload.message || "Geraet entfernt.";
+                    this.removedMessage = payload.message || "Gerät entfernt.";
                 }
             }
         }
@@ -2194,8 +2175,7 @@ const chartsTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>Diagramme</h2>
-                <p>Globale Zeitreihenansicht ueber Influx fuer Sensorgeraete.</p>
+                <p class="sh-muted">Sensorverläufe aus Influx für ausgewählte Geräte.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="refreshDevices">Neu laden</button>
@@ -2206,9 +2186,9 @@ const chartsTemplate = `
         <div class="sh-panel">
             <div class="sh-form-row">
                 <div class="sh-field">
-                    <label>Geraet</label>
+                    <label>Gerät</label>
                     <select class="sh-select" v-model="selectedDeviceId">
-                        <option value="">Bitte waehlen</option>
+                        <option value="">Bitte wählen</option>
                         <option v-for="device in deviceOptions" :key="device.device_id" :value="device.device_id">
                             {{ device.display_name }}
                         </option>
@@ -2242,8 +2222,8 @@ const chartsTemplate = `
                 </label>
             </div>
             <div class="sh-control-row">
-                <button class="sh-btn" @click="loadChart" :disabled="!selectedDeviceId">Chart laden</button>
-                <a class="sh-btn" v-if="selectedDeviceId" :href="'/dashboard/geraet?device=' + encodeURIComponent(selectedDeviceId)">Zum Geraetedetail</a>
+                <button class="sh-btn" @click="loadChart" :disabled="!selectedDeviceId">Diagramm laden</button>
+                <a class="sh-btn" v-if="selectedDeviceId" :href="'/dashboard/geraet?device=' + encodeURIComponent(selectedDeviceId)">Zum Gerätedetail</a>
             </div>
         </div>
 
@@ -2368,8 +2348,7 @@ const weatherTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>Wetter</h2>
-                <p>Open-Meteo-Konfiguration fuer den Server. Aktuelle Wetterwerte sind im Stack noch nicht als eigener Feed verdrahtet.</p>
+                <p class="sh-muted">Open-Meteo-Setup für den Server. Live-Wetter ist noch nicht verdrahtet.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="reload">Neu laden</button>
@@ -2396,7 +2375,7 @@ const weatherTemplate = `
                         <input class="sh-input" v-model="form.latitude" type="number" step="0.0001" />
                     </div>
                     <div class="sh-field">
-                        <label>Laenge</label>
+                        <label>Länge</label>
                         <input class="sh-input" v-model="form.longitude" type="number" step="0.0001" />
                     </div>
                     <div class="sh-field">
@@ -2425,7 +2404,7 @@ const weatherTemplate = `
                     <div class="sh-value-row"><span>API-Basis</span><strong>{{ payload.api_base_url || '-' }}</strong></div>
                     <div class="sh-value-row"><span>Status</span><strong>{{ payload.enabled ? 'aktiviert' : 'deaktiviert' }}</strong></div>
                 </div>
-                <p class="sh-muted">Solange der Server noch keinen produktiven Wetter-Feed schreibt, bleibt diese Seite eine ehrliche Konfigurationsstufe und keine aktuelle Vorhersageansicht.</p>
+                <p class="sh-muted">Solange der Server noch keinen produktiven Wetter-Feed schreibt, bleibt diese Seite eine ehrliche Konfigurationsstufe.</p>
             </section>
         </div>
     </div>
@@ -2491,8 +2470,7 @@ const automationsTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>Automationen</h2>
-                <p>Einfaches V1 fuer Zeit- und Sensortrigger. Wettertrigger bleiben gesperrt, bis echte Wetterwerte im Server ankommen.</p>
+                <p class="sh-muted">Zeit- und Sensortrigger für die aktuelle Serverbasis.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="reload">Neu laden</button>
@@ -2523,9 +2501,9 @@ const automationsTemplate = `
             </div>
             <div class="sh-form-row" v-else>
                 <div class="sh-field">
-                    <label>Sensor-Geraet</label>
+                    <label>Sensor-Gerät</label>
                     <select class="sh-select" v-model="form.sensor_device_id">
-                        <option value="">Bitte waehlen</option>
+                        <option value="">Bitte wählen</option>
                         <option v-for="item in sensorDevices" :key="'sensor-device-' + item.device_id" :value="item.device_id">
                             {{ item.display_name }}
                         </option>
@@ -2534,7 +2512,7 @@ const automationsTemplate = `
                 <div class="sh-field">
                     <label>Metrik</label>
                     <select class="sh-select" v-model="form.sensor_metric">
-                        <option value="">Bitte waehlen</option>
+                        <option value="">Bitte wählen</option>
                         <option v-for="metric in selectedSensorMetrics" :key="'sensor-metric-' + metric.key" :value="metric.key">
                             {{ metric.label }}
                         </option>
@@ -2557,9 +2535,9 @@ const automationsTemplate = `
             </div>
             <div class="sh-form-row">
                 <div class="sh-field">
-                    <label>Ziel-Geraet</label>
+                    <label>Ziel-Gerät</label>
                     <select class="sh-select" v-model="form.action_device_id">
-                        <option value="">Bitte waehlen</option>
+                        <option value="">Bitte wählen</option>
                         <option v-for="item in actuatorDevices" :key="'action-device-' + item.device_id" :value="item.device_id">
                             {{ item.display_name }}
                         </option>
@@ -2568,7 +2546,7 @@ const automationsTemplate = `
                 <div class="sh-field">
                     <label>Aktion</label>
                     <select class="sh-select" v-model="form.action_code">
-                        <option value="">Bitte waehlen</option>
+                        <option value="">Bitte wählen</option>
                         <option v-for="action in selectedActionOptions" :key="'action-code-' + action.code" :value="action.code">
                             {{ action.label }}
                         </option>
@@ -2586,7 +2564,7 @@ const automationsTemplate = `
                 <button class="sh-btn" @click="save">Speichern</button>
                 <button class="sh-btn sh-btn-muted" @click="resetForm">Leeren</button>
             </div>
-            <p class="sh-muted">Wettertrigger werden absichtlich noch nicht angeboten, weil der Server aktuell nur Wetterkonfiguration, aber keinen belastbaren Wetterzustand haelt.</p>
+            <p class="sh-muted">Wettertrigger bleiben absichtlich gesperrt, weil der Server aktuell nur Wetterkonfiguration, aber keinen belastbaren Wetterzustand hält.</p>
         </section>
 
         <section class="sh-panel">
@@ -2613,7 +2591,7 @@ const automationsTemplate = `
                             <div class="sh-control-row">
                                 <button class="sh-btn sh-btn-muted" @click="editAutomation(item)">Bearbeiten</button>
                                 <button class="sh-btn sh-btn-muted" @click="toggleAutomation(item)">{{ item.is_enabled ? 'Pause' : 'Aktiv' }}</button>
-                                <button class="sh-btn sh-btn-danger" @click="deleteAutomation(item)">Loeschen</button>
+                                <button class="sh-btn sh-btn-danger" @click="deleteAutomation(item)">Löschen</button>
                             </div>
                         </td>
                     </tr>
@@ -2722,8 +2700,7 @@ const configTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>Konfiguration</h2>
-                <p>Server-Settings, Wetter-Setup und bekannte Raumliste aus SQLite.</p>
+                <p class="sh-muted">Schreibbare Pfade und technische SQLite-Sicht für das reale Dashboard.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="reload">Neu laden</button>
@@ -2733,7 +2710,40 @@ const configTemplate = `
 
         <div class="sh-config-grid">
             <section class="sh-panel">
-                <h3>Server-Settings</h3>
+                <h3>Server-Konfiguration</h3>
+                <p class="sh-muted">Schreibbarer Serverpfad in V1: Wetter-Setup.</p>
+                <div class="sh-value-list">
+                    <div class="sh-value-row"><span>Provider</span><strong>{{ payload.weather.provider || '-' }}</strong></div>
+                    <div class="sh-value-row"><span>Ort</span><strong>{{ payload.weather.location_label || '-' }}</strong></div>
+                    <div class="sh-value-row"><span>Abfrage</span><strong>{{ payload.weather.poll_label || '-' }}</strong></div>
+                </div>
+                <div class="sh-control-row">
+                    <a class="sh-btn" href="/dashboard/wetter">Wetter bearbeiten</a>
+                </div>
+                <p class="sh-muted">Weitere server_settings bleiben aktuell technische SQLite-Werte ohne verdrahtete Live-Wirkung.</p>
+            </section>
+            <section class="sh-panel">
+                <h3>Geräte-Konfiguration</h3>
+                <p class="sh-muted">Schreibbar sind Anzeigename und Raumzuordnung pro Gerät.</p>
+                <div class="sh-form-row">
+                    <div class="sh-field">
+                        <label>Gerät</label>
+                        <select class="sh-select" v-model="selectedDeviceId">
+                            <option value="">Bitte wählen</option>
+                            <option v-for="device in payload.devices" :key="'config-device-' + device.device_id" :value="device.device_id">
+                                {{ device.display_name }}
+                            </option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sh-control-row">
+                    <a class="sh-btn" v-if="selectedDeviceId" :href="'/dashboard/geraet?device=' + encodeURIComponent(selectedDeviceId)">Gerät öffnen</a>
+                    <a class="sh-btn sh-btn-muted" href="/dashboard/geraete">Geräteübersicht</a>
+                </div>
+                <p class="sh-muted">Gemeldete cfg/report-Werte bleiben im Gerätedetail sichtbar, sind dort aber nur lesbar.</p>
+            </section>
+            <section class="sh-panel">
+                <h3>Technische Einstellungen</h3>
                 <table class="sh-technical-table">
                     <thead>
                         <tr><th>Key</th><th>Wert</th><th>Typ</th></tr>
@@ -2748,19 +2758,18 @@ const configTemplate = `
                 </table>
             </section>
             <section class="sh-panel">
-                <h3>Wetterkonfiguration</h3>
-                <div class="sh-value-list">
-                    <div class="sh-value-row"><span>Provider</span><strong>{{ payload.weather.provider || '-' }}</strong></div>
-                    <div class="sh-value-row"><span>Ort</span><strong>{{ payload.weather.location_label || '-' }}</strong></div>
-                    <div class="sh-value-row"><span>Abfrage</span><strong>{{ payload.weather.poll_label || '-' }}</strong></div>
-                </div>
-            </section>
-            <section class="sh-panel">
-                <h3>Raeume</h3>
+                <h3>Räume</h3>
                 <div class="sh-secondary-list">
                     <span class="sh-secondary-pill" v-for="room in payload.rooms" :key="'config-room-' + room.slug">
                         {{ room.name }}
                     </span>
+                </div>
+            </section>
+            <section class="sh-panel">
+                <h3>[SIM] Validierung</h3>
+                <p class="sh-muted">Getrennter Technikpfad für sim_*. Kein Teil der Hauptnavigation.</p>
+                <div class="sh-control-row">
+                    <a class="sh-btn sh-btn-muted" href="/dashboard/simulation">[SIM] öffnen</a>
                 </div>
             </section>
         </div>
@@ -2776,7 +2785,8 @@ const configTemplate = `
 export default {
     data() {
         return {
-            payload: { settings: [], rooms: [], weather: {} }
+            payload: { settings: [], rooms: [], weather: {}, devices: [] },
+            selectedDeviceId: ""
         };
     },
     methods: {
@@ -2791,6 +2801,9 @@ export default {
                 const payload = value?.payload || {};
                 if (payload.kind === "config") {
                     this.payload = payload;
+                    if (!this.selectedDeviceId || !payload.devices.some((item) => item.device_id === this.selectedDeviceId)) {
+                        this.selectedDeviceId = payload.devices.length ? payload.devices[0].device_id : "";
+                    }
                 }
             }
         }
@@ -2809,8 +2822,7 @@ const logsTemplate = `
     <div class="sh-page">
         <div class="sh-toolbar">
             <div>
-                <h2>Ereignisse / Logs</h2>
-                <p>Letzte SQLite-Auditzeilen fuer Ingest und Egress.</p>
+                <p class="sh-muted">Letzte SQLite-Auditzeilen für Ingest und Egress.</p>
             </div>
             <div class="sh-toolbar-actions">
                 <button class="sh-btn sh-btn-muted" @click="reload">Neu laden</button>
@@ -2818,7 +2830,7 @@ const logsTemplate = `
             </div>
         </div>
 
-        <div class="sh-empty" v-if="!rows.length">Keine Audit-Eintraege vorhanden.</div>
+        <div class="sh-empty" v-if="!rows.length">Keine Audit-Einträge vorhanden.</div>
         <table class="sh-log-table" v-else>
             <thead>
                 <tr>
@@ -2899,8 +2911,8 @@ const dashboardCommonHelperLines = [
     'const slugify = (value) => normalizeString(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");',
     'const metaKeys = new Set(["source", "sim_case", "master_id", "node_id", "device_id", "device_type", "device_class", "power_source", "room", "room_slug", "ts", "timestamp"]);',
     'const labelMap = {',
-    '    relay_1: "Relay 1",',
-    '    relay_2: "Relay 2",',
+    '    relay_1: "Relais 1",',
+    '    relay_2: "Relais 2",',
     '    temp_01c: "Temperatur",',
     '    temperature_c: "Temperatur",',
     '    hum_01pct: "Luftfeuchte",',
@@ -2911,20 +2923,49 @@ const dashboardCommonHelperLines = [
     '    motion: "Bewegung",',
     '    contact: "Kontakt",',
     '    online: "Online",',
-    '    fault: "Stoerung",',
-    '    cover_mode: "Cover-Modus",',
+    '    fault: "Störung",',
+    '    cover_mode: "Rollladenmodus",',
     '    cover_state: "Fahrzustand",',
     '    cover_position: "Position",',
     '    cover_calibrated: "Kalibriert"',
     '};',
     'const coverStateLabel = (value) => {',
-    '    if (value === 1) return "faehrt auf";',
-    '    if (value === 2) return "faehrt ab";',
+    '    if (value === 1) return "fährt auf";',
+    '    if (value === 2) return "fährt ab";',
     '    return "gestoppt";',
     '};',
     'const humanizeKey = (key) => labelMap[key] || String(key || "")',
     '    .replace(/_/g, " ")',
     '    .replace(/\\b\\w/g, (match) => match.toUpperCase());',
+    'const isRollladenDevice = (flatState, meta, deviceInfo = {}) => {',
+    '    const coverMode = normalizeBool(flatState && flatState.cover_mode);',
+    '    if (coverMode === true) return true;',
+    '    if (coverMode === false) return false;',
+    '    const hints = [',
+    '        normalizeString(deviceInfo.device_class),',
+    '        normalizeString(deviceInfo.hardware_type),',
+    '        normalizeString(meta && meta.device_class),',
+    '        normalizeString(meta && meta.hardware_type),',
+    '        normalizeString(meta && meta.device_type),',
+    '        normalizeString(meta && meta.device_mode),',
+    '        normalizeString(meta && meta.kind)',
+    '    ].join(" ").toLowerCase();',
+    '    return /\\brollladen\\b|\\brolladen\\b|\\bshutter\\b/.test(hints);',
+    '};',
+    'const filterPrimaryValues = (rows, options = {}) => rows.filter((row) => {',
+    '    const key = row && row.key ? row.key : "";',
+    '    if (key === "cover") return false;',
+    '    if (options.controlKind !== "cover" && key === "cover_position") return false;',
+    '    return true;',
+    '});',
+    'const filterSecondaryValues = (rows, options = {}) => rows.filter((row) => {',
+    '    const key = row && row.key ? row.key : "";',
+    '    if (key === "cover") return false;',
+    '    if (options.controlKind === "cover") {',
+    '        return !["relay_1", "relay_2", "cover_mode", "cover_position", "cover_calibrated"].includes(key);',
+    '    }',
+    '    return !["cover_mode", "cover_state", "cover_position", "cover_calibrated"].includes(key);',
+    '});',
     'const formatValueText = (key, value, unit, role) => {',
     '    if (/cover_state/i.test(key)) {',
     '        const numberValue = normalizeNumber(value);',
@@ -2948,10 +2989,10 @@ const dashboardCommonHelperLines = [
     '            else if (/co2|eco2/i.test(key)) unit = "ppm";',
     '            else if (/tvoc|voc/i.test(key)) unit = "ppb";',
     '        }',
-    '        if (unit === "0.1c") return (numberValue / 10).toFixed(1) + " C";',
+    '        if (unit === "0.1c") return (numberValue / 10).toFixed(1) + " °C";',
     '        if (unit === "0.1pct") return (numberValue / 10).toFixed(1) + " %";',
     '        if (unit === "pct" || /_pct$/i.test(key) || /position/i.test(key)) return String(Math.round(numberValue)) + " %";',
-    '        if (unit === "c") return numberValue.toFixed(1) + " C";',
+    '        if (unit === "c") return numberValue.toFixed(1) + " °C";',
     '        if (unit === "mv") return String(Math.round(numberValue)) + " mV";',
     '        if (unit === "lux") return String(Math.round(numberValue)) + " lx";',
     '        if (unit === "ppm" || unit === "ppb") return String(Math.round(numberValue)) + " " + unit;',
@@ -3003,7 +3044,7 @@ const dashboardCommonHelperLines = [
     '    }',
     '    const series = Array.from(grouped.values()).filter((item) => item.points.length);',
     '    if (!series.length) {',
-    '        return { title: chartTitle, range_label: rangeLabel, step_label: stepLabel, message: "Keine Influx-Daten fuer die aktuelle Auswahl." };',
+    '        return { title: chartTitle, range_label: rangeLabel, step_label: stepLabel, message: "Keine Influx-Daten für die aktuelle Auswahl." };',
     '    }',
     '    const allPoints = series.flatMap((item) => item.points);',
     '    const minTs = Math.min(...allPoints.map((point) => point.ts_ms));',
@@ -3228,7 +3269,9 @@ const devices = Array.from(byDevice.values()).map((device) => {
         const row = { key, label: humanizeKey(key), value_text: valueText };
         if (/temp|hum|lux|battery|co2|voc|rain|pressure|power|energy|position/i.test(key) && !/cover_state/i.test(key)) {
             primaryValues.push(row);
-            sensorMetrics.push({ key, label: humanizeKey(key), unit: null });
+            if (!/cover_position/i.test(key)) {
+                sensorMetrics.push({ key, label: humanizeKey(key), unit: null });
+            }
         } else {
             secondaryValues.push(row);
         }
@@ -3237,31 +3280,30 @@ const devices = Array.from(byDevice.values()).map((device) => {
     sortValues(primaryValues);
     sortValues(secondaryValues);
     const relayKeys = ["relay_1", "relay_2"].filter((key) => flatState[key] !== undefined || capabilities.some((item) => item.key === key));
-    const coverMode = normalizeBool(flatState.cover_mode) === true;
-    const hasCover = coverMode || flatState.cover_position !== undefined || flatState.cover_state !== undefined || capabilities.some((item) => item.key === "cover");
-    if (hasCover && relayKeys.length >= 2) {
+    const isRollladen = isRollladenDevice(flatState, device.meta, { device_class: device.device_class, hardware_type: device.hardware_type });
+    if (isRollladen && relayKeys.length >= 2) {
         const positionNumber = normalizeNumber(flatState.cover_position);
         device.controls = {
             kind: "cover",
             position_value: positionNumber === null ? 0 : Math.max(0, Math.min(100, positionNumber)),
             position_text: positionNumber === null ? "Position unbekannt" : String(Math.round(positionNumber)) + " %",
             slider_note: device.cover_calibrated === true
-                ? "Zielposition ist ueber die aktuelle MQTT-Bridge noch nicht verdrahtet."
-                : "Slider gesperrt: Cover ist nicht kalibriert oder die Kalibrierung wurde noch nicht gemeldet."
+                ? "Zielposition ist über die aktuelle MQTT-Bridge noch nicht verdrahtet."
+                : "Slider gesperrt: Rollladen ist nicht kalibriert oder die Kalibrierung wurde noch nicht gemeldet."
         };
     } else if (relayKeys.length) {
         device.controls = {
             kind: "relay",
             relays: relayKeys.map((key) => ({
                 key,
-                label: key === "relay_2" ? "Lampe 2" : "Lampe 1",
+                label: key === "relay_2" ? "Relais 2" : "Relais 1",
                 active: normalizeBool(flatState[key]) === true
             }))
         };
     }
 
-    device.primary_values = primaryValues.slice(0, 8);
-    device.secondary_values = secondaryValues.slice(0, 8);
+    device.primary_values = filterPrimaryValues(primaryValues, { controlKind: device.controls ? device.controls.kind : null }).slice(0, 8);
+    device.secondary_values = filterSecondaryValues(secondaryValues, { controlKind: device.controls ? device.controls.kind : null }).slice(0, 8);
     device.sensor_metrics = sensorMetrics.filter((item, index, list) => list.findIndex((current) => current.key === item.key) === index);
     device.info_rows = [
         { key: "device_class", label: "Klasse", value_text: device.device_class || "-" },
@@ -3319,7 +3361,7 @@ const view = msg.dashboardView || "overview";
 let filteredDevices = devices;
 let page = { key: view, show_controls: true };
 if (view === "devices") {
-    page.title = "Geraete";
+    page.title = "Geräte";
 } else if (view === "sensors") {
     page.title = "Sensoren";
     filteredDevices = devices.filter((device) => device.sensor_metrics.length > 0);
@@ -3327,14 +3369,14 @@ if (view === "devices") {
     page.title = "Aktoren";
     filteredDevices = devices.filter((device) => device.controls && device.controls.kind === "relay");
 } else if (view === "covers") {
-    page.title = "Rollaeden";
+    page.title = "Rollläden";
     filteredDevices = devices.filter((device) => device.controls && device.controls.kind === "cover");
 } else if (view === "charts") {
     page.title = "Diagramme";
     page.show_controls = false;
     filteredDevices = devices.filter((device) => device.sensor_metrics.length > 0);
 } else {
-    page.title = "Uebersicht";
+    page.title = "Übersicht";
 }
 
 msg.payload = {
@@ -3644,7 +3686,9 @@ for (const [key, value] of Object.entries(flatState)) {
     const row = { key, label: humanizeKey(key), value_text: formatValueText(key, value, null, "unknown") };
     if (/temp|hum|lux|battery|power|energy|position/i.test(key) && !/cover_state/i.test(key)) {
         primaryValues.push(row);
-        sensorMetrics.push({ key, label: row.label, unit: null });
+        if (!/cover_position/i.test(key)) {
+            sensorMetrics.push({ key, label: row.label, unit: null });
+        }
     } else {
         secondaryValues.push(row);
     }
@@ -3654,25 +3698,24 @@ sortValues(primaryValues);
 sortValues(secondaryValues);
 
 const relayKeys = ["relay_1", "relay_2"].filter((key) => flatState[key] !== undefined || capabilities.some((item) => item.key === key));
-const coverMode = normalizeBool(flatState.cover_mode) === true;
-const hasCover = coverMode || flatState.cover_position !== undefined || flatState.cover_state !== undefined || capabilities.some((item) => item.key === "cover");
+const isRollladen = isRollladenDevice(flatState, meta, { device_class: deviceRow.device_class, hardware_type: deviceRow.hardware_type });
 let controls = null;
-if (hasCover && relayKeys.length >= 2) {
+if (isRollladen && relayKeys.length >= 2) {
     const positionNumber = normalizeNumber(flatState.cover_position);
     controls = {
         kind: "cover",
         position_value: positionNumber === null ? 0 : Math.max(0, Math.min(100, positionNumber)),
         position_text: positionNumber === null ? "Position unbekannt" : String(Math.round(positionNumber)) + " %",
         slider_note: normalizeBool(deviceRow.cover_calibrated) === true
-            ? "Zielposition ist ueber die aktuelle MQTT-Bridge noch nicht verdrahtet."
-            : "Slider gesperrt: Cover ist nicht kalibriert oder die Kalibrierung fehlt in cfg/report."
+            ? "Zielposition ist über die aktuelle MQTT-Bridge noch nicht verdrahtet."
+            : "Slider gesperrt: Rollladen ist nicht kalibriert oder die Kalibrierung fehlt in cfg/report."
     };
 } else if (relayKeys.length) {
     controls = {
         kind: "relay",
         relays: relayKeys.map((key) => ({
             key,
-            label: key === "relay_2" ? "Lampe 2" : "Lampe 1",
+            label: key === "relay_2" ? "Relais 2" : "Relais 1",
             active: normalizeBool(flatState[key]) === true
         }))
     };
@@ -3691,7 +3734,7 @@ result.device = {
     online_class: onlineBool === true ? "sh-chip-online" : onlineBool === false ? "sh-chip-offline" : "sh-chip-unknown",
     delete_supported: deviceRow.device_role !== "master",
     controls,
-    primary_values: primaryValues.slice(0, 10),
+    primary_values: filterPrimaryValues(primaryValues, { controlKind: controls ? controls.kind : null }).slice(0, 10),
     info_rows: [
         { key: "device_class", label: "Klasse", value_text: deviceRow.device_class || "-" },
         { key: "origin_master_id", label: "Master", value_text: deviceRow.origin_master_id || "-" },
@@ -3705,9 +3748,9 @@ result.device = {
 result.sensor_metrics = sensorMetrics.filter((item, index, list) => list.findIndex((current) => current.key === item.key) === index);
 result.technical_rows = [
     { key: "first_seen_at", label: "Erstkontakt", value_text: isoLabel(deviceRow.first_seen_at) },
-    { key: "last_meta_at", label: "Letztes meta", value_text: isoLabel(deviceRow.last_meta_at) },
-    { key: "last_status_at", label: "Letztes status", value_text: isoLabel(deviceRow.last_status_at) },
-    { key: "last_state_at", label: "Letztes state", value_text: isoLabel(deviceRow.last_state_at) },
+    { key: "last_meta_at", label: "Letztes Meta", value_text: isoLabel(deviceRow.last_meta_at) },
+    { key: "last_status_at", label: "Letzter Status", value_text: isoLabel(deviceRow.last_status_at) },
+    { key: "last_state_at", label: "Letzter State", value_text: isoLabel(deviceRow.last_state_at) },
     { key: "manufacturer", label: "Hersteller", value_text: normalizeString(deviceRow.manufacturer) || "-" },
     { key: "model", label: "Modell", value_text: normalizeString(deviceRow.model) || "-" }
 ];
@@ -3806,7 +3849,7 @@ const routePostDeviceDetailWriteFunc = String.raw`
 if (msg.dashboardRemoved) {
     msg.payload = {
         kind: "detail_removed",
-        message: "Geraet aus der SQLite-Registry entfernt. Neue MQTT-Nachrichten koennen es erneut anlegen."
+        message: "Gerät aus der SQLite-Registry entfernt. Neue MQTT-Nachrichten können es erneut anlegen."
     };
     return [msg, null];
 }
@@ -3993,9 +4036,9 @@ for (const entry of actuatorMap.values()) {
     }
     const flatState = flattenState(entry.state_json || {});
     if (entry.relay_keys.has("relay_1") && entry.relay_keys.has("relay_2") && normalizeBool(flatState.cover_mode) === true) {
-        entry.actions.push({ code: "cover:up", label: "Cover auf" });
-        entry.actions.push({ code: "cover:stop", label: "Cover stop" });
-        entry.actions.push({ code: "cover:down", label: "Cover ab" });
+        entry.actions.push({ code: "cover:up", label: "Rollladen auf" });
+        entry.actions.push({ code: "cover:stop", label: "Rollladen Stopp" });
+        entry.actions.push({ code: "cover:down", label: "Rollladen ab" });
     }
     entry.actions.sort((left, right) => left.label.localeCompare(right.label));
 }
@@ -4006,10 +4049,11 @@ for (const row of rows.filter((item) => item.row_type === "automation")) {
     const triggerLabel = row.trigger_type === "time"
         ? "Zeit " + (trigger.at || "--:--")
         : "Sensor " + [trigger.device_id || "-", trigger.metric || "-", trigger.operator || "-", trigger.threshold].join(" ");
+    const coverDirectionLabel = action.direction === "stop" ? "Stopp" : action.direction || "-";
     const actionLabel = action.type === "relay"
         ? [action.device_id || "-", action.relay_key || "-", action.state === true ? "EIN" : "AUS"].join(" ")
         : action.type === "cover"
-            ? [action.device_id || "-", "Cover", action.direction || "-"].join(" ")
+            ? [action.device_id || "-", "Rollladen", coverDirectionLabel].join(" ")
             : "-";
     automations.push({
         id: Number(row.automation_id),
@@ -4182,9 +4226,13 @@ msg.topic = [
     "SELECT 'weather' AS row_type, NULL, NULL, NULL, updated_at, provider, location_label, CAST(poll_interval_minutes AS TEXT), NULL, NULL",
     "FROM weather_settings WHERE id = 1",
     "UNION ALL",
+    "SELECT 'device' AS row_type, d.device_id AS item_key, COALESCE(cfg_name.config_value, d.display_name, d.device_id) AS item_value, d.hardware_type AS value_type, d.updated_at, NULL, NULL, NULL, NULL, NULL",
+    "FROM devices AS d",
+    "LEFT JOIN device_config AS cfg_name ON cfg_name.device_id = d.device_id AND cfg_name.config_key = 'ui_display_name'",
+    "UNION ALL",
     "SELECT 'room' AS row_type, NULL, NULL, NULL, updated_at, NULL, NULL, NULL, slug, name",
     "FROM rooms",
-    "ORDER BY row_type, item_key, room_name;"
+    "ORDER BY row_type, item_value, item_key, room_name;"
 ].join(" ");
 return msg;
 `;
@@ -4193,6 +4241,7 @@ const buildConfigPagePayloadFunc = String.raw`
 const rows = Array.isArray(msg.payload) ? msg.payload : [];
 const settings = [];
 const rooms = [];
+const devices = [];
 let weather = {};
 let serverStatusPretty = "";
 
@@ -4216,6 +4265,12 @@ for (const row of rows) {
             location_label: row.location_label || "",
             poll_label: row.poll_interval_minutes ? String(row.poll_interval_minutes) + " min" : "-"
         };
+    } else if (row.row_type === "device" && row.item_key) {
+        devices.push({
+            device_id: row.item_key,
+            display_name: row.item_value || row.item_key,
+            hardware_type: row.value_type || ""
+        });
     } else if (row.row_type === "room" && row.room_slug) {
         rooms.push({ slug: row.room_slug, name: row.room_name || row.room_slug });
     }
@@ -4224,6 +4279,7 @@ for (const row of rows) {
 msg.payload = {
     kind: "config",
     settings,
+    devices,
     rooms,
     weather,
     server_status_pretty: serverStatusPretty
@@ -4237,7 +4293,7 @@ const deviceId = typeof request.device_id === "string" ? request.device_id.trim(
 const metrics = Array.isArray(request.metrics) ? request.metrics.filter((item) => typeof item === "string" && item.trim()) : [];
 msg.chartTarget = request.chart_target === "charts" ? "charts" : "detail";
 if (!deviceId || !metrics.length) {
-    msg.payload = { kind: "chart", chart: { message: "Bitte Geraet und mindestens eine Metrik waehlen." } };
+    msg.payload = { kind: "chart", chart: { message: "Bitte Gerät und mindestens eine Metrik wählen." } };
     return [null, msg];
 }
 const rangeMap = { "1h": "-1h", "6h": "-6h", "24h": "-24h", "7d": "-7d", "30d": "-30d" };
@@ -4303,12 +4359,12 @@ const csv = (
             : ""
 ).trim();
 if (!csv) {
-    msg.payload = { kind: "chart", chart: { message: "Keine Influx-Daten fuer die aktuelle Auswahl." } };
+    msg.payload = { kind: "chart", chart: { message: "Keine Influx-Daten für die aktuelle Auswahl." } };
     return msg;
 }
 const lines = csv.split(/\\r?\\n/).filter((line) => line.trim());
 if (!lines.length) {
-    msg.payload = { kind: "chart", chart: { message: "Keine Influx-Daten fuer die aktuelle Auswahl." } };
+    msg.payload = { kind: "chart", chart: { message: "Keine Influx-Daten für die aktuelle Auswahl." } };
     return msg;
 }
 const splitCsvLine = (line) => {
@@ -4621,20 +4677,20 @@ addNode({
 });
 
 [
-    { id: ids.uiPageOverview, name: "Uebersicht", path: "/", icon: "view-dashboard", order: 1 },
-    { id: ids.uiPageRooms, name: "Raeume", path: "/raeume", icon: "floor-plan", order: 2 },
-    { id: ids.uiPageDevices, name: "Geraete", path: "/geraete", icon: "devices", order: 3 },
-    { id: ids.uiPageDeviceDetail, name: "Geraete-Detail", path: "/geraet", icon: "card-text-outline", order: 4 },
-    { id: ids.uiPageSensors, name: "Sensoren", path: "/sensoren", icon: "thermometer", order: 5 },
-    { id: ids.uiPageActors, name: "Aktoren", path: "/aktoren", icon: "toggle-switch", order: 6 },
-    { id: ids.uiPageCovers, name: "Rollaeden", path: "/rollaeden", icon: "window-shutter", order: 7 },
-    { id: ids.uiPageWeather, name: "Wetter", path: "/wetter", icon: "weather-partly-cloudy", order: 8 },
-    { id: ids.uiPageCharts, name: "Diagramme", path: "/diagramme", icon: "chart-line", order: 9 },
-    { id: ids.uiPageAutomations, name: "Automationen", path: "/automationen", icon: "robot-outline", order: 10 },
-    { id: ids.uiPageConfig, name: "Konfiguration", path: "/konfiguration", icon: "cog-outline", order: 11 },
-    { id: ids.uiPageLogs, name: "Logs", path: "/logs", icon: "text-box-search-outline", order: 12 },
-    { id: ids.uiPageSimulation, name: "[SIM] Validierung", path: "/simulation", icon: "flask-outline", order: 90 }
-].forEach(({ id, name, path, icon, order }) => {
+    { id: ids.uiPageOverview, name: "Übersicht", path: "/", icon: "view-dashboard", order: 1, visible: true },
+    { id: ids.uiPageRooms, name: "Räume", path: "/raeume", icon: "floor-plan", order: 2, visible: true },
+    { id: ids.uiPageDevices, name: "Geräte", path: "/geraete", icon: "devices", order: 3, visible: true },
+    { id: ids.uiPageDeviceDetail, name: "Gerätedetail", path: "/geraet", icon: "card-text-outline", order: 4, visible: false },
+    { id: ids.uiPageSensors, name: "Sensoren", path: "/sensoren", icon: "thermometer", order: 5, visible: true },
+    { id: ids.uiPageActors, name: "Aktoren", path: "/aktoren", icon: "toggle-switch", order: 6, visible: true },
+    { id: ids.uiPageCovers, name: "Rollläden", path: "/rollaeden", icon: "window-shutter", order: 7, visible: true },
+    { id: ids.uiPageWeather, name: "Wetter", path: "/wetter", icon: "weather-partly-cloudy", order: 8, visible: true },
+    { id: ids.uiPageCharts, name: "Diagramme", path: "/diagramme", icon: "chart-line", order: 9, visible: true },
+    { id: ids.uiPageAutomations, name: "Automationen", path: "/automationen", icon: "robot-outline", order: 10, visible: true },
+    { id: ids.uiPageConfig, name: "Konfiguration", path: "/konfiguration", icon: "cog-outline", order: 11, visible: true },
+    { id: ids.uiPageLogs, name: "Logs", path: "/logs", icon: "text-box-search-outline", order: 12, visible: true },
+    { id: ids.uiPageSimulation, name: "[SIM] Validierung", path: "/simulation", icon: "flask-outline", order: 90, visible: false }
+].forEach(({ id, name, path, icon, order, visible }) => {
     addNode({
         id,
         type: "ui-page",
@@ -4652,19 +4708,19 @@ addNode({
         ],
         order,
         className: "",
-        visible: true,
+        visible,
         disabled: false
     });
 });
 
 [
-    { id: ids.uiGroupOverview, page: ids.uiPageOverview, name: "Uebersicht", height: 18, order: 1 },
-    { id: ids.uiGroupRooms, page: ids.uiPageRooms, name: "Raeume", height: 14, order: 1 },
-    { id: ids.uiGroupDevices, page: ids.uiPageDevices, name: "Geraete", height: 18, order: 1 },
+    { id: ids.uiGroupOverview, page: ids.uiPageOverview, name: "Übersicht", height: 18, order: 1 },
+    { id: ids.uiGroupRooms, page: ids.uiPageRooms, name: "Räume", height: 14, order: 1 },
+    { id: ids.uiGroupDevices, page: ids.uiPageDevices, name: "Geräte", height: 18, order: 1 },
     { id: ids.uiGroupDeviceDetail, page: ids.uiPageDeviceDetail, name: "Detail", height: 24, order: 1 },
     { id: ids.uiGroupSensors, page: ids.uiPageSensors, name: "Sensoren", height: 18, order: 1 },
     { id: ids.uiGroupActors, page: ids.uiPageActors, name: "Aktoren", height: 18, order: 1 },
-    { id: ids.uiGroupCovers, page: ids.uiPageCovers, name: "Rollaeden", height: 18, order: 1 },
+    { id: ids.uiGroupCovers, page: ids.uiPageCovers, name: "Rollläden", height: 18, order: 1 },
     { id: ids.uiGroupWeather, page: ids.uiPageWeather, name: "Wetter", height: 12, order: 1 },
     { id: ids.uiGroupCharts, page: ids.uiPageCharts, name: "Diagramme", height: 16, order: 1 },
     { id: ids.uiGroupAutomations, page: ids.uiPageAutomations, name: "Automationen", height: 18, order: 1 },
@@ -5237,11 +5293,11 @@ addNode({
 });
 
 [
-    { id: ids.uiTemplateOverview, group: ids.uiGroupOverview, name: "Overview View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "overview", title: "Uebersicht", intro: "Ein Block pro bekanntem Geraet, inklusive Wetterkarte und direkter Bedienung.", emptyText: "Noch keine Geraete in SQLite sichtbar." }) },
-    { id: ids.uiTemplateDevices, group: ids.uiGroupDevices, name: "Devices View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "devices", title: "Geraete", intro: "Alle bekannten Geraete mit Detaillinks und letzten Werten.", emptyText: "Keine Geraete vorhanden." }) },
-    { id: ids.uiTemplateSensors, group: ids.uiGroupSensors, name: "Sensors View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "sensors", title: "Sensoren", intro: "Gefilterte Sicht auf sensorische Geraete und ihre letzten Werte.", emptyText: "Keine Sensorgeraete erkannt." }) },
-    { id: ids.uiTemplateActors, group: ids.uiGroupActors, name: "Actors View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "actors", title: "Aktoren", intro: "Schaltgeraete mit direkt verdrahteten cmd/set-Buttons.", emptyText: "Keine schaltbaren Aktoren erkannt." }) },
-    { id: ids.uiTemplateCovers, group: ids.uiGroupCovers, name: "Covers View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "covers", title: "Rollaeden", intro: "Cover-/Shutter-Sicht mit Auf/Stop/Ab und gesperrtem Positionsslider, solange der Server nur Relay-Commands kennt.", emptyText: "Keine Cover-Geraete sichtbar." }) }
+    { id: ids.uiTemplateOverview, group: ids.uiGroupOverview, name: "Overview View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "overview", title: "Übersicht", intro: "Kompakte Geräteübersicht mit Direktbedienung.", emptyText: "Noch keine Geräte in SQLite sichtbar." }) },
+    { id: ids.uiTemplateDevices, group: ids.uiGroupDevices, name: "Devices View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "devices", title: "Geräte", intro: "Alle bekannten Geräte mit Detailzugriff.", emptyText: "Keine Geräte vorhanden." }) },
+    { id: ids.uiTemplateSensors, group: ids.uiGroupSensors, name: "Sensors View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "sensors", title: "Sensoren", intro: "Gefilterte Sicht auf Sensorgeräte und letzte Werte.", emptyText: "Keine Sensorgeräte erkannt." }) },
+    { id: ids.uiTemplateActors, group: ids.uiGroupActors, name: "Actors View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "actors", title: "Aktoren", intro: "Schaltbare Geräte mit direktem cmd/set-Pfad.", emptyText: "Keine schaltbaren Aktoren erkannt." }) },
+    { id: ids.uiTemplateCovers, group: ids.uiGroupCovers, name: "Covers View", order: 1, height: 18, format: buildDeviceGridTemplate({ viewKey: "covers", title: "Rollläden", intro: "Rollladenansicht für Geräte im echten Rollladenmodus.", emptyText: "Keine Rollläden sichtbar." }) }
 ].forEach(({ id, group, name, order, height, format }) => {
     addNode({
         id,
