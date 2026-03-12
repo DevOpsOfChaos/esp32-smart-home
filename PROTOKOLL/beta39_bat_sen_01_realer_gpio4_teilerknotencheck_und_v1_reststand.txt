@@ -1,0 +1,60 @@
+Stand: beta39
+Datei: beta39_bat_sen_01_realer_gpio4_teilerknotencheck_und_v1_reststand.txt
+Datum: 2026-03-12
+Autor: Codex
+Status: realer lokaler Nachtrag fuer `bat_sen_01`; offizieller Server- und Langzeitnachweis bleiben offen
+
+1. Anlass
+- `beta36` hatte den lokalen Batteriepfad fuer `bat_sen_01` schon gegen die reale Batteriespannung plausibel gemacht, liess aber den direkten GPIO4-Teilerknoten noch offen.
+- `beta38` hat den lokalen Funk-Basispfad danach real geschlossen: `HELLO`, `HELLO_ACK` und der erste `STATE_REPORT` sind fuer `COM7` gegen `COM3` jetzt belegt.
+- Wenn der GPIO4-Knoten inzwischen real gemessen wurde und eng genug zum seriellen `adc_mv` passt, dann ist es fachlich falsch, diesen Punkt weiter als offene Grundsatzluecke zu fuehren.
+
+2. Aenderung
+- Der direkte Multimeter-Check am GPIO4-Teilerknoten wird fuer den aktuellen V1-Stand als erledigt festgehalten.
+- Zusammen mit `beta36` und `beta38` ist damit lokal fuer `bat_sen_01` jetzt belegt:
+  - `COM7` ist das reale `bat_sen`-Board
+  - `COM3` ist der reale `master`
+  - der lokale Handshake `HELLO -> HELLO_ACK` funktioniert
+  - der erste `STATE_REPORT` laeuft real bis in den `master`
+  - der Batteriepfad ueber `GPIO4`, `100k / 100k` und `analogReadMilliVolts()` ist fuer V1 lokal glaubwuerdig
+- Die Restpunkte werden damit enger gezogen:
+  - endgueltige Batterieprofilwahl kann weiter offen sein
+  - offizieller Broker-/SQLite-/Influx-Nachweis ist weiter offen
+  - Langzeitvalidierung ist weiter offen
+
+3. Begruendung
+- Den direkten GPIO4-Knoten weiter als "unbelegt" zu behandeln, obwohl der reale Multimetervergleich bereits erledigt wurde, waere Doku-Selbstbetrug.
+- Umgekehrt waere es genauso falsch, daraus schon einen offiziellen Server- oder Langzeitnachweis zu machen.
+- Die ehrliche Aussage ist deshalb schmaler: der lokale ADC-Pfad ist fuer V1 ausreichend plausibilisiert, aber die Systemnachweise oberhalb davon fehlen noch.
+
+4. Verbesserungseffekt
+- Der lokale `bat_sen`-Bring-up ist nicht mehr kuenstlich blockiert durch bereits erledigte Punkte.
+- `docs/BAT_SEN_ADC_FACT_GAP.md` und `docs/14_test_und_nachweisstand.md` koennen jetzt sauber zwischen lokal erledigten Punkten und den echten Restluecken unterscheiden.
+- Der naechste Schritt ist nicht mehr "nochmal GPIO4 oder Handshake beweisen", sondern der offizielle Serverpfad und danach der laengere Realbetrieb.
+
+5. Risiken / Trade-offs
+- Dieser Nachtrag erhebt keinen Anspruch auf feine ADC-Kalibrierung oder chemieunabhaengige Genauigkeit.
+- Die exakte reale Batteriechemie des Boards kann weiterhin offen sein; damit bleibt auch die endgueltige Einordnung von `battery_pct` offen.
+- Es wird bewusst kein offizieller Broker-, SQLite- oder Influx-Nachweis behauptet.
+- Es wird bewusst kein Langzeitlauf, kein Deep-Sleep-Rueckkehrtest und kein Mehrgeraetebetrieb behauptet.
+
+6. Teststatus
+- Massgebliche reale Vorbelege:
+  - `PROTOKOLL/beta36_bat_sen_2v9_realer_profilvergleich_und_mastercheck_com3_com7.txt`
+  - `PROTOKOLL/beta38_bat_sen_01_realer_handshake_com3_com7_hello_ack_state_report.txt`
+- Zusaetzlicher realer Befund fuer diesen Nachtrag:
+  - der Operator hat den GPIO4-Teilerknoten am echten `bat_sen`-Board real mit dem Multimeter gemessen
+  - der Messwert lag fuer V1 nahe genug am seriellen `adc_mv`, um den lokalen ADC-Pfad nicht weiter als offene Grundsatzluecke zu fuehren
+- Nicht Teil dieses Nachtrags:
+  - kein neuer offizieller Serverlauf
+  - kein neuer Langzeitlauf
+
+7. Lehrerblick
+- Welche Eigenleistung steckt in diesem Stand?
+  - die lokale `bat_sen`-Restluecke wurde auf den echten Kern reduziert statt weiter mit alten offenen Punkten vernebelt
+  - die aktuelle Evidenzlage wurde enger und ehrlicher neu sortiert
+- Was wurde nur als Referenz genutzt?
+  - die bereits vorliegenden realen Teilnachweise aus `beta36` und `beta38`
+  - der reale Operator-Befund zum GPIO4-Teilerknoten
+- Warum ist der Stand fachlich nachvollziehbar?
+  - weil jetzt sauber getrennt ist zwischen lokal erledigter Batterie-/Handshake-Basis und den weiterhin offenen Systemnachweisen
