@@ -24,11 +24,12 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `03_protokoll.md`: ESP-NOW-Protokoll und Paketregeln
 - `04_mqtt_topics.md`: MQTT-Vertrag
 - `05_hardware_geraete.md`: Basisgeraete und Sondergeraete
+- `BAT_SEN_ADC_FACT_GAP.md`: aktueller `bat_sen`-ADC-Stand, offene Hardwarefakten und naechster Realnachweis
 - `15_hardware_pinstandard.md`: verbindlicher Pinstandard
 
 ## Test und Nachweis
 - `06_testplan.md`: Soll-Pruefplan, keine Ist-Aussagen
-- `14_test_und_nachweisstand.md`: belegter Ist-Stand inklusive der engen kombinierten Live-Nachweise fuer `net_erl_01` und `net_zrl_01`
+- `14_test_und_nachweisstand.md`: belegter Ist-Stand; `simulation` bleibt dort explizit von `real hardware` getrennt
 - `14_minimalstrecke_net_erl_master.md`: technischer Ablauf und Detailblatt der Minimalstrecke, kein globales Nachweisdokument
 - `16_build_flash_bringup_master_net_erl.md`: kontrolliertes Runbook fuer Build, Portwahl, Flash und seriellen Bring-up von `master` und `net_erl`
 
@@ -39,6 +40,7 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 ## Bereichsdoku
 - `../server/README.md` und `../server/docs/`: Server-Bereichsdoku
 - `../server/docs/03_server_runbook_lokalbetrieb.md`: lokales Betriebs-Runbook fuer den `server/`-Stack
+- `../server/docs/04_server_simulation_runbook.md`: isolierter Fake-Master-Simulationslauf; ausdruecklich kein Hardware-Nachweis
 - `../server/db/README.md`: Datenbasis des Servers
 - `../server/flows/README.md`: Flow-Rolle und Ingest-Semantik
 - `../hardware/*/README.md`: geraetespezifische Hardwareunterlagen
@@ -46,7 +48,7 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `../firmware/test/*/README.md`: Testordner-Rollen
 
 ## Offene Doku-Luecken
-- weitere serverseitige Rueckweg-Nachweise fuer andere Basisgeraete als `net_erl_01` und `net_zrl_01`
-- reale Nachweise fuer ACK/Retry, Offline-Timeout und Langzeitstabilitaet
-- vollstaendiger Gesamtprojektnachweis ueber die belegten `net_erl_01`- und `net_zrl_01`-Pilotpfade hinaus
+- reale `bat_sen`-Hardwarevalidierung am echten Geraet inklusive ADC-/Batterieprofil-Plausibilisierung
+- weitere offizielle Nachweise ausserhalb der belegten `net_erl_01`-/`net_zrl_01`-Pilotpfade, des belegten `net_sen_01`-Serverpfads und der getrennten `sim_*`-Servervalidierung
+- vollstaendiger Gesamtprojektnachweis ueber die bisherigen realen Pilotpfade und die getrennte Simulation hinaus
 - Hardware-README-Dateien enthalten bisher nur Platzhalter

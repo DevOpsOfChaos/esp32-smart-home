@@ -9,8 +9,8 @@ Geprueft wurden nur diese Pfade:
 - `firmware/src/bat_sen/`
 - `docs/`
 - `PROTOKOLL/`
-- `migration/device_profiles/bat_sen.md`
-- `migration/special_devices/index.md`
+- `migration/device_profiles/`
+- `migration/special_devices/`
 - `worktrees/night_03_extract_helpers/`
 - `worktrees/night_04_device_profiles/`
 - `worktrees/night_06_morning_report/`
@@ -23,217 +23,73 @@ Nicht geprueft wurden bewusst:
 Wichtig fuer die Einordnung:
 
 - `migration/device_profiles/` und `migration/special_devices/` existieren im aktiven Repo, sind dort aber aktuell leer.
-- Die einzigen vorhandenen `bat_sen`-Migrationsnotizen liegen damit nur in den genannten Worktrees.
+- Die einzigen lesbaren `bat_sen`-Migrationsnotizen liegen damit nur in den genannten Worktrees.
+- Massgeblich fuer den aktuellen Produktstand sind jetzt aber die aktiven Dateien unter `firmware/src/bat_sen/`, nicht die Worktree-Notizen.
 
-## 1. Was im aktuellen Repo bereits ueber den `bat_sen`-Batteriepfad bekannt ist
+## 1. Was im aktuellen Repo jetzt wirklich implementiert ist
 
-### Aktive Firmware-Fakten
+- `bat_sen` bleibt eine batteriegetriebene ESP-NOW-Node-Basis mit `HELLO`, `HEARTBEAT`, `STATE_REPORT` und `EVENT`.
+- `STATE_REPORT` transportiert weiter `battery_pct` und `battery_mv`.
+- Der Batteriepfad laeuft jetzt lokal ueber `PIN_BATTERY_ADC` auf `GPIO4`.
+- `main.cpp` liest den ADC ueber `analogReadMilliVolts()`, bildet aus `BATTERY_ADC_SAMPLE_COUNT = 4` Samples einen Mittelwert und rechnet diesen ueber den festen Teiler `100k / 100k` wieder auf Batteriespannung hoch.
+- `main.cpp` setzt fuer den Batteriepin bewusst `ADC_11db` als konservative V1-Vorgabe.
+- `AppConfig.h` definiert jetzt drei explizite Profile:
+  - `coin_3v_primary`: `2000..3000 mV`
+  - `alkaline_2x`: `2000..3200 mV`
+  - `liion_1s`: `3200..4200 mV`
+- Die Prozentberechnung ist damit nicht mehr der alte Platzhalter `100% / 3700 mV`, sondern eine lineare Umrechnung innerhalb des aktuell gewaehlten Profils.
+- Default im aktiven Repo ist `BAT_PROFILE_COIN_3V_PRIMARY`.
+- Deep-Sleep bleibt weiterhin bewusst aus; `SLEEP_INTERVAL_S`, `RX_WINDOW_MS` und `WACH_NACH_EVENT_MS` sind also noch kein real validierter Sleep-Betrieb.
+- `PIN_BUTTON_1..4`, `PIN_REED` und `PIN_RAIN_ADC` stehen weiter auf `-1`. Der einzige feste aktive Hardwarepfad ist damit heute die Batteriemessung.
 
-- `bat_sen` ist im aktiven Stand eine batteriegetriebene ESP-NOW-Node-Basis mit `HELLO`, `HEARTBEAT`, `STATE_REPORT` und `EVENT`.
-  Quelle: `firmware/src/bat_sen/main.cpp:10-20`
-- `STATE_REPORT` transportiert bereits `battery_pct` und `battery_mv`.
-  Quelle: `firmware/src/bat_sen/main.cpp:202-215`
-- Die aktive `bat_sen`-Basis fuehrt den Batterie-ADC ueber `PIN_BATTERY_ADC`.
-  Quelle: `firmware/src/bat_sen/PinConfig.h:21`
-- Der Pinstandard legt dafuer `GPIO4` fest und sagt explizit, dass die ADC-Kalibrierung noch offen ist.
-  Quelle: `docs/15_hardware_pinstandard.md:22-24`, `PROTOKOLL/beta04_hardware_pinstandard_und_pinfixes.txt:24`, `PROTOKOLL/beta04_hardware_pinstandard_und_pinfixes.txt:42-43`
-- Alle anderen moeglichen `bat_sen`-Eingabepfade sind im aktiven Build deaktiviert:
-  `PIN_BUTTON_1..4 = -1`, `PIN_REED = -1`, `PIN_RAIN_ADC = -1`.
-  Quelle: `firmware/src/bat_sen/PinConfig.h:15-20`
-- Damit ist der Batteriepfad im aktiven Build der einzige konkrete Sensorpfad mit festem Hardwareanschluss; Button-, Reed- und Regenpfad sind aktuell nur vorbereitet, aber nicht eingeschaltet.
-- `bat_sen` hat bereits Batterie-/Sleep-Konfigwerte:
-  `SLEEP_INTERVAL_S = 300`, `RX_WINDOW_MS = 300`, `WACH_NACH_EVENT_MS = 1000`, `LOW_BATTERY_PCT = 20`.
-  Quelle: `firmware/src/bat_sen/AppConfig.h:35-49`
-- Deep-Sleep ist trotzdem ausdruecklich noch nicht aktiv.
-  Quelle: `firmware/src/bat_sen/main.cpp:18-20`, `PROTOKOLL/beta07_basisgeraete_net_zrl_net_sen_bat_sen.txt:33-35`
+## 2. Was dadurch geklaert ist und was weiter offen bleibt
 
-### Protokoll- und Nachweis-Fakten
+| Thema | Im aktiven Repo jetzt geklaert | Weiter offen |
+|---|---|---|
+| Anschlussprinzip | `GPIO4` ist der feste Batterie-ADC-Pin. | Kein Realnachweis am echten `bat_sen`-Board. |
+| Spannungsteiler | Im Code ist jetzt `100k / 100k` hinterlegt. | Ob das dem realen Board exakt entspricht, ist im Repo nicht am echten Geraet validiert. |
+| ADC-Vorgabe | `ADC_11db` ist in `main.cpp` gesetzt. | Ob diese Vorgabe fuer das reale Board und seine Genauigkeit passt, ist nicht hardwarebelegt. |
+| Batterieprofile | `coin_3v_primary`, `alkaline_2x`, `liion_1s` sind explizit definiert. | Welches Profil das echte `bat_sen`-Geraet tatsaechlich braucht, ist noch nicht als Hardwarefakt festgezurrt. |
+| Prozentlogik | Prozent wird jetzt aus dem jeweils gewaehlten Profil abgeleitet. | Ob die Werte fuer den realen Einsatzfall und die reale Lastsituation passen, ist offen. |
+| Serversicht | `battery_mv` und `battery_pct` sind serverseitig ingestierbar und in der Simulation sichtbar. | Das beweist keine reale `bat_sen`-Hardware und keine echte ADC-Genauigkeit. |
 
-- `bat_sen` ist im Repo als Basistyp und als offene reale Hardwareluecke gefuehrt.
-  Quelle: `docs/14_test_und_nachweisstand.md:23`, `docs/14_test_und_nachweisstand.md:28`, `docs/TASK_QUEUE.md:3-4`
-- Die Server-/Ingest-Seite akzeptiert fuer `state` bereits die Felder `battery_pct` und `battery_mv`.
-  Quelle: `PROTOKOLL/beta08_server_mqtt_ingest_realpayloads.txt:19-20`
-- Der Topic-Pfad `smarthome/node/bat_sen_01/state` ist ebenfalls bereits im Repo-Nachweis vorhanden.
-  Quelle: `PROTOKOLL/beta08_server_mqtt_ingest_realpayloads.txt:50-53`
-- Influx kennt `battery_mv` als numerischen Messwert, aber dieser Nachweis stammt nicht aus einem realen `bat_sen`-Hardwarelauf.
-  Quelle: `PROTOKOLL/beta09_influx_schreibpfad_verifiziert.txt:34-48`
+Die grosse Restluecke ist also nicht mehr "es gibt gar keinen ADC-Pfad", sondern:
 
-### Worktree-only-Migrationsfakten
+- passt dieser Codepfad zur echten `bat_sen`-Hardware?
+- welches Profil ist fuer das reale Geraet das richtige?
+- stimmen `battery_mv` und daraus abgeleitete `battery_pct` gegen reale Messung?
 
-- Das `bat_sen`-Profil in Stage 4 sagt korrekt: zuerst die Platzhalter-Batteriemessung durch einen echten ADC-Pfad ersetzen; Sleep vorher ist Selbsttaeuschung.
-  Quelle: `worktrees/night_04_device_profiles/migration/device_profiles/bat_sen.md:37-40`
-- Die Sondergeraete `BAT-WSW`, `BAT-SEN-RXXXX-001` und `BAT-SEN-WXXXX-001` sind als spaetere `bat_sen`-Featurepakete einsortiert, nicht als eigener neuer Basistyp.
-  Quelle: `worktrees/night_04_device_profiles/migration/special_devices/index.md:7-35`
-- Die aktive Doku stellt klar, dass die groesste fachliche Luecke nicht bei Shared-Helpern liegt, sondern beim echten Batteriepfad.
-  Quelle: `docs/NIGHT_PIPELINE_REVIEW.md:83-93`
+## 3. Was bewusst nicht als Hardware-Nachweis zaehlt
 
-## 2. Welche exakten ADC-/Hardware-Fakten noch fehlen
+- `PROTOKOLL/beta31_server_sim_fake_master_ingest_harness.txt` ist nur ein serverseitiger Simulationslauf mit `sim_bat_sen_01`.
+- `PROTOKOLL/beta32_server_sim_dashboard_validierung.txt` zeigt nur, dass dieselben `sim_*`-Daten getrennt im Dashboard reviewbar sind.
+- Beide Dateien pruefen den Server oberhalb der MQTT-Grenze. Sie beweisen weder ein reales `bat_sen`-Board noch einen echten ADC-Pfad auf Hardware.
+- Auch der jetzt vorhandene Code in `firmware/src/bat_sen/` ist fuer sich allein noch kein Hardware-Nachweis. Implementiert ist nicht validiert.
 
-Folgende Fakten sind im geprueften Repo-Scope nicht belegt:
+## 4. Was die gemeinsame Projektdoku jetzt ehrlich sagen darf
 
-- exaktes Spannungsteiler-Verhaeltnis des Pfads `Batterie -> GPIO4`
-- konkrete Widerstandswerte des Teilers
-- gewollte ADC-Attenuation bzw. der beabsichtigte Messbereich am ESP32-C3
-- die vorgesehene ADC-Kalibriermethode
-  - rohe `analogRead()`-Werte
-  - kalibrierte mV
-  - per-pin Attenuation
-  - eFuse-/Board-Korrektur
-- Batterietyp / Zellchemie
-  - z. B. Li-Ion, LiPo, Alkali, NiMH
-- Zellanzahl / Packaufbau
-  - 1 Zelle, 2 Zellen oder etwas anderes
-- Zielwerte fuer `leer` und `voll` in Millivolt
-- die fachliche Regel, ob Prozent aus Leerlaufspannung oder aus Spannung unter Last abgeleitet werden soll
-- ob der ADC-Pfad permanent am Akku haengt oder ueber eine Schaltung nur zeitweise messbar ist
+- `bat_sen` hat jetzt im aktiven Firmware-Stand einen implementierten ADC-basierten Batteriepfad.
+- `bat_sen` hat jetzt explizite Batterieprofile im Repo und nicht mehr nur einen stumpfen Platzhalterwert.
+- Die Serverseite kann Batterie-Felder getrennt ingestieren; die `sim_*`-Validierung zeigt das zusaetzlich als `simulation`.
+- Die reale `bat_sen`-Hardwarevalidierung auf dem eigentlichen Geraet fehlt weiter. Genau das bleibt der naechste Blocker.
 
-Ohne diese Fakten ist jede mV-zu-Prozent-Umrechnung geraten.
-Das sagt die aktive Doku inzwischen selbst explizit.
-Quelle: `docs/NIGHT_PIPELINE_REVIEW.md:142-149`
+## 5. Kleinster naechster technischer Schritt
 
-## 3. Gibt es Evidenz fuer Spannungsteiler, ADC-Attenuation, Chemie oder leer/voll?
-
-| Thema | Positive Evidenz im Repo | Was exakt fehlt | Urteil |
-|---|---|---|---|
-| Spannungsteiler | Ja. `docs/15_hardware_pinstandard.md` sagt: Batteriespannung ueber Spannungsteiler auf `GPIO4`. `PinConfig.h` verweist auf den festen Batterie-ADC-Pin. | Kein Verhaeltnis, keine Widerstandswerte. | Nur Anschlussprinzip bekannt, Umrechnung unbekannt. |
-| ADC-Attenuation / Messbereich | Nein. Im aktiven Scope gibt es keine positive Festlegung. | Keine Attenuation, kein Full-Scale-Bereich, keine Kalibriermethode. | Unbekannt. |
-| Batteriezellchemie | Nein. | Kein Hinweis auf Li-Ion, LiPo, Alkali, NiMH oder Zellanzahl. | Unbekannt. |
-| `leer` / `voll` in mV | Nein. | Keine unteren/oberen mV-Grenzen fuer die Prozentkurve. | Unbekannt. |
-
-Zusaetzliche Praezisierung:
-
-- Die aktive Doku nennt diese vier Punkte inzwischen selbst als offene Hardware-Fakten:
-  - Spannungsteiler-Verhaeltnis
-  - ADC-Attenuation / Messbereich
-  - Zellchemie
-  - Zielwerte fuer `leer` und `voll` in `mV`
-  Quelle: `docs/NIGHT_PIPELINE_REVIEW.md:142-149`
-- Es gibt zwar einen konzeptionellen Prozent-Warnwert:
-  - `LOW_BATTERY_PCT = 20`
-  - Architekturfeld `low_battery_threshold`
-  Aber das ist kein Nachweis fuer `leer`/`voll` in Millivolt.
-  Quelle: `firmware/src/bat_sen/AppConfig.h:48-49`, `docs/01_architektur.md:588-592`
-- Die eine sichtbare Zahl `battery_mv = 3748` aus `PROTOKOLL/beta09_influx_schreibpfad_verifiziert.txt` ist nur ein Influx-/Ingest-Testpayload fuer `net_sen_test_fix_02`, kein `bat_sen`-Hardwarebeleg und kein Schwellenwert.
-  Quelle: `PROTOKOLL/beta09_influx_schreibpfad_verifiziert.txt:35-48`
-- Die Extracted-Helper-Stage liefert fuer den Batteriepfad nur generische Utilities wie Clamp/Timing/Button-Helper.
-  Gerade `BatConfigStore.h` wurde nicht als Low-Risk-Extrakt uebernommen.
-  Quelle: `worktrees/night_03_extract_helpers/migration/extracted_helpers/index.md:9-11`, `worktrees/night_03_extract_helpers/migration/extracted_helpers/index.md:18-20`
-
-## 4. Welche Werte aktuell Platzhalter sind
-
-### Direkte Platzhalter im aktiven `bat_sen`
-
-- `messeBatterie()` setzt aktuell bei vorhandenem ADC-Pin stumpf:
-  - `battery_pct = 100`
-  - `battery_mv = 3700`
-  Quelle: `firmware/src/bat_sen/main.cpp:294-302`
-
-### Sentinels / Ersatzwerte im selben Pfad
-
-- Initial und im Pfad "kein Batterie-ADC vorhanden" werden gesetzt:
-  - `battery_pct = 0xFF`
-  - `battery_mv = 0`
-  Quelle: `firmware/src/bat_sen/main.cpp:248-249`, `firmware/src/bat_sen/main.cpp:295-297`
-- Fuer nicht aktive Zusatzsensorik werden gesendet:
-  - `window_open = 0xFF`
-  - `rain_raw = 0xFFFF`
-  Quelle: `firmware/src/bat_sen/main.cpp:212-213`
-
-### Platzhalter-/Reservekonfig in verwandten Dateien
-
-- `LOW_BATTERY_PCT = 20` ist definiert, aber im aktuellen `messeBatterie()`-Pfad nicht mit irgendeiner realen mV-Kurve verknuepft.
-  Quelle: `firmware/src/bat_sen/AppConfig.h:48-49`
-- `RX_WINDOW_MS = 300` und `WACH_NACH_EVENT_MS = 1000` sind konfiguriert, aber im aktuellen `main.cpp` nicht als echter Sleep-/Wake-Ablauf verdrahtet.
-  Quelle: `firmware/src/bat_sen/AppConfig.h:39-46`
-- `SLEEP_INTERVAL_S = 300` lebt aktuell praktisch nur als Heartbeat-/State-Intervall und Bannertext weiter, nicht als echter Deep-Sleep-Rhythmus.
-  Quelle: `firmware/src/bat_sen/AppConfig.h:35-37`, `firmware/src/bat_sen/main.cpp:288-289`
-- `PIN_BUTTON_1..4`, `PIN_REED` und `PIN_RAIN_ADC` stehen auf `-1`; die Stage-06-Empfehlung, zuerst Button-Helper shared zu integrieren, trifft damit nicht den kleinsten aktiven Engpass.
-  Quelle: `firmware/src/bat_sen/PinConfig.h:15-20`, `worktrees/night_06_morning_report/migration/reports/REPORT_night_run.md:63-68`
-
-## 5. Kleinster sichere Implementierungsplan ohne breiten Umbau
-
-Der kleinste sichere Plan ist eng. Alles andere ist Themenflucht.
-
-1. Fehlende Hardware-Fakten zuerst festzurren.
-   Pflicht:
-   - Spannungsteiler-Verhaeltnis
-   - ADC-Attenuation / Messbereich
-   - Zellchemie / Zellanzahl
-   - `leer` / `voll` in `mV`
-
-2. Danach nur den lokalen `bat_sen`-Pfad aendern.
-   Zielort:
-   - primaer `firmware/src/bat_sen/main.cpp`
-   - optional kleine lokale Konstanten in `firmware/src/bat_sen/AppConfig.h`
-
-3. Die bestehende Payload-Schiene unveraendert lassen.
-   Also:
-   - weiter `nodeStatus.batterie_mv` fuellen
-   - weiter `nodeStatus.batterie_pct` fuellen
-   - `BatteryStateReportPayload` nicht anfassen
-   - keine Server-, MQTT- oder Master-Aenderung
-
-4. Kein Shared-Refactor als Einstieg.
-   Also:
-   - kein `ShNodeBase`
-   - kein `ShCommon`-Umbau als Voraussetzung
-   - keine `button_event_helpers.h`- oder `time_helpers.h`-Integration vor dem echten ADC-Pfad
-
-5. Den ersten Realnachweis schmal halten.
-   Minimaler Zielnachweis:
+1. Das echte `bat_sen`-Geraet an den aktuellen Firmware-Stand bringen.
+2. Das reale Batterieprofil fuer genau diese Hardware bewusst waehlen statt den Default still zu uebernehmen.
+3. Batteriespannung und ADC-Knoten `GPIO4` parallel mit Multimeter messen, waehrend die Firmware `battery_mv` sendet.
+4. Den ersten offiziellen Lauf schmal halten:
    - Boot
    - `HELLO` / `HELLO_ACK`
    - `STATE_REPORT` mit plausiblen `battery_mv` und `battery_pct`
-   - Sichtbarkeit dieses States im bestehenden Pfad
-
-Das deckt sich mit der aktiven Doku:
-- erst Hardware-Fakten klaeren
-- dann `messeBatterie()` lokal und ohne Architekturshow ehrlich machen
-Quelle: `docs/NIGHT_PIPELINE_REVIEW.md:140-152`
-
-## 6. Was auf Hardware gemessen werden muss, wenn der Repo-Stand nicht reicht
-
-Wenn die fehlenden Fakten nicht aus belastbarer Hardware-Doku kommen, muessen sie am realen Board gemessen werden:
-
-1. Spannungsteiler messen.
-   - Widerstandswerte beider Teilerwiderstaende oder direkt das Verhaeltnis `VBAT : GPIO4`
-
-2. ADC-Knoten gegen Multimeter validieren.
-   - reale Batteriespannung am Akku
-   - reale Spannung am ADC-Knoten `GPIO4`
-   - beides gleichzeitig fuer mindestens einen stabilen Betriebspunkt
-
-3. ADC-Verhalten des ESP32-C3 fuer diesen Pfad bestimmen.
-   - roher ADC-Wert bei bekannter Eingangsspannung
-   - verwendete Attenuation
-   - daraus ableitbarer Messbereich
-
-4. Batterietyp und Zellanzahl feststellen.
-   - eingesetzte Zelle / Akkupack real identifizieren
-   - ohne das sind `leer` und `voll` fachlich wertlos
-
-5. `leer` und `voll` fuer genau diese Hardware festlegen.
-   - Zielwert in `mV` fuer `voll`
-   - Zielwert in `mV` fuer `leer`
-   - idealerweise nicht nur aus Bauchgefuehl, sondern aus Batterietyp + realem Einsatzfall
-
-6. Pruefen, ob der Messpfad permanent oder geschaltet ist.
-   - wenn der Teiler immer am Akku haengt, ist auch sein Ruhestrom Teil der Wahrheit
-   - wenn der Pfad geschaltet ist, muss die Messlogik das beruecksichtigen
+   - Sichtbarkeit im bestehenden Serverpfad
+5. Erst danach die Aussage in `docs/14_test_und_nachweisstand.md` von "implementiert, aber offen" auf echten Hardware-Nachweis anheben.
 
 ## Kurzfazit
 
-Der aktive Repo-Stand kennt fuer den `bat_sen`-Batteriepfad genau drei harte Dinge:
+Der Repo-Stand ist besser als vorher und schlechter als man sich leicht einreden koennte.
 
-- es gibt die Felder `battery_pct` und `battery_mv`
-- sie werden ueber `STATE_REPORT` bereits transportiert
-- der Messpin ist `GPIO4` ueber einen Spannungsteiler
+- Besser: der `bat_sen`-Batteriepfad ist jetzt wirklich im Code implementiert, inklusive expliziter Profile.
+- Schlechter: der entscheidende Realnachweis am echten Geraet fehlt weiter.
 
-Der Rest, der fuer eine echte Messung zaehlt, ist im geprueften Scope offen:
-
-- Teilerverhaeltnis
-- ADC-Attenuation / Kalibrierung
-- Zellchemie / Zellanzahl
-- `leer` / `voll` in `mV`
-
-Solange diese Fakten fehlen, sind `100%` und `3700 mV` kein "provisorisch okay", sondern schlicht Platzhalter.
+Die naechste Arbeit ist deshalb nicht noch mehr Doku oder Shared-Refactor, sondern die reale `bat_sen`-Validierung auf Hardware.

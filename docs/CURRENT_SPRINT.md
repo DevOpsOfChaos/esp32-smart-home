@@ -1,34 +1,30 @@
 # CURRENT_SPRINT
 
 ## Sprintziel
-Dokumentations- und Nachweisbasis nach den belegten Pilotpfaden `net_erl_01`, `net_zrl_01` und dem jetzt ebenfalls offiziell belegten `net_sen_01`-Serverpfad repo-weit widerspruchsfrei halten, bevor weitere Features gebaut werden.
+Gemeinsame Doku nach dem Fake-Master-Serverlauf, der getrennten `[SIM]`-Dashboard-Sicht und dem neuen `bat_sen`-ADC-Stand repo-weit widerspruchsfrei halten, ohne Simulation zu Hardware umzudeuten.
 
 ## Im Fokus
 - offizielles Projektgedaechtnis fuer neue Chats eindeutig machen
-- belegten `net_erl_01`-Live-, ACK/Retry-, Offline-Timeout- und Langzeitnachweis, die jetzt ebenfalls belegten `net_zrl_01`-Live-/ACK-/Retry-/Offline-Timeout-/Langzeitnachweise und den offiziell belegten `net_sen_01`-Serverpfad mit realem DHT22 auf `GPIO6` eng und ehrlich von offenen Punkten trennen
-- reale Doku-Luecken fuer weitere Basisgeraete, weitere Pfade und Bereichsdoku sichtbar halten
+- `simulation` fuer `sim_*` oberhalb der MQTT-Grenze explizit von `real hardware` trennen
+- den `bat_sen`-Stand ehrlich halten: ADC-Messpfad und explizite Batterieprofile sind im Code da, reale Validierung am echten Geraet aber nicht
+- den naechsten echten Blocker als `bat_sen`-Hardwarevalidierung sichtbar halten
 
 ## Aktuell nicht im Fokus
-- neue Firmware-Features
+- Ausbau der `sim_*`-Serverpfade ueber die bestehende Ingest-/Dashboard-Validierung hinaus
+- neue Firmware-Features ausserhalb des bereits implementierten `bat_sen`-Pfads
 - neue Server-Features
 - MQTT-Vertragsaenderungen
 - Architekturumbauten
 
-## Realer Projektstand, auf dem dieser Sprint aufsetzt
-- `master`, `net_erl`, `net_zrl`, `net_sen` und `bat_sen` liegen als Code-/Buildbasis im Repo
-- realer Hardware- und MQTT-Minimalpfad ist fuer `master <-> net_erl_01` dokumentiert
-- die Server-V1 hat getrennte Nachweise fuer MQTT-Ingest, Influx-Schreibpfad, die offiziellen `net_erl_01`- und `net_zrl_01`-Rueckwege und `cmd/set`-Egress-Audit
-- der kombinierte Live-Nachweis `Node-RED -> cmd/set -> audit_log egress -> Master -> net_erl -> MQTT state -> device_last_state` ist fuer den Pilotpfad `net_erl_01` belegt
-- der kombinierte Live-Nachweis `Node-RED -> cmd/set -> audit_log egress -> Master -> net_zrl -> MQTT state -> device_last_state` ist fuer den Pilotpfad `net_zrl_01` belegt
-- der offizielle `net_sen_01`-Servernachweis `net_sen_01 -> Master -> MQTT meta/status/state -> SQLite -> Influx` ist auf dem real belegten DHT22-Pfad `GPIO6` jetzt ebenfalls belegt
-- der ACK-/Retry-Nachweis fuer die offiziellen `net_erl_01`- und `net_zrl_01`-`cmd/set`-Pfade ist belegt
-- der Offline-Timeout fuer `master <-> net_erl_01` ist inklusive MQTT-/SQLite-Sichtbarkeit und Wieder-online-Pfad ebenfalls belegt
-- der Offline-Timeout fuer `master <-> net_zrl_01` ist inklusive MQTT-/SQLite-Sichtbarkeit, waehrend offline stehenbleibendem letztem `state` und real beobachtetem Wieder-online-Pfad ebenfalls belegt
-- die Langzeitstabilitaet fuer `master <-> net_erl_01` ist ueber 45 Minuten, 6 offizielle serverseitige Schaltvorgaenge und ruhige Laufphasen ebenfalls belegt
-- die Langzeitstabilitaet fuer `master <-> net_zrl_01` ist im aktuellen Repo-Stand jetzt ebenfalls ueber ca. 52 Minuten mit 8 offiziellen serverseitigen Schaltvorgaengen, MQTT-/Serial-/SQLite-Beobachtung und stabiler ACK-/State-Rueckmeldung belegt
-- offen bleiben weitere Basisgeraete, weitere Offline-Timeout-Nachweise jenseits der beiden Pilotpfade, Langzeitstabilitaet fuer weitere Pfade bzw. Mehrgeraetebetrieb und ein vollstaendiger Gesamtprojektnachweis
+## Belegter Projektstand, auf dem dieser Sprint aufsetzt
+- `master <-> net_erl_01` und `master <-> net_zrl_01` sind mit offiziellem Node-RED-Rueckweg, ACK/Retry, Offline-Timeout und Langzeitstabilitaet im Repo belegt
+- `net_sen_01` ist mit realem DHT22 auf `GPIO6` bis MQTT `meta/status/state`, SQLite und Influx offiziell belegt
+- die Server-V1 hat reale lokale Nachweise fuer MQTT-Ingest, SQLite-Ablage, Influx-Schreibpfad und `cmd/set`-Egress-Audit
+- der Fake-Master-Harness und die getrennte `[SIM]`-Dashboard-Seite sind fuer `sim_*` lokal belegt, bleiben aber ausdruecklich `simulation` und kein Hardware-Nachweis
+- `bat_sen` hat im aktuellen Firmware-Stand einen ADC-basierten Batteriepfad auf `GPIO4` und explizite Batterieprofile, aber noch keinen Realnachweis am eigentlichen Geraet
+- offen bleiben vor allem `bat_sen`-Hardwarevalidierung, weitere offizielle Pfade jenseits der belegten Pilotpfade, Mehrgeraetebetrieb und ein vollstaendiger Gesamtprojektnachweis
 
 ## Sprint-Abnahme
 1. Ein neuer Chat findet Einstieg und Projektgedaechtnis ohne Rueckfragen.
-2. Hauptdoku, Bereichsdoku und `docs/14_test_und_nachweisstand.md` widersprechen sich nicht.
-3. Die engen belegten Pilotpfade `net_erl_01` und `net_zrl_01`, der offiziell belegte `net_sen_01`-Serverpfad und ihre offenen Grenzen sind explizit benannt statt versteckt.
+2. Shared Docs und `docs/14_test_und_nachweisstand.md` trennen `simulation`, Implementierungsstand und `real hardware` ohne Widerspruch.
+3. Der naechste echte Blocker `bat_sen` auf realer Hardware ist explizit benannt statt weichformuliert.
