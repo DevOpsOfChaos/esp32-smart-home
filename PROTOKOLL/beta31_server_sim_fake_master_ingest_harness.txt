@@ -1,0 +1,79 @@
+Stand: beta31
+Datei: beta31_server_sim_fake_master_ingest_harness.txt
+Datum: 2026-03-12
+Autor: Codex
+
+1. Anlass
+- `docs/SERVER_SIMULATION_PLAN.md` fordert einen kleinen, ehrlichen Test-only Serverlauf an der MQTT-Grenze.
+- Der Auftrag war eng:
+  - keine direkte Node-MQTT-Simulation
+  - nur ein Fake-Master als Boundary
+  - keine Wiederverwendung realer Pilot-IDs
+  - keine Behauptung von Hardware- oder Funknachweisen
+
+2. Aenderung
+- Neu hinzugefuegt:
+  - `server/.env.sim.example`
+  - `server/tools/sim_master_contract_runner.py`
+  - `server/docs/04_server_simulation_runbook.md`
+- Aktualisiert:
+  - `server/README.md`
+  - `server/tools/README.md`
+  - `docs/14_test_und_nachweisstand.md`
+- Produktionsverhalten blieb unveraendert:
+  - keine Aenderung an `server/nodered/build-flows.js`
+  - keine Aenderung am SQLite-Schema
+  - keine neuen MQTT-Topics
+  - keine Firmware-Aenderung
+
+3. Begruendung
+- Der Server muss oberhalb des Masters pruefbar sein, ohne die Architekturgrenze zu verletzen.
+- Ein Fake-Master mit `sim_*`-IDs prueft genau den serverseitigen MQTT-Vertrag.
+- Alles andere waere entweder ein Architekturbruch oder Nachweisverschmutzung.
+
+4. Verbesserungseffekt
+- Reproduzierbarer lokaler Simulationslauf fuer:
+  - serverseitige HELLO-Folge / Registrierung
+  - `meta`-, `status`- und `state`-Ingest
+  - Offline / Recovery fuer `sim_net_sen_01`
+  - SQLite-Updates in `devices`, `device_capabilities`, `device_last_state`, `audit_log`
+  - Influx-Schreibpfad nur fuer numerische Metriken
+- Klare Trennung der Identitaeten:
+  - `sim_master_01`
+  - `sim_net_erl_01`
+  - `sim_net_zrl_01`
+  - `sim_net_sen_01`
+  - `sim_bat_sen_01`
+- Der Runner raeumt seine retained Simulations-Topics vor und nach dem Lauf wieder leer.
+
+5. Risiken / Trade-offs
+- Der Lauf beweist kein echtes ESP-NOW-`HELLO`.
+- Der Lauf beweist keinen Funk-ACK und keinen Master-Timeout an der Luftschnittstelle.
+- Der Lauf beweist keine physische Schaltwirkung und keine reale Sensorhardware.
+- `cmd/set`-Egress bleibt bewusst ausserhalb dieses ersten Minimalumfangs.
+- Der Lauf braucht lokal Docker Compose und einen isolierten Stack auf Loopback-Ports.
+
+6. Teststatus
+- Real lokal ausgefuehrt im isolierten Stack:
+  - `docker compose --project-name smarthome_sim --env-file .env.sim.example down -v`
+  - `docker compose --project-name smarthome_sim --env-file .env.sim.example up --build -d`
+  - `python .\tools\sim_master_contract_runner.py --env-file .\.env.sim.example --compose-project smarthome_sim`
+- Ergebnis des echten Laufs:
+  - `PASS`
+  - Startzeitpunkt `2026-03-12T09:18:13.904Z`
+  - `5` Simulationsgeraete in SQLite
+  - `16` publizierte MQTT-Nachrichten
+  - `9` persistierte Capabilities
+  - `8` Influx-Zeilen fuer numerische Metriken
+- Gepruefte Kernaussagen:
+  - `sim_master_01` bleibt als Master registriert
+  - alle Nodes bleiben ueber `[SIM]` und `sim_*` klar markiert
+  - `sim_net_sen_01` kippt kontrolliert auf `online:false` und wieder auf `online:true`
+  - letzter `state_json` bleibt waehrend offline erhalten
+  - `sim_net_erl_01` und `sim_net_zrl_01` schreiben keine reinen Bool-Aktorzustande nach Influx
+  - `audit_log` enthaelt jede Simulationsnachricht genau einmal als `ingest`
+
+7. Lehrerblick
+- Die Eigenleistung steckt in der engen, architekturtreuen Testloesung statt in einem grossen Simulationsneubau.
+- Als Referenz genutzt wurden nur der versionierte MQTT-Vertrag, die Serverdoku, `docs/SERVER_SIMULATION_PLAN.md` und der aktuelle Flow-Generator.
+- Der Stand ist fachlich nachvollziehbar, weil Scope, IDs, Ports, Grenzen und die fehlenden Hardwareaussagen explizit dokumentiert sind.

@@ -10,10 +10,11 @@ Nicht diese Datei:
 ## Bewertungslogik
 - `real hardware`: auf echter Hardware gebaut, geflasht oder praktisch getestet
 - `real lokal`: mit echten lokalen Containern, MQTT, DB oder Tools ausgefuehrt
+- `simulation`: isolierter lokaler Testlauf mit Fake-Master und `sim_*`-IDs an der MQTT-Grenze; kein Hardwarebeleg
 - `build`: Kompilier- oder Syntaxnachweis ohne Realbetrieb
 - `offen`: vorbereitet oder behauptet, aber nicht sauber als Nachweis gebuendelt
 
-## Belegter Stand per 2026-03-11
+## Belegter Stand per 2026-03-12
 
 | Thema | Status | Einordnung | Beleg |
 |---|---|---|---|
@@ -28,6 +29,7 @@ Nicht diese Datei:
 | `bat_sen` reale Hardwarebasis | offen | offen | kein eigener Hardware-Nachweis im Repo |
 | Server-V1 MQTT-Ingest und SQLite-Ablage | nachgewiesen | real lokal | `PROTOKOLL/beta08_server_mqtt_ingest_realpayloads.txt` |
 | Influx-Schreibpfad fuer numerische Sensorwerte | nachgewiesen | real lokal | `PROTOKOLL/beta09_influx_schreibpfad_verifiziert.txt` |
+| Test-only Fake-Master-Serversimulation fuer serverseitige HELLO-Folge / Registrierung, `meta` / `status` / `state`, Offline / Recovery, SQLite und Influx | nachgewiesen | simulation, real lokal | `PROTOKOLL/beta31_server_sim_fake_master_ingest_harness.txt` |
 | Lokale MQTT-Broker-Auth in der Serverbasis | offen | offen | kein getrackter Nachweis im Repo-Stand |
 | Offizieller serverseitiger Rueckweg fuer `net_erl_01` ueber Node-RED | nachgewiesen | real hardware, real lokal | `PROTOKOLL/beta12_offizieller_serverseitiger_rueckweg_nachweis_net_erl_01.txt` |
 | SQLite-Audit fuer ausgehende serverseitige `cmd/set`-Publishes | nachgewiesen | real lokal | `PROTOKOLL/beta13_cmd_set_audit_sqlite_egress.txt` |
@@ -60,6 +62,7 @@ Nicht diese Datei:
 - `PROTOKOLL/beta28_net_sen_01_realer_lokaler_dht22_hardwarecheck_auf_com12.txt` dokumentiert den davor noch blockierten lokalen Stand auf `COM12`: `HELLO_ACK` war schon real sichtbar, aber der DHT22-Pfad lieferte nur `DHT22 FEHLER ...` und `DHT22 HINWEIS ...`.
 - `PROTOKOLL/beta29_net_sen_01_realer_lokaler_dht22_retest_mit_plausiblen_echtwerten_auf_com12.txt` hebt den aktuellen lokalen Stand fuer `net_sen_01` auf `COM12` auf den jetzt real belegten DHT22-Erfolg: `HELLO_ACK`, `STATE_REPORT` und `HEARTBEAT` bleiben sichtbar, und der DHT22 liefert nach realem Sensortausch erstmals plausible lokale Temperatur-/Feuchtewerte. Ein offizieller Servernachweis fuer `net_sen_01` ist damit weiterhin noch nicht erbracht und bleibt der naechste offene Schritt.
 - `PROTOKOLL/beta30_net_sen_01_offizieller_servernachweis_realer_dht22_gpio6_auf_com12.txt` schliesst genau diese Luecke im aktuellen Repo-Stand: `COM12` blieb der reale `net_sen_01`-Pruefling, `COM3` blieb der reale Master, `server/` lief healthy, der aktive Node-RED-Flow entsprach dem aktuellen Generatorstand, und der frische Lauf lieferte live neues MQTT-`meta`, MQTT-`status` und MQTT-`state` fuer `net_sen_01`. In SQLite blieben `status_json` und `state_json` dabei sauber getrennt, und Influx bekam neue numerische `temp_01c`-/`hum_01pct`-Punkte exakt zu den neuen `state`-Zeitpunkten. Verwendet wurden dabei keine Fake-Publishes fuer Sensordaten und kein neuer Topic-Pfad.
+- `PROTOKOLL/beta31_server_sim_fake_master_ingest_harness.txt` dokumentiert einen echten lokalen Test-only Simulationslauf im isolierten Compose-Projekt `smarthome_sim`. Die Aussage bleibt bewusst eng: validiert wurden nur die serverseitig sichtbare HELLO-Folge / Registrierung, `meta` / `status` / `state`, Offline / Recovery sowie SQLite- und Influx-Schreibpfade fuer `sim_*`-IDs. Der Lauf ist ausdruecklich kein Hardware- oder Funknachweis.
 - Die aktuell belegten kombinierten Live-Nachweise gelten weiter nur fuer die engen Pilotpfade `net_erl_01` und `net_zrl_01`. ACK/Retry ist fuer die offiziellen `cmd/set`-Pfade beider Pilotnodes belegt; Offline-Timeout ist fuer beide Pilotpfade belegt; Langzeitstabilitaet ist fuer beide Pilotpfade belegt; offen bleiben weiterhin weitere Basisgeraete, weitere Offline-Timeout-Nachweise jenseits dieser Pilotpfade, Mehrgeraetebetrieb und ein vollstaendiger Gesamtprojektnachweis.
 
 ## Offene Nachweis- und Doku-Luecken
