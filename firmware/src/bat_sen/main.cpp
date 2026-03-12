@@ -132,15 +132,35 @@ uint16_t leseBatterieMillivolt(uint16_t* adcEingangMvOut) {
 
 void logf(const char* level, const char* format, ...);
 
-void logBatterieMessung(const char* kontext) {
+void logBatterieKonfiguration() {
+    if (!DEBUG_LOKAL_AKTIV) return;
+
+    BatteryProfileConfig profil = holeBatterieProfil();
+    logf(
+        "INFO",
+        "BATTERY_CONFIG adc_pin_gpio=%d divider_top_ohm=%lu divider_bottom_ohm=%lu adc_samples=%u low_battery_pct=%u",
+        PIN_BATTERY_ADC,
+        (unsigned long)BATTERY_DIVIDER_TOP_OHM,
+        (unsigned long)BATTERY_DIVIDER_BOTTOM_OHM,
+        (unsigned)BATTERY_ADC_SAMPLE_COUNT,
+        (unsigned)LOW_BATTERY_PCT);
+    logf(
+        "INFO",
+        "BATTERY_PROFILE profile=%s profile_min_mv=%u profile_max_mv=%u",
+        profil.name,
+        (unsigned)profil.leer_mv,
+        (unsigned)profil.voll_mv);
+}
+
+void logBatterieMessung(const char* phase) {
     if (!DEBUG_LOKAL_AKTIV) return;
 
     BatteryProfileConfig profil = holeBatterieProfil();
     if (nodeStatus.batterie_mv == 0U || nodeStatus.batterie_pct == 0xFFU) {
         logf(
             "INFO",
-            "%s profil=%s adc_mv=%u battery_mv=0 battery_pct=unbekannt",
-            kontext,
+            "BATTERY_VALIDATION phase=%s profile=%s adc_mv=%u battery_mv=0 battery_pct=unknown",
+            phase,
             profil.name,
             (unsigned)nodeStatus.batterie_adc_mv);
         return;
@@ -148,8 +168,8 @@ void logBatterieMessung(const char* kontext) {
 
     logf(
         "INFO",
-        "%s profil=%s adc_mv=%u battery_mv=%u battery_pct=%u",
-        kontext,
+        "BATTERY_VALIDATION phase=%s profile=%s adc_mv=%u battery_mv=%u battery_pct=%u",
+        phase,
         profil.name,
         (unsigned)nodeStatus.batterie_adc_mv,
         (unsigned)nodeStatus.batterie_mv,
@@ -298,7 +318,7 @@ bool sendeStateReport() {
     payload.rain_raw = (PIN_RAIN_ADC >= 0) ? nodeStatus.rain_raw : 0xFFFFU;
     payload.button_flags = nodeStatus.button_flags;
     payload.fault = nodeStatus.fault ? 1U : 0U;
-    logBatterieMessung("STATE_REPORT Werte");
+    logBatterieMessung("state_report");
 
     if (sendePaket(nodeStatus.master_mac, SH_MSG_STATE, &payload, sizeof(payload), "STATE_REPORT")) {
         nodeStatus.state_report_offen = false;
@@ -546,9 +566,10 @@ void setup() {
     nodeStatus = {};
     gibStartmeldungAus();
     initialisiereHardware();
+    logBatterieKonfiguration();
     initialisiereFunk();
     messeBatterie();
-    logBatterieMessung("BOOT Batterie");
+    logBatterieMessung("boot");
 
     esp_now_register_send_cb(onEspNowSent);
     esp_now_register_recv_cb(onEspNowReceive);

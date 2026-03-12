@@ -85,6 +85,17 @@ Die grosse Restluecke ist also nicht mehr "es gibt gar keinen ADC-Pfad", sondern
    - Sichtbarkeit im bestehenden Serverpfad
 5. Erst danach die Aussage in `docs/14_test_und_nachweisstand.md` von "implementiert, aber offen" auf echten Hardware-Nachweis anheben.
 
+## 6. Vorbereitete Realvalidierung im Repo
+
+- `firmware/src/bat_sen/main.cpp` gibt fuer den Realtest jetzt zusaetzlich stabile serielle Zeilen aus:
+  - `BATTERY_CONFIG ...`
+  - `BATTERY_PROFILE ...`
+  - `BATTERY_VALIDATION phase=boot ...`
+  - `BATTERY_VALIDATION phase=state_report ...`
+- `PROTOKOLL/beta33_bat_sen_realhardware_validierung_checkliste.txt` ist die knappe Operator-Checkliste fuer Portwahl, Flash, Serial und Multimetervergleich.
+- `PROTOKOLL/beta35_bat_sen_realhardware_validierungsprotokoll_vorlage.txt` ist die ausfuellbare Vorlage fuer den echten Lauf.
+- Diese Artefakte bereiten nur den Nachweis vor. Sie sind selbst noch kein realer Hardwarebeleg.
+
 ## Kurzfazit
 
 Der Repo-Stand ist besser als vorher und schlechter als man sich leicht einreden koennte.

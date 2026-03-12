@@ -1,0 +1,59 @@
+Stand: beta35
+Datei: beta35_bat_sen_realhardware_validierungsprotokoll_vorlage.txt
+Datum: 2026-03-12
+Autor: Codex
+Status: Vorlage fuer realen Hardwarelauf, bis zur Ausfuellung kein Nachweis
+
+1. Laufidentifikation
+- Datum / Uhrzeit:
+- Operator:
+- Git-Commit / Branch:
+- Verwendetes Geraet:
+- `DEVICE_ID`:
+- Gewaehltes Batterieprofil:
+- USB-Versorgung waehrend Flash / Messung aktiv?:
+- Master-Port (nur nach Bestaetigung, nicht geraten):
+- `bat_sen`-Port (nur nach Bestaetigung, nicht geraten):
+- Multimeter / Messbereich:
+
+2. Flash- und Bring-up-Nachweis
+- Profil in `firmware/src/bat_sen/AppConfig.h` bewusst gesetzt:
+- Flash-Befehl:
+- Serielle Ausgabe geoeffnet mit:
+- Sichtbare Zeile `BATTERY_CONFIG ...`:
+- Sichtbare Zeile `BATTERY_PROFILE ...`:
+- Sichtbare Zeile `BATTERY_VALIDATION phase=boot ...`:
+- Sichtbare `HELLO_ACK`-Zeile:
+- Sichtbare erste `BATTERY_VALIDATION phase=state_report ...`-Zeile:
+
+3. Reale Multimeter-Messungen
+- Batteriespannung direkt an den Batterieklemmen [mV]:
+- Spannung am GPIO4-Teilerknoten gegen GND [mV]:
+- Messpunkte / Aufbauhinweise:
+
+4. Vergleich und Auswertung
+- Seriell `adc_mv` aus `phase=boot` [mV]:
+- Seriell `battery_mv` aus `phase=boot` [mV]:
+- Seriell `battery_pct` aus `phase=boot` [%]:
+- Seriell `adc_mv` aus erster `phase=state_report` [mV]:
+- Seriell `battery_mv` aus erster `phase=state_report` [mV]:
+- Seriell `battery_pct` aus erster `phase=state_report` [%]:
+- Abweichung `adc_mv` zu Multimeter am GPIO4-Knoten [mV]:
+- Abweichung `battery_mv` zu Multimeter an der Batterie [mV]:
+- Rechencheck `2 * GPIO4-Messung` [mV]:
+- Liegt die reale Batteriespannung innerhalb des gewaehlten Profilfensters?
+- Ist `battery_pct` fuer das gewaehlte Profil plausibel?
+
+5. Ergebnis
+- Gesamturteil: PASS / WARNING / FAIL
+- Begruendung:
+- Offene Fragen / naechster Schritt:
+- Falls GPIO4 deutlich ueber `VBAT / 2` oder z. B. nahe `2.9 V` liegt: ist wirklich der reale Batterieknoten gemessen worden?
+
+6. Erforderliche Belegartefakte
+- Serial-Log oder sauber transkribierte relevanten Zeilen:
+- Foto / Skizze der Messpunkte (optional, aber stark empfohlen):
+- Auffaelligkeiten beim Flashen, Boot oder Portwechsel:
+
+7. Freigaberegel
+- Diese Vorlage ist erst dann ein echter `bat_sen`-Hardware-Nachweis, wenn die real gemessenen Werte, die seriellen Zeilen und das Gesamturteil konkret ausgefuellt sind.

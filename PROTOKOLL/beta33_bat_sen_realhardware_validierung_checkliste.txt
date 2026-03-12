@@ -4,54 +4,81 @@ Datum: 2026-03-12
 Autor: Codex
 Status: Vorbereitung fuer realen Hardwarelauf, kein Nachweis
 
-1. Ziel
-- Den vorhandenen `bat_sen`-ADC-Pfad auf dem echten Geraet gegen reale Messung plausibilisieren.
-- Kein Feature-Ausbau. Nur Profilwahl, ADC-Wert, `battery_mv` und `battery_pct` sauber gegen die reale Hardware halten.
+1. Ziel und harte Grenze
+- Ziel ist nur der erste saubere reale `bat_sen`-Messlauf.
+- Vorbereitet werden koennen Firmware-Ausgabe, Ablauf und Protokoll.
+- Nicht automatisierbar bleiben die physischen Schritte: echtes Board, echte Batterie, echte Ports, echter Multimetervergleich.
+- Ohne diese realen Messwerte ist jeder Validierungsanspruch Blendwerk.
 
-2. Vor dem Flash
-- Portzuordnung real pruefen, nicht raten:
-  - `master` mutmasslich auf `COM3`, vor dem Lauf bestaetigen
-  - das zweite ESP32-C3-Board bewusst als `bat_sen` verwenden
-- Am `bat_sen`-Board die reale Batterieart festlegen:
-  - `BAT_PROFILE_COIN_3V_PRIMARY`
-  - `BAT_PROFILE_ALKALINE_2X`
-  - `BAT_PROFILE_LIION_1S`
-- Nur dann flashen. Den Default `coin_3v_primary` nicht still als Wahrheit behandeln.
+2. Was der Operator real noch selbst tun muss
+- Das echte `bat_sen`-Board und die reale Batterievariante festlegen.
+- Das korrekte Batterieprofil in `firmware/src/bat_sen/AppConfig.h` bewusst setzen.
+- `master`- und `bat_sen`-Port real bestaetigen. `COM3` ist derzeit nur eine Hypothese fuer den Master, keine Tatsache.
+- `bat_sen` flashen und den seriellen Monitor auf genau diesem Port oeffnen.
+- Die relevanten Boot- und ersten `STATE_REPORT`-Zeilen festhalten.
+- Mit dem Multimeter an zwei realen Punkten messen:
+  - Batterie direkt
+  - GPIO4-Teilerknoten gegen GND
+- Die Werte gegen `adc_mv` und `battery_mv` vergleichen und dokumentieren.
 
-3. Beim lokalen seriellen Bring-up notieren
-- Startbanner:
-  - `Node-ID`
-  - `Batterieprofil`
-  - `Batterieprofil-Fenster`
-- Boot-Messzeile:
-  - `BOOT Batterie profil=...`
-  - `adc_mv=...`
-  - `battery_mv=...`
-  - `battery_pct=...`
-- Nach `HELLO_ACK` die erste `STATE_REPORT Werte ...`-Zeile mit denselben Feldern notieren.
+3. Konkreter Operator-Ablauf
+1. Reales Batterieprofil waehlen:
+   - `BAT_PROFILE_COIN_3V_PRIMARY`
+   - `BAT_PROFILE_ALKALINE_2X`
+   - `BAT_PROFILE_LIION_1S`
+   Der Default `coin_3v_primary` zaehlt nicht als stillschweigende Wahrheit.
+   Das Profil darf nicht beliebig gewaehlt werden. Sonst wird `battery_pct` zum Selbstbetrug.
+2. Ports pruefen, nicht raten. Unter Windows reicht z. B.:
+   - `Get-CimInstance Win32_SerialPort | Select-Object DeviceID, Description, PNPDeviceID`
+   - Wenn der Master wie vermutet auf `COM3` liegt, trotzdem mit Portliste oder bewusstem USB-Ab-/Anstecken bestaetigen.
+3. `bat_sen` flashen:
+   - `cd firmware`
+   - `& "$env:USERPROFILE\\.platformio\\penv\\Scripts\\platformio.exe" run -e bat_sen -t upload --upload-port COMx`
+4. Serielle Ausgabe oeffnen:
+   - `& "$env:USERPROFILE\\.platformio\\penv\\Scripts\\platformio.exe" device monitor -p COMx -b 115200`
+5. Folgende Zeilen notieren oder loggen:
+   - `BATTERY_CONFIG ...`
+   - `BATTERY_PROFILE ...`
+   - erste `BATTERY_VALIDATION phase=boot ...`
+   - `HELLO_ACK ...`
+   - erste `BATTERY_VALIDATION phase=state_report ...`
+6. Multimeter-Messungen direkt danach:
+   - Batterie an den Batterieklemmen in `mV`
+   - GPIO4-Teilerknoten gegen GND in `mV`
+   - Wenn das Board nur zum Programmieren ueber USB versorgt wird, trotzdem pruefen, ob GPIO4 wirklich den Batterieknoten misst und nicht einen USB-abgeleiteten Rail.
+7. Werte vergleichen:
+   - `adc_mv` gegen Multimeterwert am GPIO4-Knoten
+   - `battery_mv` gegen Multimeterwert an der Batterie
+   - `2 * GPIO4-Messung` gegen reale Batteriespannung
+   - `battery_pct` nur im Kontext des bewusst gewaehlten Profils
 
-4. Reale Messpunkte mit Multimeter
-- Batteriespannung direkt an den Batterieklemmen messen und in `mV` notieren.
-- ADC-Knoten gegen GND messen, also den Teiler-Mittelpunkt am `GPIO4`-Pfad, und in `mV` notieren.
-- Erwartung fuer den V1-Teiler `100k / 100k`:
-  - `GPIO4` sollte ungefaehr `VBAT / 2` sehen.
-  - `battery_mv` in der Firmware sollte ungefaehr `2 * adc_mv` ergeben.
+4. Bewertungslogik nach der Messung
+- `battery_mv` ist der wichtigere technische Wahrheitsanker als `battery_pct`.
+- `battery_pct` ist nur eine lineare Profilableitung. Wenn die Spannung plausibel ist, aber der Prozentwert nicht, ist zuerst die Profilwahl verdaechtig.
+- Pragmatische Erstbewertung fuer diesen ersten Realnachweis:
+  - `PASS`:
+    - `HELLO_ACK` und erste `phase=state_report` real sichtbar
+    - `adc_mv` gegen GPIO4-Multimeterabweichung grob innerhalb `+-100 mV` oder `+-10 %`
+    - `battery_mv` gegen Batteriemultimeterabweichung grob innerhalb `+-150 mV` oder `+-5 %`
+    - reale Batteriespannung passt zum bewusst gewaehlten Profilfenster
+  - `WARNING`:
+    - Kommunikationspfad funktioniert, aber Abweichungen liegen darueber und sprechen noch nicht klar fuer falsche Verdrahtung
+    - oder der ADC-Pfad wirkt plausibel, aber das gewaehlte Batterieprofil war wahrscheinlich falsch
+  - `FAIL`:
+    - kein `HELLO_ACK` oder kein erster `STATE_REPORT`
+    - GPIO4 liegt klar nicht bei ungefaehr `VBAT / 2`
+    - `battery_mv` weicht so stark ab, dass Teiler, Messpunkt oder ADC-Pfad nicht glaubwuerdig sind
+    - Beispiel fuer klares `FAIL`: GPIO4 misst etwa `2.9 V` bei `100k/100k`. Das impliziert rund `5.8 V` am Eingang und passt zu keinem der unterstuetzten Profile. Dann ist der Messpunkt, die Beschaltung oder die Annahme "das funktioniert mit allen Profilen" falsch.
 
-5. Vergleich, der wirklich zaehlt
-- `adc_mv` seriell gegen Multimeter am ADC-Knoten vergleichen.
-- `battery_mv` seriell gegen Multimeter direkt an der Batterie vergleichen.
-- `battery_pct` nur als Profilableitung bewerten, nicht als Naturgesetz.
-- Wenn `battery_mv` halbwegs passt, aber `battery_pct` unplausibel ist, ist zuerst die Profilwahl falsch und nicht automatisch der ADC-Pfad.
+5. Was fuer den ersten echten Nachweis wirklich erforderlich ist
+- Reales Board auf realem Port geflasht
+- Reale serielle Boot- und `STATE_REPORT`-Zeilen
+- Reale Multimeterwerte fuer Batterie und GPIO4-Knoten
+- Ausgefuellte Vorlage `PROTOKOLL/beta35_bat_sen_realhardware_validierungsprotokoll_vorlage.txt`
+- Erst danach darf `docs/14_test_und_nachweisstand.md` angehoben werden
 
-6. Minimaler Erfolgsnachweis fuer den ersten echten Lauf
-- `bat_sen` bootet real und sendet `HELLO`.
-- `master` antwortet real mit `HELLO_ACK`.
-- `bat_sen` sendet einen `STATE_REPORT`.
-- Die serielle Zeile `STATE_REPORT Werte ...` ist mit real gemessenen Spannungen plausibel.
-- Erst danach lohnt ein offizieller Nachweis ueber MQTT/Serverpfad.
-
-7. Was kein sauberer Abschluss ist
-- Nur Build ohne Flash.
-- Nur serielle Ausgabe ohne Multimetervergleich.
-- Nur Serversicht mit bereits bekannten `battery_mv`/`battery_pct`-Feldern.
-- Ein Prozentwert, der gut aussieht, obwohl Profil oder Messpunkt nicht verifiziert sind.
+6. Was explizit nicht reicht
+- Nur Build ohne Flash
+- Nur serieller Log ohne Multimeter
+- Nur Serversicht oder Simulation
+- Ein Prozentwert, der "gut aussieht", obwohl Profilwahl oder Messpunkt nicht belegt sind
