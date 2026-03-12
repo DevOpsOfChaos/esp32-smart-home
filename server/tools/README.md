@@ -9,6 +9,7 @@ Hilfsskripte für Betrieb, Test und Wartung des SmartHome-Servers.
 | `mqtt_test_pub.sh` | Testnachrichten auf MQTT-Topics veröffentlichen |
 | `mqtt_console.sh` | Live-Mitschnitt aller MQTT-Topics |
 | `smoke_test.sh` | Grundfunktionstest: MQTT erreichbar, Node-RED antwortet |
+| `sim_master_contract_runner.py` | Test-only Fake-Master-Harness fuer isolierte Registrierung-, Ingest-, Offline-/Recovery-, SQLite- und Influx-Pruefung |
 | `git_push.ps1` | Git-Push aus dem Arbeitsverzeichnis (Windows) |
 | `git_pull.ps1` | Git-Pull mit Statusausgabe (Windows) |
 
@@ -22,3 +23,4 @@ Hilfsskripte für Betrieb, Test und Wartung des SmartHome-Servers.
 - Keine Echtzugangsdaten in Skripten
 - Zugangsdaten aus .env oder Parameterübergabe
 - Skripte sollen auch für Debug-Sitzungen im Alltagsbetrieb nützlich sein
+- `sim_master_contract_runner.py` nur gegen einen isolierten `smarthome_sim`-Stack mit `sim_*`-IDs fahren

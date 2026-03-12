@@ -38,6 +38,7 @@ credentials*.h
 # Oeffentliche Beispiel-Dateien muessen versionierbar bleiben
 !firmware/include/Secrets.example.h
 !server/.env.example
+!server/.env.sim.example
 
 # Server Secrets und Laufzeitdaten
 server/config/*.local.*
