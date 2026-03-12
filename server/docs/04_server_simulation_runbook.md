@@ -78,6 +78,29 @@ Der Runner:
 - raeumt retained Simulations-Topics vor und nach dem Lauf wieder leer
 - prueft SQLite und Influx aktiv gegen den aktuellen Serverzustand
 
+## [SIM]-Dashboard-Sicht
+
+Die getrennte Testsicht liegt unter:
+
+- `http://127.0.0.1:18880/dashboard/simulation`
+
+Bei lokal angepasstem Port entsprechend `NODERED_HOST_PORT`.
+
+Die Seite ist bewusst klein und read-only:
+
+- nur `sim_*`-IDs
+- Registrierung / Presence aus SQLite
+- letzter `meta` / `status` / `state`
+- `last_seen` plus einfache Offline-/Stale-Hinweise aus der letzten Serversicht
+- Schluesselwerte fuer `sim_net_sen_01` und `sim_bat_sen_01`
+- Relaiszustand fuer `sim_net_erl_01` und `sim_net_zrl_01`
+
+Wichtig:
+
+- Die Sicht ist kein eigener Simulationspfad, sondern nur eine Query-/Anzeigeebene auf dem bestehenden Serverstack.
+- Wenn die Seite schon offen war, bevor der Harness lief, Seite neu laden oder `SIM neu laden` klicken.
+- Die Seite zeigt absichtlich keine realen Pilot-IDs.
+
 ## Was der Lauf konkret prueft
 
 ### Registrierung / serverseitige HELLO-Folge

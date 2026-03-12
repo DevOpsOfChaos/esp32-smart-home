@@ -1,0 +1,59 @@
+Stand: beta32
+Datei: beta32_server_sim_dashboard_validierung.txt
+Datum: 2026-03-12
+Autor: Codex
+
+1. Anlass
+- Die Fake-Master-Simulation war schon als Ingest-/SQLite-/Influx-Nachweis vorhanden, aber im bestehenden Dashboard nicht sauber sichtbar.
+- Der Auftrag war eng:
+  - nur `sim_*`
+  - keine Vermischung mit realen Pilot-IDs
+  - bestehende Node-RED-/Dashboard-Basis weiterverwenden
+
+2. Aenderung
+- Aktualisiert:
+  - `server/nodered/build-flows.js`
+  - `server/docs/02_dashboard_konzept.md`
+  - `server/docs/04_server_simulation_runbook.md`
+  - `docs/14_test_und_nachweisstand.md`
+- Neu im Dashboard:
+  - separate Seite `/dashboard/simulation`
+  - read-only `SIM neu laden`-Trigger
+  - reine SQLite-Sicht auf `sim_*`-Geraete mit Presence, letztem `meta` / `status` / `state`, `last_seen`, Sensor- und Relaiswerten
+- Nicht geaendert:
+  - kein neues Topic
+  - kein neues Schema
+  - kein Eingriff in reale `net_erl_01`-/`net_zrl_01`-Bedienpfade
+
+3. Begruendung
+- Die bestehende Architektur hatte die Daten schon im Server, aber keine getrennte Testsicht.
+- Eine kleine `sim_*`-Only-Seite ist der sauberste Weg, um Simulationsdaten reviewbar zu machen, ohne spaeter reale Evidenz zu verschmutzen.
+
+4. Verbesserungseffekt
+- `sim_master_01`, `sim_net_sen_01`, `sim_bat_sen_01`, `sim_net_erl_01` und `sim_net_zrl_01` werden in einer eigenen Sicht sichtbar.
+- Presence / Registrierung, letzter Zustand und die geforderten Sensor-/Relaiswerte sind direkt im Dashboard pruefbar.
+- Die Seite bleibt absichtlich schlicht und technisch statt den produktiven UI-Pfad aufzublaehen.
+
+5. Risiken / Trade-offs
+- Die Seite ist bewusst eine Testsicht, keine schoene Bedienoberflaeche.
+- Sie beweist weiter keine Hardware, keinen Funkpfad und keinen echten `HELLO`-Nachweis.
+- `last_seen` und Offline-Hinweise bleiben serverseitige Sicht, nicht Funkrealitaet.
+
+6. Teststatus
+- Real lokal ausgefuehrt im isolierten Stack:
+  - `docker compose --project-name smarthome_sim --env-file .env.sim.example down -v`
+  - `docker compose --project-name smarthome_sim --env-file .env.sim.example up --build -d`
+  - `python .\tools\sim_master_contract_runner.py --env-file .\.env.sim.example --compose-project smarthome_sim --report-file ..\local\server_sim\latest.md`
+  - Browser-Check auf `http://127.0.0.1:18880/dashboard/simulation`
+- Ergebnis des echten Laufs:
+  - Harness `PASS`
+  - Dashboard-Seite geladen
+  - `5` Simulationsgeraete sichtbar
+  - `sim_net_sen_01` zeigte `21.8 C`, `50.2 %`, `133`
+  - `sim_bat_sen_01` zeigte `3740 mV`, `87 %`
+  - `sim_net_erl_01` und `sim_net_zrl_01` zeigten die erwarteten Relaiszustande
+
+7. Lehrerblick
+- Die Eigenleistung steckt in der minimalen Integration in den bestehenden Flow-Generator statt in einer zweiten Test-UI.
+- Als Referenz dienten nur der vorhandene Serverstack, das Simulations-Runbook und der Fake-Master-Harness.
+- Der Stand ist fachlich nachvollziehbar, weil die Sicht klar als `[SIM]` getrennt bleibt und auf real gelaufenen Tests basiert.

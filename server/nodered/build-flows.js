@@ -10,13 +10,17 @@ const ids = {
     tabConfig: "tab_config",
     tabTimeSeries: "tab_time_series",
     tabCommand: "tab_command",
+    tabDashboardSim: "tab_dashboard_sim",
     tabLogging: "tab_logging",
     mqttBroker: "cfg_mqtt_broker",
     sqliteDb: "cfg_sqlite_db",
     uiBase: "cfg_ui_base",
     uiPageActors: "cfg_ui_page_actors",
+    uiPageSimulation: "cfg_ui_page_simulation",
     uiGroupNetErlTest: "cfg_ui_group_net_erl_test",
     uiGroupNetZrlTest: "cfg_ui_group_net_zrl_test",
+    uiGroupSimControls: "cfg_ui_group_sim_controls",
+    uiGroupSimOverview: "cfg_ui_group_sim_overview",
     mqttServerStatus: "mqtt_server_status",
     mqttMasterStatus: "mqtt_master_status",
     mqttMasterEvent: "mqtt_master_event",
@@ -57,14 +61,22 @@ const ids = {
     uiButtonNetZrlRelay1Off: "ui_button_net_zrl_relay_1_off",
     uiButtonNetZrlRelay2On: "ui_button_net_zrl_relay_2_on",
     uiButtonNetZrlRelay2Off: "ui_button_net_zrl_relay_2_off",
+    uiButtonRefreshSim: "ui_button_refresh_sim",
+    uiTemplateSimOverview: "ui_template_sim_overview",
     injectNetErlOn: "inject_net_erl_on",
     injectNetErlOff: "inject_net_erl_off",
     injectNetZrlRelay1On: "inject_net_zrl_relay_1_on",
     injectNetZrlRelay1Off: "inject_net_zrl_relay_1_off",
     injectNetZrlRelay2On: "inject_net_zrl_relay_2_on",
     injectNetZrlRelay2Off: "inject_net_zrl_relay_2_off",
+    injectSimDashboardLoad: "inject_sim_dashboard_load",
     buildNetErlCmdSet: "fn_build_net_erl_cmd_set",
     buildNetZrlCmdSet: "fn_build_net_zrl_cmd_set",
+    routeSimDashboardRefresh: "fn_route_sim_dashboard_refresh",
+    buildSimDashboardQuery: "fn_build_sim_dashboard_query",
+    sqliteSimDashboardQuery: "sqlite_sim_dashboard_query",
+    buildSimDashboardMarkdown: "fn_build_sim_dashboard_markdown",
+    uiEventDashboard: "ui_event_dashboard",
     mqttCmdSetOut: "mqtt_cmd_set_out",
     linkOutAuditEgress: "link_out_audit_egress",
     linkOutAudit: "link_out_audit",
@@ -920,6 +932,301 @@ const buildAuditInsertFunc = script(
     'return msg;'
 );
 
+const routeSimDashboardRefreshFunc = String.raw`
+const pagePath = "/simulation";
+
+if (msg.topic === "$pageview") {
+    const payload = msg.payload || {};
+    const page = payload.page || {};
+    const currentPath = typeof page.path === "string" ? page.path : "";
+    if (!currentPath || !currentPath.endsWith(pagePath)) {
+        return null;
+    }
+}
+
+return msg;
+`;
+
+const buildSimDashboardQueryFunc = String.raw`
+msg.topic = [
+    "SELECT",
+    "    d.device_id,",
+    "    d.device_role,",
+    "    d.display_name,",
+    "    d.origin_master_id,",
+    "    d.device_class,",
+    "    d.power_source,",
+    "    d.last_seen_at,",
+    "    d.last_meta_at,",
+    "    d.last_status_at,",
+    "    d.last_state_at,",
+    "    ls.status_json,",
+    "    ls.state_json,",
+    "    d.meta_json",
+    "FROM devices AS d",
+    "LEFT JOIN device_last_state AS ls ON ls.device_id = d.device_id",
+    "WHERE d.device_id GLOB 'sim_*'",
+    "ORDER BY CASE WHEN d.device_role = 'master' THEN 0 ELSE 1 END, d.device_id;"
+].join(" ");
+
+return msg;
+`;
+
+const buildSimDashboardMarkdownFunc = String.raw`
+const parseJson = (value) => {
+    if (!value) {
+        return null;
+    }
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        return {
+            _parse_error: error.message,
+            _raw: value
+        };
+    }
+};
+
+const asText = (value) => {
+    if (value === null || value === undefined || value === "") {
+        return "-";
+    }
+    return String(value);
+};
+
+const asBool = (value) => {
+    if (value === true) {
+        return "true";
+    }
+    if (value === false) {
+        return "false";
+    }
+    return "-";
+};
+
+const asNumber = (value, unit) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return "-";
+    }
+    return unit ? String(value) + " " + unit : String(value);
+};
+
+const asScaled = (value, divisor, unit) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return "-";
+    }
+    return (value / divisor).toFixed(1) + " " + unit;
+};
+
+const jsonBlock = (lines, title, value) => {
+    lines.push(title + ":");
+    if (!value) {
+        lines.push("(kein Eintrag)");
+        lines.push("");
+        return;
+    }
+    lines.push(JSON.stringify(value, null, 2));
+    lines.push("");
+};
+
+const ageSeconds = (isoValue) => {
+    if (!isoValue) {
+        return null;
+    }
+    const age = Math.floor((Date.now() - Date.parse(isoValue)) / 1000);
+    if (!Number.isFinite(age)) {
+        return null;
+    }
+    return Math.max(age, 0);
+};
+
+const ageLabel = (seconds) => {
+    if (seconds === null || seconds === undefined) {
+        return "-";
+    }
+    if (seconds < 60) {
+        return seconds + " s";
+    }
+    if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        const restSeconds = seconds % 60;
+        return minutes + " min " + restSeconds + " s";
+    }
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours + " h " + minutes + " min";
+};
+
+const keyLines = (deviceId, state) => {
+    const lines = [];
+    if (deviceId === "sim_net_sen_01") {
+        lines.push("Temperatur: " + asScaled(state && state.temp_01c, 10, "C"));
+        lines.push("Feuchte: " + asScaled(state && state.hum_01pct, 10, "%"));
+        lines.push("Lux: " + asNumber(state && state.lux, ""));
+        lines.push("Motion: " + asBool(state && state.motion));
+    } else if (deviceId === "sim_bat_sen_01") {
+        lines.push("Batterie: " + asNumber(state && state.battery_mv, "mV"));
+        lines.push("Batterie-Prozent: " + asNumber(state && state.battery_pct, "%"));
+    } else if (deviceId === "sim_net_erl_01") {
+        lines.push("relay_1: " + asBool(state && state.relay_1));
+        lines.push("fault: " + asBool(state && state.fault));
+    } else if (deviceId === "sim_net_zrl_01") {
+        lines.push("relay_1: " + asBool(state && state.relay_1));
+        lines.push("relay_2: " + asBool(state && state.relay_2));
+        lines.push("cover_mode: " + asBool(state && state.cover_mode));
+        lines.push("fault: " + asBool(state && state.fault));
+    }
+    return lines;
+};
+
+const tableRow = (cells) => {
+    const widths = [18, 8, 10, 10, 24, 10, 18, 16];
+    return cells
+        .map((cell, index) => asText(cell).padEnd(widths[index], " "))
+        .join(" | ");
+};
+
+const rows = Array.isArray(msg.payload) ? msg.payload : [];
+const devices = rows
+    .map((row) => {
+        const meta = parseJson(row.meta_json);
+        const status = parseJson(row.status_json);
+        const state = parseJson(row.state_json);
+        const online = status && typeof status.online === "boolean" ? status.online : null;
+        const seenAge = ageSeconds(row.last_seen_at);
+        return {
+            id: row.device_id,
+            role: row.device_role || "node",
+            displayName: row.display_name || row.device_id,
+            originMasterId: row.origin_master_id || "-",
+            deviceClass: row.device_class || "-",
+            powerSource: row.power_source || "-",
+            lastSeenAt: row.last_seen_at || "-",
+            lastSeenAge: ageLabel(seenAge),
+            lastMetaAt: row.last_meta_at || "-",
+            lastStatusAt: row.last_status_at || "-",
+            lastStateAt: row.last_state_at || "-",
+            onlineLabel: online === true ? "online" : online === false ? "offline" : "unbekannt",
+            staleLabel: seenAge !== null && seenAge > 120 ? "moeglich veraltet" : "-",
+            meta,
+            status,
+            state,
+            keyLines: keyLines(row.device_id, state)
+        };
+    })
+    .sort((left, right) => {
+        if (left.role !== right.role) {
+            return left.role === "master" ? -1 : 1;
+        }
+        return left.id.localeCompare(right.id);
+    });
+
+const byId = {};
+devices.forEach((device) => {
+    byId[device.id] = device;
+});
+
+const onlineCount = devices.filter((device) => device.onlineLabel === "online").length;
+const offlineCount = devices.filter((device) => device.onlineLabel === "offline").length;
+const lines = [];
+
+lines.push("[SIM] Server-Validierung");
+lines.push("========================");
+lines.push("");
+lines.push("Nur sim_* IDs. Kein Hardware-, Funk- oder HELLO-Nachweis.");
+lines.push("");
+lines.push("Stand: " + new Date().toISOString());
+lines.push("Registrierte sim_* Geraete: " + String(devices.length));
+lines.push("Online: " + String(onlineCount));
+lines.push("Offline: " + String(offlineCount));
+lines.push("Diese Seite mischt bewusst keine realen Pilot-IDs bei.");
+lines.push("");
+
+if (!devices.length) {
+    lines.push("Keine sim_* Geraete in SQLite sichtbar.");
+    lines.push("");
+    lines.push("Starte zuerst den isolierten Stack smarthome_sim und fahre danach den Fake-Master-Harness.");
+    msg.payload = lines.join("\n");
+    return msg;
+}
+
+lines.push("Registrierung / Presence");
+lines.push("------------------------");
+lines.push("");
+lines.push(tableRow(["Device", "Rolle", "Klasse", "Online", "Last seen", "Alter", "Hinweis", "Master"]));
+lines.push(tableRow(["------------------", "--------", "----------", "----------", "------------------------", "----------", "------------------", "----------------"]));
+devices.forEach((device) => {
+    lines.push(tableRow([
+        device.id,
+        device.role,
+        device.deviceClass,
+        device.onlineLabel,
+        device.lastSeenAt,
+        device.lastSeenAge,
+        device.staleLabel,
+        device.originMasterId
+    ]));
+});
+lines.push("");
+
+const pushDetailSection = (deviceId, title) => {
+    const device = byId[deviceId];
+    lines.push(title);
+    lines.push("-".repeat(title.length));
+    lines.push("");
+    if (!device) {
+        lines.push("Noch nicht registriert.");
+        lines.push("");
+        return;
+    }
+    lines.push("Anzeige: " + device.displayName);
+    lines.push("Online: " + device.onlineLabel);
+    lines.push("Last seen: " + device.lastSeenAt + " (" + device.lastSeenAge + ")");
+    lines.push("last_meta_at: " + device.lastMetaAt);
+    lines.push("last_status_at: " + device.lastStatusAt);
+    lines.push("last_state_at: " + device.lastStateAt);
+    device.keyLines.forEach((line) => {
+        lines.push(line);
+    });
+    lines.push("");
+    jsonBlock(lines, "meta", device.meta);
+    jsonBlock(lines, "status", device.status);
+    jsonBlock(lines, "state", device.state);
+};
+
+pushDetailSection("sim_master_01", "sim_master_01");
+pushDetailSection("sim_net_sen_01", "sim_net_sen_01");
+pushDetailSection("sim_bat_sen_01", "sim_bat_sen_01");
+pushDetailSection("sim_net_erl_01", "sim_net_erl_01");
+pushDetailSection("sim_net_zrl_01", "sim_net_zrl_01");
+
+msg.payload = lines.join("\n");
+return msg;
+`;
+
+const simDashboardTemplate = String.raw`
+<template>
+    <div class="sim-dashboard-template">
+        <pre>{{ msg?.payload || "Noch keine Simulationsdaten geladen." }}</pre>
+    </div>
+</template>
+
+<style>
+    .sim-dashboard-template {
+        padding: 0.25rem 0;
+    }
+
+    .sim-dashboard-template pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 0.84rem;
+        line-height: 1.45;
+    }
+</style>
+`;
+
 addNode({
     id: ids.tabIngest,
     type: "tab",
@@ -966,6 +1273,14 @@ addNode({
     label: "50 Command Egress",
     disabled: false,
     info: "Dashboard-triggered cmd/set publish for the versioned net_erl_01 and net_zrl_01 proof paths."
+});
+
+addNode({
+    id: ids.tabDashboardSim,
+    type: "tab",
+    label: "60 Dashboard [SIM]",
+    disabled: false,
+    info: "Read-only simulation dashboard query path for sim_* validation."
 });
 
 addNode({
@@ -1055,6 +1370,27 @@ addNode({
 });
 
 addNode({
+    id: ids.uiPageSimulation,
+    type: "ui-page",
+    name: "[SIM] Validierung",
+    ui: ids.uiBase,
+    path: "/simulation",
+    icon: "flask-outline",
+    layout: "grid",
+    theme: "default",
+    breakpoints: [
+        { name: "Default", px: 0, cols: 3 },
+        { name: "Tablet", px: 576, cols: 6 },
+        { name: "Small Desktop", px: 768, cols: 9 },
+        { name: "Desktop", px: 1024, cols: 12 }
+    ],
+    order: 90,
+    className: "",
+    visible: true,
+    disabled: false
+});
+
+addNode({
     id: ids.uiGroupNetErlTest,
     type: "ui-group",
     name: "net_erl_01 Test",
@@ -1062,6 +1398,36 @@ addNode({
     width: 6,
     height: 1,
     order: 1,
+    showTitle: true,
+    className: "",
+    visible: true,
+    disabled: false,
+    groupType: "default"
+});
+
+addNode({
+    id: ids.uiGroupSimControls,
+    type: "ui-group",
+    name: "[SIM] Aktionen",
+    page: ids.uiPageSimulation,
+    width: 3,
+    height: 1,
+    order: 1,
+    showTitle: true,
+    className: "",
+    visible: true,
+    disabled: false,
+    groupType: "default"
+});
+
+addNode({
+    id: ids.uiGroupSimOverview,
+    type: "ui-group",
+    name: "[SIM] Daten",
+    page: ids.uiPageSimulation,
+    width: 12,
+    height: 14,
+    order: 2,
     showTitle: true,
     className: "",
     visible: true,
@@ -1467,6 +1833,155 @@ addNode({
     headers: [],
     x: 710,
     y: 120,
+    wires: [[]]
+});
+
+addNode({
+    id: ids.injectSimDashboardLoad,
+    type: "inject",
+    z: ids.tabDashboardSim,
+    name: "Load SIM Dashboard on Deploy",
+    props: [
+        { p: "payload" },
+        { p: "topic", vt: "str" }
+    ],
+    repeat: "",
+    crontab: "",
+    once: true,
+    onceDelay: 2,
+    topic: "sim_dashboard_boot",
+    payload: "true",
+    payloadType: "bool",
+    x: 230,
+    y: 60,
+    wires: [[ids.routeSimDashboardRefresh]]
+});
+
+addNode({
+    id: ids.uiEventDashboard,
+    type: "ui-event",
+    z: ids.tabDashboardSim,
+    ui: ids.uiBase,
+    name: "Dashboard Events",
+    x: 170,
+    y: 120,
+    wires: [[ids.routeSimDashboardRefresh]]
+});
+
+addNode({
+    id: ids.uiButtonRefreshSim,
+    type: "ui-button",
+    z: ids.tabDashboardSim,
+    group: ids.uiGroupSimControls,
+    name: "SIM neu laden",
+    label: "SIM neu laden",
+    order: 1,
+    width: 3,
+    height: 1,
+    emulateClick: false,
+    tooltip: "",
+    color: "",
+    bgcolor: "",
+    className: "",
+    icon: "refresh",
+    iconPosition: "left",
+    payload: "true",
+    payloadType: "bool",
+    topic: "sim_dashboard_refresh",
+    topicType: "str",
+    buttonColor: "",
+    textColor: "",
+    iconColor: "",
+    enableClick: true,
+    enablePointerdown: false,
+    pointerdownPayload: "",
+    pointerdownPayloadType: "str",
+    enablePointerup: false,
+    pointerupPayload: "",
+    pointerupPayloadType: "str",
+    x: 180,
+    y: 180,
+    wires: [[ids.routeSimDashboardRefresh]]
+});
+
+addNode({
+    id: ids.routeSimDashboardRefresh,
+    type: "function",
+    z: ids.tabDashboardSim,
+    name: "Route SIM Dashboard Refresh",
+    func: routeSimDashboardRefreshFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 470,
+    y: 120,
+    wires: [[ids.buildSimDashboardQuery]]
+});
+
+addNode({
+    id: ids.buildSimDashboardQuery,
+    type: "function",
+    z: ids.tabDashboardSim,
+    name: "Build SIM Dashboard Query",
+    func: buildSimDashboardQueryFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 760,
+    y: 120,
+    wires: [[ids.sqliteSimDashboardQuery]]
+});
+
+addNode({
+    id: ids.sqliteSimDashboardQuery,
+    type: "sqlite",
+    z: ids.tabDashboardSim,
+    mydb: ids.sqliteDb,
+    sqlquery: "msg.topic",
+    sql: "",
+    name: "Read SIM Dashboard Rows",
+    x: 1030,
+    y: 120,
+    wires: [[ids.buildSimDashboardMarkdown]]
+});
+
+addNode({
+    id: ids.buildSimDashboardMarkdown,
+    type: "function",
+    z: ids.tabDashboardSim,
+    name: "Build SIM Dashboard Markdown",
+    func: buildSimDashboardMarkdownFunc,
+    outputs: 1,
+    noerr: 0,
+    initialize: "",
+    finalize: "",
+    libs: [],
+    x: 690,
+    y: 220,
+    wires: [[ids.uiTemplateSimOverview]]
+});
+
+addNode({
+    id: ids.uiTemplateSimOverview,
+    type: "ui-template",
+    z: ids.tabDashboardSim,
+    group: ids.uiGroupSimOverview,
+    name: "[SIM] Sicht",
+    order: 1,
+    width: 12,
+    height: 14,
+    format: simDashboardTemplate,
+    storeOutMessages: true,
+    passthru: false,
+    resendOnRefresh: true,
+    templateScope: "local",
+    className: "sim-dashboard-markdown",
+    x: 1010,
+    y: 220,
     wires: [[]]
 });
 

@@ -30,6 +30,7 @@ Nicht diese Datei:
 | Server-V1 MQTT-Ingest und SQLite-Ablage | nachgewiesen | real lokal | `PROTOKOLL/beta08_server_mqtt_ingest_realpayloads.txt` |
 | Influx-Schreibpfad fuer numerische Sensorwerte | nachgewiesen | real lokal | `PROTOKOLL/beta09_influx_schreibpfad_verifiziert.txt` |
 | Test-only Fake-Master-Serversimulation fuer serverseitige HELLO-Folge / Registrierung, `meta` / `status` / `state`, Offline / Recovery, SQLite und Influx | nachgewiesen | simulation, real lokal | `PROTOKOLL/beta31_server_sim_fake_master_ingest_harness.txt` |
+| Separate `[SIM]`-Dashboard-Sicht fuer `sim_*`-Servervalidierung (Registrierung / Presence, letzter `meta` / `status` / `state`, `last_seen`, Sensor- und Relaiswerte) | nachgewiesen | simulation, real lokal | `PROTOKOLL/beta32_server_sim_dashboard_validierung.txt` |
 | Lokale MQTT-Broker-Auth in der Serverbasis | offen | offen | kein getrackter Nachweis im Repo-Stand |
 | Offizieller serverseitiger Rueckweg fuer `net_erl_01` ueber Node-RED | nachgewiesen | real hardware, real lokal | `PROTOKOLL/beta12_offizieller_serverseitiger_rueckweg_nachweis_net_erl_01.txt` |
 | SQLite-Audit fuer ausgehende serverseitige `cmd/set`-Publishes | nachgewiesen | real lokal | `PROTOKOLL/beta13_cmd_set_audit_sqlite_egress.txt` |
