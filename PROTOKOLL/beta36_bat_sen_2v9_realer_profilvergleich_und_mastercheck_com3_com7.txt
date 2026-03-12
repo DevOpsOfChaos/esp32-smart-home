@@ -1,0 +1,107 @@
+Stand: beta36
+Datei: beta36_bat_sen_2v9_realer_profilvergleich_und_mastercheck_com3_com7.txt
+Datum: 2026-03-12
+Autor: Codex
+Status: realer Teiltest, kein offizieller Gesamt-Nachweis fuer `bat_sen`
+
+1. Anlass
+- Fuer `bat_sen` lag bereits der vorbereitete Realhardware-Ablauf vor.
+- Der naechste sinnvolle Schritt war kein weiteres Gerede ueber Batteriechemie, sondern ein realer Kurzlauf auf dem echten `bat_sen`-Board.
+- Ziel dieses Teiltests war:
+  - reale Portzuordnung `COM3` / `COM7` sauber ziehen
+  - den implementierten Batteriepfad auf `COM7` mit realer Spannungslage gegen die Firmwarewerte halten
+  - den Prozentunterschied zwischen den zwei fuer `~2.9 V` plausiblen Profilen sichtbar machen
+  - dabei explizit nicht so tun, als sei damit schon der erste volle `bat_sen`-Nachweis erledigt
+
+2. Testaufbau
+- Nutzerangabe:
+  - `COM7` soll der reale `bat_sen` werden
+  - Batteriespannung direkt gemessen: ca. `2.9 V`
+- Lokaler Terminalzugriff:
+  - Flash auf `COM7`
+  - serielle Captures auf `COM7`
+  - serielle Reset-/Boot-Capture auf `COM3`
+- Nicht vorhanden in diesem Teiltest:
+  - kein separat protokollierter Multimeterwert direkt am GPIO4-Teilerknoten
+  - kein sauber belegter `HELLO_ACK`- oder `STATE_REPORT`-Lauf zum Master
+  - kein Server-/MQTT-/SQLite-/Influx-Nachweis
+
+3. Port- und Geraetebestaetigung
+- `COM7` wurde real mit `bat_sen` geflasht.
+- `COM3` wurde real per seriellem Reset-Capture bestaetigt:
+  - Banner `MASTER v0.2.2`
+  - bekannte Basisnodes enthalten `bat_sen_01`
+  - WLAN und MQTT kamen nach Reset wieder hoch
+
+4. Realer Coin-3V-Lauf auf `COM7`
+- Repo-Default blieb `BAT_PROFILE_COIN_3V_PRIMARY`.
+- Flash auf `COM7` erfolgreich.
+- Relevanter Boot-Capture:
+  - `Batterieprofil: coin_3v_primary`
+  - `Batterieprofil-Fenster: 2000..3000 mV`
+  - `BATTERY_CONFIG adc_pin_gpio=4 divider_top_ohm=100000 divider_bottom_ohm=100000 adc_samples=4 low_battery_pct=20`
+  - `BATTERY_PROFILE profile=coin_3v_primary profile_min_mv=2000 profile_max_mv=3000`
+  - `BATTERY_VALIDATION phase=boot profile=coin_3v_primary adc_mv=1470..1471 battery_mv=2940..2942 battery_pct=94`
+- Vergleich gegen die vom Nutzer genannte reale Batteriespannung `~2900 mV`:
+  - Firmware `battery_mv` liegt nur ca. `40..42 mV` darueber
+  - Erwarteter ADC-Knoten bei idealem `100k/100k`-Teiler: ca. `1450 mV`
+  - Firmware `adc_mv` liegt mit `1470..1471 mV` nur ca. `20..21 mV` darueber
+- Einordnung:
+  - fuer einen ersten Realcheck wirkt der Batteriepfad auf `COM7` damit plausibel
+  - das ist noch kein Vollnachweis, weil der echte GPIO4-Multimeterwert im Protokoll fehlt
+
+5. Realer Alkaline-2x-Profiltest auf demselben `COM7`-Board
+- `AppConfig.h` wurde temporaer auf `BAT_PROFILE_ALKALINE_2X` gesetzt.
+- Flash auf `COM7` erfolgreich.
+- Relevanter Boot-Capture:
+  - `Batterieprofil: alkaline_2x`
+  - `Batterieprofil-Fenster: 2000..3200 mV`
+  - `BATTERY_PROFILE profile=alkaline_2x profile_min_mv=2000 profile_max_mv=3200`
+- Die serielle Messzeile `BATTERY_VALIDATION phase=boot ...` wurde in diesem Lauf trotz mehrfacher Capture-Versuche nur abgeschnitten bis `phase=boot ` sichtbar und ist deshalb kein sauberer Messbeleg.
+- Genau deshalb wird hier kein erfundener Serial-Wert behauptet.
+- Was sich trotzdem belastbar sagen laesst:
+  - dieselbe reale Spannungslage `~2.9 V` ist fuer `alkaline_2x` plausibel
+  - nach aktueller Firmware-Formel wuerde `2900 mV` zu `75 %` fuehren
+  - nach aktueller Firmware-Formel wuerde der im Coin-Lauf beobachtete Wert `2940..2942 mV` zu `78 %` fuehren
+
+6. Was der Profilvergleich wirklich zeigt
+- Die Aussage "das ist egal, weil der Test mit allen Profilen funktioniert" ist fachlich falsch.
+- Bei derselben realen Spannungsordnung liefert die Firmware je nach Profil deutlich andere Prozente:
+  - `coin_3v_primary` bei `2900 mV` -> `90 %`
+  - `alkaline_2x` bei `2900 mV` -> `75 %`
+  - `coin_3v_primary` beim beobachteten Firmwarewert `2940..2942 mV` -> `94 %`
+  - `alkaline_2x` beim beobachteten Firmwarewert `2940..2942 mV` -> `78 %`
+- Genau deshalb muss die Chemie spaeter bewusst ausgewaehlt werden. Sonst ist `battery_pct` nur eine huebsche Luege.
+
+7. Master-/Handshake-Check
+- `COM3` ist real als Master bestaetigt.
+- Ein Dual-Capture auf `COM3` und `COM7` waehrend eines `COM7`-Resets zeigte:
+  - `COM7` bootet sauber bis zur Batterie-Validierungszeile
+  - auf `COM3` erschien im Capture-Fenster keine Reaktion auf `bat_sen`
+  - auf `COM7` erschien kein `HELLO_ACK`
+- Damit ist fuer diesen Teiltest offen:
+  - sendet `bat_sen` sein `HELLO` tatsaechlich sauber?
+  - kommt das Paket beim Master an?
+  - oder haengt die Firmware direkt nach dem Batterie-Log?
+
+8. Ergebnis
+- Positiv belegt:
+  - realer `bat_sen`-Flash auf `COM7`
+  - reale serielle Boot-Ausgabe auf `COM7`
+  - realer Master auf `COM3`
+  - plausibler Batteriepfad fuer den Coin-Lauf gegen die vom Nutzer genannte `~2.9 V`
+  - Prozentunterschied zwischen plausiblen Profilen ist real fachlich relevant und nicht beliebig
+- Nicht belegt:
+  - echter GPIO4-Multimeterwert
+  - `HELLO_ACK`
+  - erster `STATE_REPORT`
+  - offizieller Serverpfad
+
+9. Fazit
+- Der Batteriepfad auf `COM7` sieht fuer den Coin-Lauf gegen `~2.9 V` real plausibel aus.
+- Die Profilwahl ist nachweislich nicht egal.
+- Der erste offizielle `bat_sen`-Hardware-Nachweis ist damit noch nicht erledigt.
+- Der naechste echte Blocker ist jetzt enger und haerter:
+  - GPIO4 direkt messen
+  - `HELLO_ACK` und ersten `STATE_REPORT` sauber sichtbar machen
+  - erst dann ueber einen offiziellen Nachweis im Repo reden
