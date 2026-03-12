@@ -1952,6 +1952,11 @@ const dashboardSharedStyle = String.raw`
         font-size: 0.92rem;
     }
 
+    .sh-chart-panel-copy {
+        display: grid;
+        gap: 0.15rem;
+    }
+
     .sh-chart-panel-stats {
         display: flex;
         gap: 0.38rem;
@@ -1982,17 +1987,36 @@ const dashboardSharedStyle = String.raw`
     }
 
     .sh-chart-legend span {
+        display: grid;
+        gap: 0.08rem;
+        min-width: 160px;
+        padding: 0.1rem 0;
+        font-size: 0.84rem;
+    }
+
+    .sh-chart-legend strong {
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
         font-size: 0.84rem;
+        font-weight: 600;
+    }
+
+    .sh-chart-legend small {
+        color: var(--sh-text-muted);
+        font-size: 0.78rem;
     }
 
     .sh-chart-legend i {
-        width: 0.8rem;
-        height: 0.8rem;
+        width: 1rem;
+        height: 0.32rem;
         border-radius: 999px;
         display: inline-block;
+    }
+
+    .sh-chart-svg {
+        width: 100%;
+        overflow: visible;
     }
 
     .sh-chart-note,
@@ -2572,72 +2596,93 @@ const deviceDetailTemplate = `
                 </div>
                 <div class="sh-empty" v-else>{{ detail.chart_unavailable_reason || "Keine chartbaren Sensorzeitreihen für dieses Gerät verfügbar." }}</div>
 
-                <div class="sh-chart-shell" v-if="chart.panels && chart.panels.length">
-                    <div class="sh-chart-meta">
-                        <span class="sh-chip">{{ chart.title }}</span>
-                        <span class="sh-chip">{{ chart.range_label }}</span>
-                        <span class="sh-chip">{{ chart.step_label }}</span>
-                    </div>
-                    <div class="sh-chart-note" v-if="chart.notice" :class="chart.status === 'sparse' ? 'is-warning' : ''">
-                        <strong>Hinweis</strong>
-                        <p>{{ chart.notice }}</p>
-                    </div>
-                    <div class="sh-chart-stack">
-                        <section class="sh-chart-panel" v-for="panel in chart.panels" :key="'detail-panel-' + panel.unit_key">
-                            <div class="sh-chart-panel-head">
-                                <div>
-                                    <strong>{{ panel.unit_label }}</strong>
-                                    <span class="sh-muted">{{ panel.series.length }} Kurve(n)</span>
+                <template v-if="chart.panels && chart.panels.length">
+                    <div class="sh-chart-shell">
+                        <div class="sh-chart-meta">
+                            <span class="sh-chip">Gerät {{ chart.title }}</span>
+                            <span class="sh-chip">Zeitraum {{ chart.range_label }}</span>
+                            <span class="sh-chip">Raster {{ chart.step_label }}</span>
+                            <span class="sh-chip" v-if="chart.metric_summary">Kurven {{ chart.metric_summary }}</span>
+                        </div>
+                        <div class="sh-chart-note" v-if="chart.notice" :class="chart.status === 'sparse' ? 'is-warning' : ''">
+                            <strong>Hinweis</strong>
+                            <p>{{ chart.notice }}</p>
+                        </div>
+                        <div class="sh-chart-stack">
+                            <section class="sh-chart-panel" v-for="panel in chart.panels" :key="'detail-panel-' + panel.unit_key">
+                                <div class="sh-chart-panel-head">
+                                    <div class="sh-chart-panel-copy">
+                                        <strong>{{ panel.axis_label }}</strong>
+                                        <span class="sh-muted">{{ panel.series.length }} Kurve(n)<template v-if="panel.series.length > 1"> · {{ panel.metric_summary }}</template></span>
+                                    </div>
+                                    <div class="sh-chart-panel-stats">
+                                        <span class="sh-chip">min {{ panel.min_label }}</span>
+                                        <span class="sh-chip">max {{ panel.max_label }}</span>
+                                        <span class="sh-chip">{{ panel.point_count }} Punkte</span>
+                                    </div>
                                 </div>
-                                <div class="sh-chart-panel-stats">
-                                    <span class="sh-chip">min {{ panel.min_label }}</span>
-                                    <span class="sh-chip">max {{ panel.max_label }}</span>
-                                    <span class="sh-chip">{{ panel.point_count }} Punkte</span>
+                                <svg class="sh-chart-svg" viewBox="0 0 640 280" width="100%" height="280" role="img" :aria-label="'Sensorverlauf ' + panel.axis_label">
+                                    <g v-for="tick in panel.y_ticks" :key="'detail-y-' + panel.unit_key + '-' + tick.value_num">
+                                        <line x1="72" :y1="tick.y" x2="618" :y2="tick.y" stroke="rgba(185, 199, 213, 0.16)" stroke-dasharray="4 4" />
+                                        <text x="64" :y="tick.y + 4" fill="#8fa5ba" font-size="12" text-anchor="end">{{ tick.label }}</text>
+                                    </g>
+                                    <g v-for="tick in chart.x_ticks" :key="'detail-x-' + panel.unit_key + '-' + tick.ts_ms">
+                                        <line :x1="tick.x" y1="28" :x2="tick.x" y2="212" stroke="rgba(185, 199, 213, 0.1)" stroke-dasharray="4 4" />
+                                        <text :x="tick.x" y="234" fill="#8fa5ba" font-size="12" text-anchor="middle">{{ tick.label }}</text>
+                                    </g>
+                                    <line x1="72" y1="28" x2="72" y2="212" stroke="#b9c7d5" stroke-width="1" />
+                                    <line x1="72" y1="212" x2="618" y2="212" stroke="#b9c7d5" stroke-width="1" />
+                                    <text x="22" y="120" fill="#9fc2de" font-size="12" text-anchor="middle" transform="rotate(-90 22 120)">{{ panel.axis_label }}</text>
+                                    <text x="345" y="258" fill="#9fc2de" font-size="12" text-anchor="middle">{{ chart.x_axis_label }}</text>
+                                    <path
+                                        v-for="series in panel.series"
+                                        :key="'detail-series-' + panel.unit_key + '-' + series.metric"
+                                        :d="seriesPath(series)"
+                                        fill="none"
+                                        :stroke="series.color"
+                                        :stroke-width="seriesStrokeWidth(series)"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                    <g v-for="series in panel.series" :key="'detail-points-' + panel.unit_key + '-' + series.metric">
+                                        <circle
+                                            v-for="point in series.points"
+                                            :key="'detail-point-' + series.metric + '-' + point.ts_ms + '-' + point.value_num"
+                                            :cx="point.x"
+                                            :cy="point.y"
+                                            :r="pointRadius(series)"
+                                            :fill="series.color"
+                                            stroke="#0f161f"
+                                            stroke-width="1.4">
+                                            <title>{{ pointTitle(series, point) }}</title>
+                                        </circle>
+                                    </g>
+                                </svg>
+                                <div class="sh-chart-axis-row">
+                                    <span>{{ chart.x_axis_label }}</span>
+                                    <span>{{ chart.start_label }} bis {{ chart.end_label }}</span>
                                 </div>
-                            </div>
-                            <svg viewBox="0 0 640 260" width="100%" height="260" role="img" aria-label="Sensorverlauf">
-                                <line x1="40" y1="20" x2="40" y2="220" stroke="#b9c7d5" stroke-width="1" />
-                                <line x1="40" y1="220" x2="620" y2="220" stroke="#b9c7d5" stroke-width="1" />
-                                <path
-                                    v-for="series in panel.series"
-                                    :key="'detail-series-' + panel.unit_key + '-' + series.metric"
-                                    :d="seriesPath(series)"
-                                    fill="none"
-                                    :stroke="series.color"
-                                    stroke-width="2.2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round" />
-                                <g v-for="series in panel.series" :key="'detail-points-' + panel.unit_key + '-' + series.metric">
-                                    <circle
-                                        v-for="point in series.points"
-                                        :key="'detail-point-' + series.metric + '-' + point.ts_ms + '-' + point.value_num"
-                                        :cx="point.x"
-                                        :cy="point.y"
-                                        :r="series.has_drawable_line ? 2.8 : 4.2"
-                                        :fill="series.color"
-                                        stroke="#0f161f"
-                                        stroke-width="1.4">
-                                        <title>{{ pointTitle(point) }}</title>
-                                    </circle>
-                                </g>
-                            </svg>
-                            <div class="sh-chart-axis-row">
-                                <span>{{ chart.start_label }}</span>
-                                <span>{{ chart.end_label }}</span>
-                            </div>
-                            <div class="sh-chart-legend">
-                                <span v-for="series in panel.series" :key="'detail-legend-' + panel.unit_key + '-' + series.metric">
-                                    <i :style="{ background: series.color }"></i>
-                                    {{ series.label }}: {{ series.last_value_text }}<template v-if="!series.has_drawable_line"> · Einzelpunkt</template>
-                                </span>
-                            </div>
-                        </section>
+                                <div class="sh-chart-legend">
+                                    <span v-for="series in panel.series" :key="'detail-legend-' + panel.unit_key + '-' + series.metric">
+                                        <strong><i :style="{ background: series.color }"></i>{{ series.label }}</strong>
+                                        <small>Aktuell {{ series.last_value_text }} · {{ series.point_count }} Punkte<template v-if="!series.has_drawable_line"> · Einzelpunkt</template></small>
+                                    </span>
+                                </div>
+                            </section>
+                        </div>
                     </div>
-                </div>
-                <div class="sh-chart-state" v-else-if="chart.message" :class="chartStateClass(chart.status)">
-                    <strong>{{ chartStateTitle(chart.status) }}</strong>
-                    <p>{{ chart.message }}</p>
-                </div>
+                </template>
+                <template v-else-if="chart.message">
+                    <div class="sh-chart-meta" v-if="chart.title || chart.range_label || chart.step_label || chart.metric_summary">
+                        <span class="sh-chip" v-if="chart.title">Gerät {{ chart.title }}</span>
+                        <span class="sh-chip" v-if="chart.range_label">Zeitraum {{ chart.range_label }}</span>
+                        <span class="sh-chip" v-if="chart.step_label">Raster {{ chart.step_label }}</span>
+                        <span class="sh-chip" v-if="chart.metric_summary">Kurven {{ chart.metric_summary }}</span>
+                    </div>
+                    <div class="sh-chart-state" :class="chartStateClass(chart.status)">
+                        <strong>{{ chartStateTitle(chart.status) }}</strong>
+                        <p>{{ chart.message }}</p>
+                    </div>
+                </template>
             </section>
 
             <div class="sh-detail-bottom-grid">
@@ -2753,6 +2798,15 @@ export default {
                 .map((point, index) => (index === 0 ? "M" : "L") + point.x + " " + point.y)
                 .join(" ");
         },
+        seriesStrokeWidth(series) {
+            if (!series || !series.point_count) return 2.2;
+            return series.point_count <= 8 ? 2.8 : series.point_count <= 24 ? 2.4 : 2.2;
+        },
+        pointRadius(series) {
+            if (!series || !series.point_count) return 3.2;
+            if (!series.has_drawable_line) return 4.4;
+            return series.point_count <= 8 ? 3.6 : series.point_count <= 24 ? 3.1 : 2.7;
+        },
         chartStateClass(status) {
             return {
                 "is-invalid": status === "invalid_selection",
@@ -2769,8 +2823,8 @@ export default {
             if (status === "sparse") return "Wenige Datenpunkte";
             return "Diagrammstatus";
         },
-        pointTitle(point) {
-            return [this.formatTimestamp(point && point.ts_ms), point && point.value_text].filter(Boolean).join(" · ");
+        pointTitle(series, point) {
+            return [series && series.label, this.formatTimestamp(point && point.ts_ms), point && point.value_text].filter(Boolean).join(" · ");
         },
         formatTimestamp(tsMs) {
             if (!Number.isFinite(tsMs)) return "";
@@ -2899,72 +2953,93 @@ const chartsTemplate = `
             <div class="sh-empty" v-if="!deviceOptions.length">Noch keine chartbaren Influx-Zeitreihen sichtbar.</div>
         </div>
 
-        <div class="sh-chart-shell" v-if="chart.panels && chart.panels.length">
-            <div class="sh-chart-meta">
-                <span class="sh-chip">{{ chart.title }}</span>
-                <span class="sh-chip">{{ chart.range_label }}</span>
-                <span class="sh-chip">{{ chart.step_label }}</span>
-            </div>
-            <div class="sh-chart-note" v-if="chart.notice" :class="chart.status === 'sparse' ? 'is-warning' : ''">
-                <strong>Hinweis</strong>
-                <p>{{ chart.notice }}</p>
-            </div>
-            <div class="sh-chart-stack">
-                <section class="sh-chart-panel" v-for="panel in chart.panels" :key="'chart-panel-' + panel.unit_key">
-                    <div class="sh-chart-panel-head">
-                        <div>
-                            <strong>{{ panel.unit_label }}</strong>
-                            <span class="sh-muted">{{ panel.series.length }} Kurve(n)</span>
+        <template v-if="chart.panels && chart.panels.length">
+            <div class="sh-chart-shell">
+                <div class="sh-chart-meta">
+                    <span class="sh-chip">Gerät {{ chart.title }}</span>
+                    <span class="sh-chip">Zeitraum {{ chart.range_label }}</span>
+                    <span class="sh-chip">Raster {{ chart.step_label }}</span>
+                    <span class="sh-chip" v-if="chart.metric_summary">Kurven {{ chart.metric_summary }}</span>
+                </div>
+                <div class="sh-chart-note" v-if="chart.notice" :class="chart.status === 'sparse' ? 'is-warning' : ''">
+                    <strong>Hinweis</strong>
+                    <p>{{ chart.notice }}</p>
+                </div>
+                <div class="sh-chart-stack">
+                    <section class="sh-chart-panel" v-for="panel in chart.panels" :key="'chart-panel-' + panel.unit_key">
+                        <div class="sh-chart-panel-head">
+                            <div class="sh-chart-panel-copy">
+                                <strong>{{ panel.axis_label }}</strong>
+                                <span class="sh-muted">{{ panel.series.length }} Kurve(n)<template v-if="panel.series.length > 1"> · {{ panel.metric_summary }}</template></span>
+                            </div>
+                            <div class="sh-chart-panel-stats">
+                                <span class="sh-chip">min {{ panel.min_label }}</span>
+                                <span class="sh-chip">max {{ panel.max_label }}</span>
+                                <span class="sh-chip">{{ panel.point_count }} Punkte</span>
+                            </div>
                         </div>
-                        <div class="sh-chart-panel-stats">
-                            <span class="sh-chip">min {{ panel.min_label }}</span>
-                            <span class="sh-chip">max {{ panel.max_label }}</span>
-                            <span class="sh-chip">{{ panel.point_count }} Punkte</span>
+                        <svg class="sh-chart-svg" viewBox="0 0 640 280" width="100%" height="280" role="img" :aria-label="'Sensorverlauf ' + panel.axis_label">
+                            <g v-for="tick in panel.y_ticks" :key="'chart-y-' + panel.unit_key + '-' + tick.value_num">
+                                <line x1="72" :y1="tick.y" x2="618" :y2="tick.y" stroke="rgba(185, 199, 213, 0.16)" stroke-dasharray="4 4" />
+                                <text x="64" :y="tick.y + 4" fill="#8fa5ba" font-size="12" text-anchor="end">{{ tick.label }}</text>
+                            </g>
+                            <g v-for="tick in chart.x_ticks" :key="'chart-x-' + panel.unit_key + '-' + tick.ts_ms">
+                                <line :x1="tick.x" y1="28" :x2="tick.x" y2="212" stroke="rgba(185, 199, 213, 0.1)" stroke-dasharray="4 4" />
+                                <text :x="tick.x" y="234" fill="#8fa5ba" font-size="12" text-anchor="middle">{{ tick.label }}</text>
+                            </g>
+                            <line x1="72" y1="28" x2="72" y2="212" stroke="#b9c7d5" stroke-width="1" />
+                            <line x1="72" y1="212" x2="618" y2="212" stroke="#b9c7d5" stroke-width="1" />
+                            <text x="22" y="120" fill="#9fc2de" font-size="12" text-anchor="middle" transform="rotate(-90 22 120)">{{ panel.axis_label }}</text>
+                            <text x="345" y="258" fill="#9fc2de" font-size="12" text-anchor="middle">{{ chart.x_axis_label }}</text>
+                            <path
+                                v-for="series in panel.series"
+                                :key="'chart-series-' + panel.unit_key + '-' + series.metric"
+                                :d="seriesPath(series)"
+                                fill="none"
+                                :stroke="series.color"
+                                :stroke-width="seriesStrokeWidth(series)"
+                                stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <g v-for="series in panel.series" :key="'chart-points-' + panel.unit_key + '-' + series.metric">
+                                <circle
+                                    v-for="point in series.points"
+                                    :key="'chart-point-' + series.metric + '-' + point.ts_ms + '-' + point.value_num"
+                                    :cx="point.x"
+                                    :cy="point.y"
+                                    :r="pointRadius(series)"
+                                    :fill="series.color"
+                                    stroke="#0f161f"
+                                    stroke-width="1.4">
+                                    <title>{{ pointTitle(series, point) }}</title>
+                                </circle>
+                            </g>
+                        </svg>
+                        <div class="sh-chart-axis-row">
+                            <span>{{ chart.x_axis_label }}</span>
+                            <span>{{ chart.start_label }} bis {{ chart.end_label }}</span>
                         </div>
-                    </div>
-                    <svg viewBox="0 0 640 260" width="100%" height="260" role="img" aria-label="Sensorverlauf">
-                        <line x1="40" y1="20" x2="40" y2="220" stroke="#b9c7d5" stroke-width="1" />
-                        <line x1="40" y1="220" x2="620" y2="220" stroke="#b9c7d5" stroke-width="1" />
-                        <path
-                            v-for="series in panel.series"
-                            :key="'chart-series-' + panel.unit_key + '-' + series.metric"
-                            :d="seriesPath(series)"
-                            fill="none"
-                            :stroke="series.color"
-                            stroke-width="2.2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round" />
-                        <g v-for="series in panel.series" :key="'chart-points-' + panel.unit_key + '-' + series.metric">
-                            <circle
-                                v-for="point in series.points"
-                                :key="'chart-point-' + series.metric + '-' + point.ts_ms + '-' + point.value_num"
-                                :cx="point.x"
-                                :cy="point.y"
-                                :r="series.has_drawable_line ? 2.8 : 4.2"
-                                :fill="series.color"
-                                stroke="#0f161f"
-                                stroke-width="1.4">
-                                <title>{{ pointTitle(point) }}</title>
-                            </circle>
-                        </g>
-                    </svg>
-                    <div class="sh-chart-axis-row">
-                        <span>{{ chart.start_label }}</span>
-                        <span>{{ chart.end_label }}</span>
-                    </div>
-                    <div class="sh-chart-legend">
-                        <span v-for="series in panel.series" :key="'chart-legend-' + panel.unit_key + '-' + series.metric">
-                            <i :style="{ background: series.color }"></i>
-                            {{ series.label }}: {{ series.last_value_text }}<template v-if="!series.has_drawable_line"> · Einzelpunkt</template>
-                        </span>
-                    </div>
-                </section>
+                        <div class="sh-chart-legend">
+                            <span v-for="series in panel.series" :key="'chart-legend-' + panel.unit_key + '-' + series.metric">
+                                <strong><i :style="{ background: series.color }"></i>{{ series.label }}</strong>
+                                <small>Aktuell {{ series.last_value_text }} · {{ series.point_count }} Punkte<template v-if="!series.has_drawable_line"> · Einzelpunkt</template></small>
+                            </span>
+                        </div>
+                    </section>
+                </div>
             </div>
-        </div>
-        <div class="sh-chart-state" v-else-if="chart.message" :class="chartStateClass(chart.status)">
-            <strong>{{ chartStateTitle(chart.status) }}</strong>
-            <p>{{ chart.message }}</p>
-        </div>
+        </template>
+        <template v-else-if="chart.message">
+            <div class="sh-chart-meta" v-if="chart.title || chart.range_label || chart.step_label || chart.metric_summary">
+                <span class="sh-chip" v-if="chart.title">Gerät {{ chart.title }}</span>
+                <span class="sh-chip" v-if="chart.range_label">Zeitraum {{ chart.range_label }}</span>
+                <span class="sh-chip" v-if="chart.step_label">Raster {{ chart.step_label }}</span>
+                <span class="sh-chip" v-if="chart.metric_summary">Kurven {{ chart.metric_summary }}</span>
+            </div>
+            <div class="sh-chart-state" :class="chartStateClass(chart.status)">
+                <strong>{{ chartStateTitle(chart.status) }}</strong>
+                <p>{{ chart.message }}</p>
+            </div>
+        </template>
     </div>
 </template>
 
@@ -3017,6 +3092,15 @@ export default {
                 .map((point, index) => (index === 0 ? "M" : "L") + point.x + " " + point.y)
                 .join(" ");
         },
+        seriesStrokeWidth(series) {
+            if (!series || !series.point_count) return 2.2;
+            return series.point_count <= 8 ? 2.8 : series.point_count <= 24 ? 2.4 : 2.2;
+        },
+        pointRadius(series) {
+            if (!series || !series.point_count) return 3.2;
+            if (!series.has_drawable_line) return 4.4;
+            return series.point_count <= 8 ? 3.6 : series.point_count <= 24 ? 3.1 : 2.7;
+        },
         chartStateClass(status) {
             return {
                 "is-invalid": status === "invalid_selection",
@@ -3033,8 +3117,8 @@ export default {
             if (status === "sparse") return "Wenige Datenpunkte";
             return "Diagrammstatus";
         },
-        pointTitle(point) {
-            return [this.formatTimestamp(point && point.ts_ms), point && point.value_text].filter(Boolean).join(" · ");
+        pointTitle(series, point) {
+            return [series && series.label, this.formatTimestamp(point && point.ts_ms), point && point.value_text].filter(Boolean).join(" · ");
         },
         formatTimestamp(tsMs) {
             if (!Number.isFinite(tsMs)) return "";
@@ -3669,8 +3753,8 @@ const dashboardCommonHelperLines = [
     '    hum_01pct: "Luftfeuchte",',
     '    humidity_pct: "Luftfeuchte",',
     '    lux: "Helligkeit",',
-    '    battery_mv: "Batterie",',
-    '    battery_pct: "Batterie",',
+    '    battery_mv: "Batteriespannung",',
+    '    battery_pct: "Batteriestand",',
     '    motion: "Bewegung",',
     '    contact: "Kontakt",',
     '    online: "Online",',
@@ -3716,6 +3800,136 @@ const dashboardCommonHelperLines = [
     '    if (normalizedUnit === "lux") return "lx";',
     '    if (normalizedUnit === "ppm" || normalizedUnit === "ppb") return normalizedUnit;',
     '    return normalizedUnit || "";',
+    '};',
+    'const formatChartRangeLabel = (rangeKey) => ({',
+    '    "1h": "1 h",',
+    '    "6h": "6 h",',
+    '    "24h": "24 h",',
+    '    "7d": "7 Tage",',
+    '    "30d": "30 Tage"',
+    '})[rangeKey] || String(rangeKey || "-");',
+    'const formatChartStepLabel = (stepKey) => {',
+    '    if (!stepKey) return "-";',
+    '    return stepKey === "raw" ? "Rohdaten" : "Mittelwert je " + stepKey;',
+    '};',
+    'const formatChartMetricSummary = (metrics) => {',
+    '    if (!Array.isArray(metrics) || !metrics.length) return "";',
+    '    return metrics',
+    '        .map((metric) => {',
+    '            const normalizedMetric = normalizeMetricKey(metric);',
+    '            if (!normalizedMetric) return "";',
+    '            const baseLabel = humanizeKey(normalizedMetric);',
+    '            const unitLabel = formatMetricUnitLabel("", normalizedMetric);',
+    '            return unitLabel ? baseLabel + " [" + unitLabel + "]" : baseLabel;',
+    '        })',
+    '        .filter(Boolean)',
+    '        .join(", ");',
+    '};',
+    'const makeChartDateFormatter = (options) => new Intl.DateTimeFormat("de-DE", Object.assign({',
+    '    timeZone: normalizeString(env.get("TZ")) || "Europe/Berlin"',
+    '}, options));',
+    'const formatChartTimeLabel = (tsMs, minTs, maxTs, variant = "tick") => {',
+    '    const tsValue = normalizeNumber(tsMs);',
+    '    if (tsValue === null) return "-";',
+    '    const date = new Date(tsValue);',
+    '    if (Number.isNaN(date.getTime())) return "-";',
+    '    const minValue = normalizeNumber(minTs);',
+    '    const maxValue = normalizeNumber(maxTs);',
+    '    const spanMs = minValue !== null && maxValue !== null ? Math.max(0, maxValue - minValue) : 0;',
+    '    if (variant === "point") return makeChartDateFormatter({ day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);',
+    '    if (variant === "range") return makeChartDateFormatter({ day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);',
+    '    if (spanMs <= 2 * 60 * 60 * 1000) return makeChartDateFormatter({ hour: "2-digit", minute: "2-digit" }).format(date);',
+    '    if (spanMs <= 36 * 60 * 60 * 1000) return makeChartDateFormatter({ day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);',
+    '    if (spanMs <= 14 * 24 * 60 * 60 * 1000) return makeChartDateFormatter({ day: "2-digit", month: "2-digit", hour: "2-digit" }).format(date);',
+    '    return makeChartDateFormatter({ day: "2-digit", month: "2-digit" }).format(date);',
+    '};',
+    'const niceNumber = (range, shouldRound) => {',
+    '    if (!Number.isFinite(range) || range <= 0) return 1;',
+    '    const exponent = Math.floor(Math.log10(range));',
+    '    const fraction = range / Math.pow(10, exponent);',
+    '    let niceFraction;',
+    '    if (shouldRound) {',
+    '        if (fraction < 1.5) niceFraction = 1;',
+    '        else if (fraction < 3) niceFraction = 2;',
+    '        else if (fraction < 7) niceFraction = 5;',
+    '        else niceFraction = 10;',
+    '    } else {',
+    '        if (fraction <= 1) niceFraction = 1;',
+    '        else if (fraction <= 2) niceFraction = 2;',
+    '        else if (fraction <= 5) niceFraction = 5;',
+    '        else niceFraction = 10;',
+    '    }',
+    '    return niceFraction * Math.pow(10, exponent);',
+    '};',
+    'const buildNiceScale = (minValue, maxValue, tickCount = 4) => {',
+    '    const lower = normalizeNumber(minValue);',
+    '    const upper = normalizeNumber(maxValue);',
+    '    if (lower === null || upper === null) {',
+    '        return { min: 0, max: 1, ticks: [0, 0.5, 1] };',
+    '    }',
+    '    if (lower === upper) {',
+    '        const pad = Math.max(Math.abs(lower) * 0.02, 1);',
+    '        return buildNiceScale(lower - pad, upper + pad, tickCount);',
+    '    }',
+    '    const boundedMin = Math.min(lower, upper);',
+    '    const boundedMax = Math.max(lower, upper);',
+    '    const range = niceNumber(boundedMax - boundedMin, false);',
+    '    const step = niceNumber(range / Math.max(tickCount - 1, 1), true);',
+    '    const niceMin = Math.floor(boundedMin / step) * step;',
+    '    const niceMax = Math.ceil(boundedMax / step) * step;',
+    '    const ticks = [];',
+    '    for (let value = niceMin; value <= niceMax + step * 0.5; value += step) {',
+    '        ticks.push(Number(value.toFixed(6)));',
+    '        if (ticks.length >= 8) break;',
+    '    }',
+    '    return {',
+    '        min: niceMin,',
+    '        max: niceMax === niceMin ? niceMin + step : niceMax,',
+    '        ticks: ticks.length ? ticks : [niceMin, niceMax]',
+    '    };',
+    '};',
+    'const defaultChartPadding = (unit) => {',
+    '    const normalizedUnit = inferMetricUnit(unit, unit);',
+    '    if (normalizedUnit === "pct" || normalizedUnit === "0.1pct") return 2;',
+    '    if (normalizedUnit === "mv") return 5;',
+    '    if (normalizedUnit === "v") return 0.1;',
+    '    if (normalizedUnit === "c" || normalizedUnit === "0.1c") return 0.5;',
+    '    if (normalizedUnit === "lux") return 10;',
+    '    if (normalizedUnit === "ppm" || normalizedUnit === "ppb") return 20;',
+    '    return 1;',
+    '};',
+    'const buildChartXTicks = (minTs, maxTs) => {',
+    '    const minValue = normalizeNumber(minTs);',
+    '    const maxValue = normalizeNumber(maxTs);',
+    '    if (minValue === null || maxValue === null) return [];',
+    '    const plotWidth = chartGeometry.right - chartGeometry.left;',
+    '    if (minValue === maxValue) {',
+    '        return [{',
+    '            x: Number((chartGeometry.left + plotWidth / 2).toFixed(1)),',
+    '            ts_ms: minValue,',
+    '            label: formatChartTimeLabel(minValue, minValue, maxValue, "tick")',
+    '        }];',
+    '    }',
+    '    const spanMs = Math.max(0, maxValue - minValue);',
+    '    const tickCount = spanMs <= 2 * 60 * 60 * 1000 ? 4 : spanMs <= 24 * 60 * 60 * 1000 ? 5 : 4;',
+    '    const ticks = [];',
+    '    for (let index = 0; index < tickCount; index += 1) {',
+    '        const ratio = tickCount === 1 ? 0 : index / (tickCount - 1);',
+    '        const tsValue = minValue + spanMs * ratio;',
+    '        ticks.push({',
+    '            x: Number((chartGeometry.left + plotWidth * ratio).toFixed(1)),',
+    '            ts_ms: Math.round(tsValue),',
+    '            label: formatChartTimeLabel(tsValue, minValue, maxValue, "tick")',
+    '        });',
+    '    }',
+    '    return ticks;',
+    '};',
+    'const buildPanelAxisLabel = (seriesList, unitKey) => {',
+    '    const unitLabel = formatMetricUnitLabel(unitKey, unitKey);',
+    '    if (Array.isArray(seriesList) && seriesList.length === 1) {',
+    '        return unitLabel ? seriesList[0].label + " [" + unitLabel + "]" : seriesList[0].label;',
+    '    }',
+    '    return unitLabel ? "Messwert [" + unitLabel + "]" : "Messwert";',
     '};',
     'const isChartableMetric = (metric) => {',
     '    const normalizedMetric = normalizeMetricKey(metric);',
@@ -3856,6 +4070,19 @@ const dashboardCommonHelperLines = [
     '        const numberValue = normalizeNumber(value);',
     '        return numberValue === null ? "-" : coverStateLabel(numberValue);',
     '    }',
+    '    const numericMetric = role === "sensor" || isChartableMetric(normalizeMetricKey(key)) || /position/i.test(key);',
+    '    const numberValue = normalizeNumber(value);',
+    '    if (numericMetric && numberValue !== null) {',
+    '        unit = inferMetricUnit(key, unit);',
+    '        if (unit === "0.1c") return (numberValue / 10).toFixed(1) + " °C";',
+    '        if (unit === "0.1pct") return (numberValue / 10).toFixed(1) + " %";',
+    '        if (unit === "pct" || /_pct$/i.test(key) || /position/i.test(key)) return String(Math.round(numberValue)) + " %";',
+    '        if (unit === "c") return numberValue.toFixed(1) + " °C";',
+    '        if (unit === "mv") return String(Math.round(numberValue)) + " mV";',
+    '        if (unit === "lux") return String(Math.round(numberValue)) + " lx";',
+    '        if (unit === "ppm" || unit === "ppb") return String(Math.round(numberValue)) + " " + unit;',
+    '        return Number.isInteger(numberValue) ? String(numberValue) : numberValue.toFixed(1);',
+    '    }',
     '    const boolValue = normalizeBool(value);',
     '    if (boolValue !== null) {',
     '        if (/online/i.test(key)) return boolValue ? "online" : "offline";',
@@ -3863,7 +4090,6 @@ const dashboardCommonHelperLines = [
     '        if (/relay|switch|light|output/i.test(key) || role === "actuator") return boolValue ? "ein" : "aus";',
     '        return boolValue ? "ja" : "nein";',
     '    }',
-    '    const numberValue = normalizeNumber(value);',
     '    if (numberValue !== null) {',
     '        unit = inferMetricUnit(key, unit);',
     '        if (unit === "0.1c") return (numberValue / 10).toFixed(1) + " °C";',
@@ -3879,6 +4105,7 @@ const dashboardCommonHelperLines = [
     '};',
     'const isoLabel = (value) => normalizeString(value) || "-";',
     'const colorPalette = ["#1d4ed8", "#0f766e", "#b45309", "#be123c", "#6d28d9", "#0f172a"];',
+    'const chartGeometry = { width: 640, height: 280, left: 72, right: 618, top: 28, bottom: 212 };',
     'const flattenState = (payload) => {',
     '    const flat = {};',
     '    const visit = (value, prefix) => {',
@@ -3908,18 +4135,7 @@ const dashboardCommonHelperLines = [
     '};',
     'const sortValues = (items) => items.sort((left, right) => left.label.localeCompare(right.label));',
     'const buildChartState = (status, message, extra = {}) => Object.assign({ status, message }, extra);',
-    'const formatChartTimeLabel = (tsMs, minTs, maxTs) => {',
-    '    const tsValue = normalizeNumber(tsMs);',
-    '    if (tsValue === null) return "-";',
-    '    const date = new Date(tsValue);',
-    '    if (Number.isNaN(date.getTime())) return "-";',
-    '    const minValue = normalizeNumber(minTs);',
-    '    const maxValue = normalizeNumber(maxTs);',
-    '    const spanMs = minValue !== null && maxValue !== null ? Math.max(0, maxValue - minValue) : 0;',
-    '    if (spanMs <= 36 * 60 * 60 * 1000) return date.toISOString().slice(11, 16) + "Z";',
-    '    return date.toISOString().slice(0, 16).replace("T", " ");',
-    '};',
-    'const buildChartSeries = (rows, chartTitle, rangeLabel, stepLabel, deviceId) => {',
+    'const buildChartSeries = (rows, chartTitle, rangeLabel, stepLabel, deviceId, metricSummary = "") => {',
     '    const grouped = new Map();',
     '    for (const row of rows) {',
     '        const metric = normalizeMetricKey(row.metric);',
@@ -3933,16 +4149,18 @@ const dashboardCommonHelperLines = [
     '        grouped.get(metric).points.push({ ts_ms: tsMs, raw_value: valueNum });',
     '    }',
     '    if (!rows.length) {',
-    '        return buildChartState("no_data", "Keine Influx-Daten für die aktuelle Auswahl.", { title: chartTitle, range_label: rangeLabel, step_label: stepLabel, device_id: deviceId || "" });',
+    '        return buildChartState("no_data", "Keine Influx-Daten für die aktuelle Auswahl.", { title: chartTitle, range_label: rangeLabel, step_label: stepLabel, device_id: deviceId || "", metric_summary: metricSummary });',
     '    }',
     '    const series = Array.from(grouped.values()).filter((item) => item.points.length);',
     '    if (!series.length) {',
-    '        return buildChartState("render_error", "Influx lieferte Daten, aber keine auswertbaren Diagrammpunkte.", { title: chartTitle, range_label: rangeLabel, step_label: stepLabel, device_id: deviceId || "" });',
+    '        return buildChartState("render_error", "Influx lieferte Daten, aber keine auswertbaren Diagrammpunkte.", { title: chartTitle, range_label: rangeLabel, step_label: stepLabel, device_id: deviceId || "", metric_summary: metricSummary });',
     '    }',
     '    const allPoints = series.flatMap((item) => item.points);',
     '    const minTs = Math.min(...allPoints.map((point) => point.ts_ms));',
     '    const maxTs = Math.max(...allPoints.map((point) => point.ts_ms));',
     '    const tsRange = maxTs === minTs ? 1 : maxTs - minTs;',
+    '    const plotWidth = chartGeometry.right - chartGeometry.left;',
+    '    const plotHeight = chartGeometry.bottom - chartGeometry.top;',
     '    const panelsByUnit = new Map();',
     '    for (const item of series) {',
     '        const unitKey = inferMetricUnit(item.metric, item.unit) || "unitless";',
@@ -3955,12 +4173,14 @@ const dashboardCommonHelperLines = [
     '        const panelPoints = panel.series.flatMap((item) => item.points);',
     '        const minValue = Math.min(...panelPoints.map((point) => point.raw_value));',
     '        const maxValue = Math.max(...panelPoints.map((point) => point.raw_value));',
+    '        const unitPadding = defaultChartPadding(panel.unit_key);',
     '        const valuePadding = maxValue === minValue',
-    '            ? Math.max(Math.abs(maxValue) * 0.08, 1)',
-    '            : Math.max((maxValue - minValue) * 0.08, 0.5);',
-    '        const scaleMin = minValue - valuePadding;',
-    '        const scaleMax = maxValue + valuePadding;',
-    '        const valueRange = scaleMax - scaleMin;',
+    '            ? unitPadding',
+    '            : Math.max((maxValue - minValue) * 0.08, Math.max(unitPadding * 0.25, 0.25));',
+    '        const niceScale = buildNiceScale(minValue - valuePadding, maxValue + valuePadding, 4);',
+    '        const scaleMin = niceScale.min;',
+    '        const scaleMax = niceScale.max;',
+    '        const valueRange = scaleMax - scaleMin || 1;',
     '        const panelSeries = panel.series',
     '            .sort((left, right) => left.label.localeCompare(right.label))',
     '            .map((item, index) => ({',
@@ -3974,19 +4194,27 @@ const dashboardCommonHelperLines = [
     '                points: item.points',
     '                    .sort((left, right) => left.ts_ms - right.ts_ms)',
     '                    .map((point) => ({',
-    '                        x: minTs === maxTs ? 330 : 40 + ((point.ts_ms - minTs) / tsRange) * 580,',
-    '                        y: 220 - ((point.raw_value - scaleMin) / valueRange) * 200,',
+    '                        x: minTs === maxTs ? Number((chartGeometry.left + plotWidth / 2).toFixed(1)) : Number((chartGeometry.left + ((point.ts_ms - minTs) / tsRange) * plotWidth).toFixed(1)),',
+    '                        y: Number((chartGeometry.bottom - ((point.raw_value - scaleMin) / valueRange) * plotHeight).toFixed(1)),',
     '                        value_text: formatValueText(item.metric, point.raw_value, item.unit, "sensor"),',
     '                        value_num: point.raw_value,',
     '                        ts_ms: point.ts_ms',
     '                    }))',
     '            }));',
+    '        const yTicks = niceScale.ticks.map((tickValue) => ({',
+    '            value_num: tickValue,',
+    '            label: formatValueText(panel.unit_key, tickValue, panel.unit_key, "sensor"),',
+    '            y: Number((chartGeometry.bottom - ((tickValue - scaleMin) / valueRange) * plotHeight).toFixed(1))',
+    '        }));',
     '        return {',
     '            unit_key: panel.unit_key,',
     '            unit_label: panel.unit_label,',
+    '            axis_label: buildPanelAxisLabel(panelSeries, panel.unit_key),',
+    '            metric_summary: panelSeries.map((item) => item.label).join(", "),',
     '            point_count: panelPoints.length,',
     '            min_label: formatValueText(panel.unit_key, minValue, panel.unit_key, "sensor"),',
     '            max_label: formatValueText(panel.unit_key, maxValue, panel.unit_key, "sensor"),',
+    '            y_ticks: yTicks,',
     '            series: panelSeries',
     '        };',
     '    });',
@@ -4001,8 +4229,11 @@ const dashboardCommonHelperLines = [
     '        title: chartTitle,',
     '        range_label: rangeLabel,',
     '        step_label: stepLabel,',
-    '        start_label: formatChartTimeLabel(minTs, minTs, maxTs),',
-    '        end_label: formatChartTimeLabel(maxTs, minTs, maxTs),',
+    '        metric_summary: metricSummary || formatChartMetricSummary(series.map((item) => item.metric)),',
+    '        x_axis_label: "Zeitachse (Lokalzeit)",',
+    '        start_label: formatChartTimeLabel(minTs, minTs, maxTs, "range"),',
+    '        end_label: formatChartTimeLabel(maxTs, minTs, maxTs, "range"),',
+    '        x_ticks: buildChartXTicks(minTs, maxTs),',
     '        device_id: deviceId || "",',
     '        panels,',
     '        notice: notices.join(" "),',
@@ -5245,6 +5476,20 @@ const metrics = Array.from(new Set(requestedMetrics
     .map((item) => normalizeMetricKey(item))
     .filter((item) => item && isChartableMetric(item))));
 msg.chartTarget = request.chart_target === "charts" ? "charts" : "detail";
+const rangeMap = { "1h": "-1h", "6h": "-6h", "24h": "-24h", "7d": "-7d", "30d": "-30d" };
+const autoStepMap = { "1h": "raw", "6h": "raw", "24h": "raw", "7d": "15m", "30d": "1h" };
+const allowedSteps = new Set(["raw", "10s", "30s", "1m", "5m", "15m", "1h"]);
+const rangeKey = Object.prototype.hasOwnProperty.call(rangeMap, request.range) ? request.range : "24h";
+const requestedStep = typeof request.step === "string" ? request.step.trim() : "auto";
+const stepKey = requestedStep && requestedStep !== "auto" && allowedSteps.has(requestedStep) ? requestedStep : autoStepMap[rangeKey];
+const metricSummary = formatChartMetricSummary(metrics.length ? metrics : requestedMetrics);
+const chartMeta = {
+    title: deviceLabel || "",
+    range_label: formatChartRangeLabel(rangeKey),
+    step_label: formatChartStepLabel(stepKey),
+    device_id: deviceId,
+    metric_summary: metricSummary
+};
 if (!deviceId || !metrics.length) {
     msg.payload = {
         kind: "chart",
@@ -5255,17 +5500,11 @@ if (!deviceId || !metrics.length) {
                 : requestedMetrics.length
                     ? "Die ausgewählte Metrik ist im aktuellen Influx-Schema nicht chartbar."
                     : "Bitte mindestens eine Metrik wählen.",
-            { device_id: deviceId }
+            chartMeta
         )
     };
     return [null, msg];
 }
-const rangeMap = { "1h": "-1h", "6h": "-6h", "24h": "-24h", "7d": "-7d", "30d": "-30d" };
-const autoStepMap = { "1h": "raw", "6h": "raw", "24h": "raw", "7d": "15m", "30d": "1h" };
-const allowedSteps = new Set(["raw", "10s", "30s", "1m", "5m", "15m", "1h"]);
-const rangeKey = Object.prototype.hasOwnProperty.call(rangeMap, request.range) ? request.range : "24h";
-const requestedStep = typeof request.step === "string" ? request.step.trim() : "auto";
-const stepKey = requestedStep && requestedStep !== "auto" && allowedSteps.has(requestedStep) ? requestedStep : autoStepMap[rangeKey];
 const escapedDeviceId = deviceId.replace(/"/g, '\\"');
 const metricFilter = metrics.map((metric) => 'r.metric == "' + String(metric).replace(/"/g, '\\"') + '"').join(" or ");
 const fluxQueryLines = [
@@ -5282,8 +5521,9 @@ fluxQueryLines.push(
 );
 msg.chartTitle = deviceLabel;
 msg.chartDeviceId = deviceId;
-msg.chartRangeLabel = rangeKey;
-msg.chartStepLabel = stepKey === "raw" ? "roh" : stepKey;
+msg.chartRangeLabel = chartMeta.range_label;
+msg.chartStepLabel = chartMeta.step_label;
+msg.chartMetricSummary = metricSummary;
 msg.method = "POST";
 msg.url = (env.get("INFLUX_URL") || "http://influxdb:8086") + "/api/v2/query?org=" + encodeURIComponent(env.get("INFLUX_ORG") || "");
 msg.headers = {
@@ -5325,7 +5565,8 @@ if (chartErrorMessage) {
             title: msg.chartTitle || "Chart",
             range_label: msg.chartRangeLabel || "-",
             step_label: msg.chartStepLabel || "-",
-            device_id: msg.chartDeviceId || ""
+            device_id: msg.chartDeviceId || "",
+            metric_summary: msg.chartMetricSummary || ""
         })
     };
     return msg;
@@ -5338,12 +5579,30 @@ const csv = (
             : ""
 ).trim();
 if (!csv) {
-    msg.payload = { kind: "chart", chart: buildChartState("no_data", "Keine Influx-Daten für die aktuelle Auswahl.", { device_id: msg.chartDeviceId || "" }) };
+    msg.payload = {
+        kind: "chart",
+        chart: buildChartState("no_data", "Keine Influx-Daten für die aktuelle Auswahl.", {
+            title: msg.chartTitle || "Chart",
+            range_label: msg.chartRangeLabel || "-",
+            step_label: msg.chartStepLabel || "-",
+            device_id: msg.chartDeviceId || "",
+            metric_summary: msg.chartMetricSummary || ""
+        })
+    };
     return msg;
 }
 const lines = csv.split(/\r?\n/).filter((line) => line.trim());
 if (!lines.length) {
-    msg.payload = { kind: "chart", chart: buildChartState("no_data", "Keine Influx-Daten für die aktuelle Auswahl.", { device_id: msg.chartDeviceId || "" }) };
+    msg.payload = {
+        kind: "chart",
+        chart: buildChartState("no_data", "Keine Influx-Daten für die aktuelle Auswahl.", {
+            title: msg.chartTitle || "Chart",
+            range_label: msg.chartRangeLabel || "-",
+            step_label: msg.chartStepLabel || "-",
+            device_id: msg.chartDeviceId || "",
+            metric_summary: msg.chartMetricSummary || ""
+        })
+    };
     return msg;
 }
 const splitCsvLine = (line) => {
@@ -5374,7 +5633,16 @@ const splitCsvLine = (line) => {
 const relevantLines = lines.filter((line) => !line.startsWith("#"));
 const headerLine = relevantLines.find((line) => line.includes("_time") && line.includes("_value") && line.includes("metric"));
 if (!headerLine) {
-    msg.payload = { kind: "chart", chart: buildChartState("render_error", "Influx-Antwort ohne lesbaren CSV-Header.", { device_id: msg.chartDeviceId || "" }) };
+    msg.payload = {
+        kind: "chart",
+        chart: buildChartState("render_error", "Influx-Antwort ohne lesbaren CSV-Header.", {
+            title: msg.chartTitle || "Chart",
+            range_label: msg.chartRangeLabel || "-",
+            step_label: msg.chartStepLabel || "-",
+            device_id: msg.chartDeviceId || "",
+            metric_summary: msg.chartMetricSummary || ""
+        })
+    };
     return msg;
 }
 const headers = splitCsvLine(headerLine);
@@ -5394,7 +5662,14 @@ const chartRows = relevantLines
 });
 msg.payload = {
     kind: "chart",
-    chart: buildChartSeries(chartRows, msg.chartTitle || "Chart", msg.chartRangeLabel || "-", msg.chartStepLabel || "-", msg.chartDeviceId || "")
+    chart: buildChartSeries(
+        chartRows,
+        msg.chartTitle || "Chart",
+        msg.chartRangeLabel || "-",
+        msg.chartStepLabel || "-",
+        msg.chartDeviceId || "",
+        msg.chartMetricSummary || ""
+    )
 };
 return msg;
 `;
