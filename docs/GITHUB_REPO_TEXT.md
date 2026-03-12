@@ -6,7 +6,7 @@ Lokales ESP32-Smart-Home: ESP-NOW-Nodes, ESP32-C3-Master als einzige MQTT-Bridge
 
 ## Laengere Repo-Zusammenfassung
 
-Dieses Repo enthaelt die aktive Firmware fuer `master`, `net_erl`, `net_zrl`, `net_sen` und `bat_sen` sowie die lokale Serverbasis unter Docker Compose. Nodes sprechen nur ESP-NOW; MQTT existiert nur zwischen `master` und `server`, wobei der Master die einzige Bridge ist. Die Doku trennt belegte Pilotpfade und reale Nachweise klar von offenen Punkten wie `bat_sen`-Hardwarebeleg und weiterem Mehrgeraetenachweis.
+Dieses Repo enthaelt die aktive Firmware fuer `master`, `net_erl`, `net_zrl`, `net_sen` und `bat_sen` sowie die lokale Serverbasis unter Docker Compose. Nodes sprechen nur ESP-NOW; MQTT existiert nur zwischen `master` und `server`, wobei der Master die einzige Bridge ist. Die Doku trennt belegte Einzelpfade und reale Nachweise klar von den weiterhin offenen Punkten wie `bat_sen`-Profilwahl, spaeterem Deep-Sleep und weiterem Mehrgeraetenachweis.
 
 ## Vorgeschlagene Feature-/Status-Bullets
 
@@ -16,7 +16,7 @@ Dieses Repo enthaelt die aktive Firmware fuer `master`, `net_erl`, `net_zrl`, `n
 - Server-Stack mit Mosquitto, Node-RED, InfluxDB und SQLite
 - Reale Pilotnachweise fuer `net_erl_01` und `net_zrl_01` ueber den offiziellen Serverpfad
 - Reeller `net_sen_01`-Servernachweis mit DHT22 auf `GPIO6`
-- `bat_sen` bisher nur als Buildbasis, ohne eigenen realen Hardware-Nachweis
+- offizieller `bat_sen_01`-Servernachweis plus fokussierter Real-Langlauf; Profilwahl und Deep-Sleep bleiben offen
 - `migration/` und Night Pipeline nur fuer kontrollierte Legacy-Extraktion, nicht fuer den Produktpfad
 
 ## Optionale Repository-Topics

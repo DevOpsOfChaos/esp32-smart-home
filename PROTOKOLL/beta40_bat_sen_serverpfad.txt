@@ -1,0 +1,127 @@
+Stand: beta40
+Datei: beta40_bat_sen_serverpfad.txt
+Datum: 2026-03-12
+Autor: Codex
+Status: offizieller Realnachweis fuer `bat_sen_01` auf dem Serverpfad, kein Deep-Sleep- oder Mehrgeraetenachweis
+
+1. Anlass
+- Nach `beta38` und `beta39` war der lokale `bat_sen_01`-Grundpfad bis ADC, `HELLO_ACK` und erstem `STATE_REPORT` real belegt, aber der offizielle Serverpfad blieb noch offen.
+- Alte `bat_sen_01`-Spuren in SQLite und Influx aus derselben Arbeitsphase waren nur ein Hinweis, aber noch kein sauber abgegrenzter offizieller Nachweis. Wer so etwas nachtraeglich als Beweis verkauft, testet gegen Altlasten statt gegen einen klaren Lauf.
+- Ziel dieses Stands war deshalb eng und pruefbar:
+  - aktueller Repo-Stand fuer `master` und `bat_sen` bauen
+  - beide echten Boards neu flashen
+  - den aktiven Server- und Flow-Stand verifizieren
+  - einen neuen, zeitlich klar begrenzten Real-Lauf fahren
+  - neues MQTT `meta/status/state`, neue SQLite-Eintraege und neue Influx-Punkte genau fuer diesen Lauf belegen
+
+2. Aenderung
+- Keine Codeaenderung.
+- Vor dem Lauf wurde der aktive Pfad verifiziert:
+  - `firmware/platformio.ini` nutzt weiter `build_src_filter = -<*> +<master/>` fuer `master`
+  - `firmware/platformio.ini` nutzt weiter `build_src_filter = -<*> +<bat_sen/>` fuer `bat_sen`
+  - `platformio device list` und `Get-CimInstance Win32_SerialPort` bestaetigten:
+    - `COM3` als reales Master-Board mit USB-Serial-MAC `20:6E:F1:6D:92:C0`
+    - `COM7` als reales `bat_sen`-Board mit USB-Serial-MAC `8C:D0:B2:A9:41:F9`
+  - `docker compose ps` zeigte `mosquitto`, `influxdb` und `nodered` healthy
+  - `docker compose exec nodered ... cmp -s /tmp/expected_flows.json /data/flows.json` bestaetigte den aktiven Node-RED-Laufzeitstand gegen `server/nodered/build-flows.js`
+- Reale Builds und Reflashes:
+  - `platformio run -e master`
+  - `platformio run -e bat_sen`
+  - `platformio run -e master -t upload --upload-port COM3`
+  - `platformio run -e bat_sen -t upload --upload-port COM7`
+- Neuer begrenzter Serverproof-Lauf:
+  - Startzeit fuer die Auswertung: `2026-03-12T15:17:44.9726699Z`
+  - Artefaktordner: `tmp/bat_sen_serverproof/20260312_161744/`
+  - Live-MQTT-Capture ohne retained Altlasten auf `smarthome/node/bat_sen_01/#`
+  - parallele Dual-Serial-Capture auf `COM3` und `COM7`
+  - DTR/RTS-Reset zuerst fuer `master`, dann fuer `bat_sen`
+
+3. Reale Befunde
+- Reale serielle Reihenfolge im Combined-Log `tmp/bat_sen_serverproof/20260312_161744/serial_capture/20260312_161747/combined.log`:
+  - `2026-03-12T16:17:50.993+01:00 [bat_sen COM7] [INFO] HELLO gesendet`
+  - `2026-03-12T16:17:50.995+01:00 [master COM3] [INFO] HELLO_ACK gesendet an 8C:D0:B2:A9:41:F9`
+  - `2026-03-12T16:17:51.016+01:00 [bat_sen COM7] [INFO] HELLO_ACK empfangen, Master-Kanal=6`
+  - `2026-03-12T16:17:51.016+01:00 [bat_sen COM7] [INFO] BATTERY_VALIDATION phase=state_report profile=coin_3v_primary adc_mv=1472 battery_mv=2944 battery_pct=94`
+  - `2026-03-12T16:17:51.098+01:00 [master COM3] [INFO] STATE_REPORT von bat_sen_01 verarbeitet`
+  - `2026-03-12T16:17:53.617+01:00 [master COM3] [INFO] MQTT retained smarthome/node/bat_sen_01/meta -> {...}`
+  - `2026-03-12T16:17:53.617+01:00 [master COM3] [INFO] MQTT retained smarthome/node/bat_sen_01/status -> {...}`
+  - `2026-03-12T16:17:53.728+01:00 [master COM3] [INFO] MQTT retained smarthome/node/bat_sen_01/state -> {"node_id":"bat_sen_01","battery_pct":94,"battery_mv":2944,"window_open":null,"rain_raw":null,"button_flags":0,"fault":false}`
+- Reale Live-MQTT-Sicht ohne retained Altlasten in `tmp/bat_sen_serverproof/20260312_161744/mqtt_live.log`:
+  - `2026-03-12T15:17:53+0000 smarthome/node/bat_sen_01/meta {..."mac":"8C:D0:B2:A9:41:F9"}`
+  - `2026-03-12T15:17:53+0000 smarthome/node/bat_sen_01/status {"node_id":"bat_sen_01","online":true,"device_type":"bat_sen","power_type":"battery","fw":"0.2.2"}`
+  - `2026-03-12T15:17:53+0000 smarthome/node/bat_sen_01/state {"node_id":"bat_sen_01","battery_pct":94,"battery_mv":2944,"window_open":null,"rain_raw":null,"button_flags":0,"fault":false}`
+- Reale SQLite-Sicht ab Laufstart:
+  - `devices.bat_sen_01` stand danach auf `status = online`
+  - `devices.last_meta_at = 2026-03-12T15:17:53.639Z`
+  - `devices.last_status_at = 2026-03-12T15:17:53.639Z`
+  - `devices.last_state_at = 2026-03-12T15:17:53.640Z`
+  - `device_last_state.status_json = {"node_id":"bat_sen_01","online":true,"device_type":"bat_sen","power_type":"battery","fw":"0.2.2"}`
+  - `device_last_state.state_json = {"node_id":"bat_sen_01","battery_pct":94,"battery_mv":2944,"window_open":null,"rain_raw":null,"button_flags":0,"fault":false}`
+  - `audit_log` zeigte fuer genau diesen Lauf:
+    - `2026-03-12T15:17:53.639Z meta ingest`
+    - `2026-03-12T15:17:53.639Z status ingest`
+    - `2026-03-12T15:17:53.640Z state ingest`
+- Reale Influx-Sicht ab Laufstart:
+  - `metric=battery_mv`, `_time=2026-03-12T15:17:53.640000000Z`, `_value=2944`
+  - `metric=battery_pct`, `_time=2026-03-12T15:17:53.640000000Z`, `_value=94`
+- Der MQTT-Subscriber endete danach nur mit `Timed out`, also ohne Fehlerbild und ohne weitere unerwartete Publishes im engen Serverproof-Fenster.
+
+4. Begruendung
+- Der offizielle `bat_sen_01`-Serverpfad ist damit im aktuellen Repo-Stand real belegt:
+  - reales `bat_sen` auf `COM7`
+  - realer `master` auf `COM3`
+  - `HELLO`, `HELLO_ACK` und `STATE_REPORT` im seriellen Zusammenschnitt
+  - live neues MQTT-`meta`
+  - live neues MQTT-`status`
+  - live neues MQTT-`state`
+  - neue SQLite-Eintraege in `devices`, `device_last_state` und `audit_log`
+  - neue numerische Influx-Punkte exakt zum neuen `state`
+- Der Nachweis wurde nicht ueber Altzustand erschlichen:
+  - beide Boards wurden unmittelbar vor dem Lauf neu gebaut und neu geflasht
+  - der aktive Node-RED-Laufzeitstand wurde vorab gegen den Generator verifiziert
+  - die Auswertung wurde gegen einen klaren Laufstart gefiltert
+  - der MQTT-Mitschnitt ignorierte retained Altlasten
+
+5. Verbesserungseffekt
+- Die zuvor offene Luecke `bat_sen_01 -> master -> MQTT -> Broker -> SQLite -> Influx` ist jetzt fuer den aktuellen Repo-Stand geschlossen.
+- `bat_sen` ist damit nicht mehr nur lokal bis ADC und Handshake, sondern offiziell im realen Serverpfad belegt.
+- Die ehrlichen Restpunkte verschieben sich weg vom Grundpfad hin zu Profilentscheidung, spaeterem Deep-Sleep und breiterer Betriebsvalidierung.
+
+6. Risiken / Trade-offs
+- Dieser Stand legt die endgueltige Batteriechemie des Boards nicht fest. Die aktuelle Prozentanzeige bleibt an `coin_3v_primary` gebunden, bis die reale Profilwahl bewusst entschieden ist.
+- Dieser Stand beweist keinen Deep-Sleep-Rueckkehrpfad; `bat_sen` aktiviert Deep-Sleep im aktuellen Firmware-Stand bewusst noch nicht.
+- Dieser Stand beweist keinen Mehrgeraetebetrieb.
+- Fuer `bat_sen` gibt es im aktuellen V1-Pfad keinen offiziellen `cmd/set`-/ACK-/Retry-Nutzpfad; genau so etwas wurde hier auch nicht erfunden.
+
+7. Teststatus
+- Ausgefuehrt:
+  - `platformio device list`
+  - `Get-CimInstance Win32_SerialPort`
+  - `docker compose config`
+  - `docker compose ps`
+  - Flow-Vergleich `build-flows.js` gegen `/data/flows.json`
+  - `platformio run -e master`
+  - `platformio run -e bat_sen`
+  - `platformio run -e master -t upload --upload-port COM3`
+  - `platformio run -e bat_sen -t upload --upload-port COM7`
+  - Live-MQTT-Subscribe ohne retained Altlasten auf `smarthome/node/bat_sen_01/#`
+  - Dual-Serial-Capture auf `COM3` und `COM7`
+  - SQLite-Abfragen auf `devices`, `device_last_state`, `audit_log`
+  - Influx-Query fuer `node_id = bat_sen_01`
+- Nicht ausgefuehrt:
+  - Deep-Sleep-Test
+  - Mehrgeraetebetrieb
+  - neue Server- oder Dashboard-Features
+- Ergebnis:
+  - offizieller `bat_sen_01`-Servernachweis bestanden
+
+8. Lehrerblick
+- Welche Eigenleistung steckt in diesem Stand?
+  - den offiziellen Pfad nicht aus alten Restdaten herbeigeredet, sondern als neuen abgegrenzten Lauf erzwungen
+  - aktiven Flow-Stand und aktiven Firmware-Stand vorab verifiziert
+  - reale Artefakte aus Serial, MQTT, SQLite und Influx auf denselben Lauf zusammengezogen
+- Was wurde nur als Referenz genutzt?
+  - die bereits vorhandene lokale `bat_sen`-Evidenz aus `beta36`, `beta38`, `beta39`
+  - die versionierte Serverbasis und das lokale Runbook
+- Warum ist der Stand fachlich nachvollziehbar?
+  - weil Portidentifikation, Reflash, Dual-Serial, Live-MQTT, SQLite und Influx dieselbe neue Zeitachse treffen statt lose Behauptungen zu bleiben

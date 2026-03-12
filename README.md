@@ -29,7 +29,7 @@ server (Mosquitto + Node-RED + InfluxDB + SQLite)
 - `net_erl`: netzbetriebener Ein-Relais-Node fuer einfache Schaltpfade.
 - `net_zrl`: netzbetriebener Zwei-Relais-Node; allgemeine Zwei-Relais-Basis, Cover-Logik nur im Cover-Modus.
 - `net_sen`: netzbetriebener Sensor-Node; der aktuell belegte reale Sensorpfad nutzt DHT22 auf `GPIO6`.
-- `bat_sen`: batteriebetriebener Sensor-/Event-Node; der ADC-basierte Batteriepfad mit expliziten Batterieprofilen ist im Firmware-Stand implementiert, aber noch ohne eigenen realen Hardware-Nachweis am Zielgeraet.
+- `bat_sen`: batteriebetriebener Sensor-/Event-Node; lokaler ADC-Pfad auf `GPIO4`, offizieller realer Serverpfad bis MQTT `meta/status/state`, SQLite und Influx sowie ein fokussierter Real-Langlauf sind belegt. Offen bleiben die endgueltige Batterieprofilwahl und spaetere Deep-Sleep-/Mehrgeraeteaussagen.
 
 Alle fuenf Geraete liegen als PlatformIO-Environments unter `firmware/platformio.ini`.
 
@@ -52,12 +52,12 @@ Die belastbare Statusquelle ist `docs/14_test_und_nachweisstand.md`. Dort zaehle
 - `net_sen_01`: lokaler Bring-up und offizieller Serverpfad mit realem DHT22 auf `GPIO6` bis MQTT `meta/status/state`, SQLite und Influx sind belegt.
 - Server-V1: MQTT-Ingest, SQLite-Ablage, Influx-Schreibpfad und SQLite-Audit fuer ausgehende `cmd/set`-Publishes sind belegt.
 - Test-only Servervalidierung: Fake-Master-Harness und getrennte `[SIM]`-Dashboard-Sicht fuer `sim_*` sind lokal belegt, bleiben aber ausdruecklich `simulation` und kein Hardware-Nachweis.
-- `bat_sen`: GPIO4-ADC-Pfad, fester Spannungsteiler und explizite Batterieprofile sind im Firmware-Stand vorhanden; ein eigener realer Hardware-Nachweis auf dem echten Geraet fehlt noch.
+- `bat_sen`: lokaler ADC-/Handshake-Basispfad, offizieller Serverpfad bis MQTT `meta/status/state`, SQLite und Influx sowie ein fokussierter Real-Langlauf sind belegt; offen bleiben endgueltige Batterieprofilwahl, Deep-Sleep-Rueckkehr und Mehrgeraetebetrieb.
 
 Offen bleiben vor allem:
 
-- reale `bat_sen`-Hardwarebasis am echten Geraet inklusive Verifikation von ADC-Pfad und Batterieprofil
-- weitere offizielle Nachweise ausserhalb der Pilotpfade `net_erl_01`, `net_zrl_01`, `net_sen_01` und der getrennten `sim_*`-Servervalidierung
+- endgueltige reale Batterieprofilwahl fuer das konkrete `bat_sen_01`-Board und spaetere Deep-Sleep-Rueckkehr erst bei implementiertem Sleep-Pfad
+- weitere offizielle Nachweise jenseits der bereits belegten Einzelpfade und der getrennten `sim_*`-Servervalidierung
 - Mehrgeraetebetrieb und ein vollstaendiger Gesamtprojektnachweis
 
 ## Server-Stack
@@ -92,7 +92,7 @@ Diese Bereiche sind Hilfsstruktur fuer kontrollierte Arbeit am Altbestand, nicht
 
 ## Naechste reale Luecke
 
-Die naechste harte Luecke ist `bat_sen`: den bereits implementierten ADC-Pfad und das tatsaechliche Batterieprofil am echten Geraet gegen reale Messung plausibilisieren und daraus den ersten sauberen Hardware-Nachweis machen. Erst danach lohnen weitere `bat_sen`-Varianten, weitere offizielle Nachweise jenseits der bisherigen Pilotpfade und bessere Mindestdoku fuer die Hardware-Unterordner.
+Die naechste harte Luecke ist nicht mehr der nackte `bat_sen`-Grundpfad, sondern die ehrliche Restarbeit nach dem jetzt belegten Einzelgeraet: reale Batteriechemie bzw. Profilwahl fuer `bat_sen_01`, Deep-Sleep-Rueckkehr erst bei spaeter implementiertem Sleep-Pfad, weitere offizielle Nachweise jenseits der bisherigen Einzelpfade und belastbarer Mehrgeraetebetrieb.
 
 ## Einstieg
 

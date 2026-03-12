@@ -1,0 +1,99 @@
+Stand: beta41
+Datei: beta41_bat_sen_langlauf.txt
+Datum: 2026-03-12
+Autor: Codex
+Status: fokussierte Real-Langzeitvalidierung fuer `bat_sen_01` auf dem aktuellen Einzelpfad, kein Deep-Sleep- oder Mehrgeraetenachweis
+
+1. Anlass
+- Nach `beta40` war der offizielle `bat_sen_01`-Serverpfad erstmals sauber belegt.
+- Der naechste sinnvolle Schritt war kein aufgeblasener "24h"-Anspruch, sondern ein praktischer, ehrlicher Langlauf auf genau diesem Pfad.
+- Ziel war deshalb nur:
+  - stabile Praesenz ueber mehrere echte 5-Minuten-Zyklen
+  - wiederholte Serversicht, soweit dieser Node sie im aktuellen Stand ueber periodische `state`-Publishes liefert
+  - keine offensichtlichen Batterie-/State-Regressionsspruenge
+  - keine offensichtlichen Reboots, HELLO-Schleifen oder Handshake-Unruhe
+
+2. Aenderung
+- Keine Codeaenderung.
+- Der fokussierte Langlauf startete ab Auswertungszeit `2026-03-12T15:21:20.6639516Z`.
+- Artefaktordner: `tmp/bat_sen_longrun/20260312_162120/`
+- Real gefahren wurden:
+  - `980 s` Dual-Serial-Capture auf `COM3` und `COM7` ohne Reset
+  - paralleler Live-MQTT-Subscribe ohne retained Altlasten auf `smarthome/node/bat_sen_01/state`
+  - Ende des MQTT-Laufs nach `3` neuen `state`-Publishes
+  - anschliessende SQLite- und Influx-Abfragen gegen denselben Zeitfilter
+
+3. Reale Befunde
+- Reale serielle Capture in `tmp/bat_sen_longrun/20260312_162120/serial_capture/20260312_162122/combined.log`:
+  - `2026-03-12T16:22:50.755+01:00 [master COM3] [INFO] HEARTBEAT von bat_sen_01 (uptime=300s)`
+  - `2026-03-12T16:22:50.755+01:00 [bat_sen COM7] [INFO] HEARTBEAT gesendet`
+  - `2026-03-12T16:22:51.083+01:00 [master COM3] [INFO] STATE_REPORT von bat_sen_01 verarbeitet`
+  - `2026-03-12T16:22:51.083+01:00 [bat_sen COM7] [INFO] BATTERY_VALIDATION phase=state_report profile=coin_3v_primary adc_mv=1472 battery_mv=2944 battery_pct=94`
+  - `2026-03-12T16:27:50.728+01:00 [master COM3] [INFO] HEARTBEAT von bat_sen_01 (uptime=600s)`
+  - `2026-03-12T16:27:51.056+01:00 [master COM3] [INFO] STATE_REPORT von bat_sen_01 verarbeitet`
+  - `2026-03-12T16:32:50.730+01:00 [master COM3] [INFO] HEARTBEAT von bat_sen_01 (uptime=900s)`
+  - `2026-03-12T16:32:51.059+01:00 [master COM3] [INFO] STATE_REPORT von bat_sen_01 verarbeitet`
+- In derselben Combined-Capture traten innerhalb der `980 s` keine `WARN`, keine `FEHLER`, keine neuen `HELLO`, keine `HELLO_ACK` und keine Reset-/Disconnect-Linien auf. Der beobachtete Betrieb war also ruhig und ohne offensichtliche Reboot-Schleifen.
+- Reale Live-MQTT-Sicht in `tmp/bat_sen_longrun/20260312_162120/mqtt_state_live.log`:
+  - `2026-03-12T15:22:51+0000 .../state {"battery_pct":94,"battery_mv":2944,...}`
+  - `2026-03-12T15:27:51+0000 .../state {"battery_pct":94,"battery_mv":2944,...}`
+  - `2026-03-12T15:32:51+0000 .../state {"battery_pct":94,"battery_mv":2944,...}`
+- Reale SQLite-Sicht ab Laufstart:
+  - `audit_log` zeigte neue `state ingest`-Zeilen um
+    - `2026-03-12T15:22:51.047Z`
+    - `2026-03-12T15:27:51.054Z`
+    - `2026-03-12T15:32:51.058Z`
+    - `2026-03-12T15:37:51.182Z`
+  - dieser vierte serverseitige `state` lag kurz nach dem Ende des Live-MQTT-/Serial-Fensters und zeigt, dass der Pfad auch direkt danach weiterlief
+  - `online_false_count = 0` fuer `bat_sen_01` ab Laufstart
+  - `device_last_state.status_json` blieb `online:true`
+  - `device_last_state.state_json` blieb fachlich stabil auf `battery_pct = 94`, `battery_mv = 2944`, `button_flags = 0`, `fault = false`
+- Reale Influx-Sicht ab Laufstart:
+  - `battery_mv`-Punkte zu `15:22:51.047Z`, `15:27:51.054Z`, `15:32:51.058Z`, `15:37:51.182Z`, jeweils `_value = 2944`
+  - `battery_pct`-Punkte zu denselben Zeiten, jeweils `_value = 94`
+
+4. Begruendung
+- Der fokussierte Langlauf auf dem aktuellen Realpfad ist damit bestanden:
+  - mindestens drei voll beobachtete 5-Minuten-Zyklen in Serial und Live-MQTT
+  - dazu passende SQLite- und Influx-Fortschreibung
+  - keine `online:false`-Umschlaege
+  - keine offensichtlichen Neustarts oder HELLO-Re-Handshakes
+  - keine offensichtlichen Batterie-/State-Regressionsspruenge im beobachteten Fenster
+- Die Aussage bleibt absichtlich eng. Sie belegt Stabilitaet ueber mehrere Zyklen, nicht irgendeine grossspurige Dauerbetriebslegende.
+
+5. Verbesserungseffekt
+- `bat_sen_01` ist im Repo jetzt nicht mehr nur als einmaliger Serverproof belegt, sondern auch als praktischer, wiederholt sichtbarer Realpfad ueber mehrere 5-Minuten-Intervalle.
+- Die Aussage "batteriebetriebene Basis ist aktuell wenigstens auf dem einfachen Dauerpfad stabil sichtbar" ist damit fuer diesen Stand belastbar.
+- Offene Restpunkte koennen jetzt klar enger formuliert werden, statt denselben Grundpfad immer wieder neu zu beweisen.
+
+6. Risiken / Trade-offs
+- Deep-Sleep wurde bewusst nicht getestet, weil Deep-Sleep im aktuellen Firmware-Stand nicht aktiv ist. Wer daraus trotzdem eine Sleep-Aussage macht, luegt.
+- Mehrgeraetebetrieb wurde nicht getestet.
+- Die reale Batteriechemie des Boards bleibt weiter offen; damit bleibt auch die endgueltige Bewertung von `battery_pct` offen.
+- Reed-, Regen- und Tasterpfade wurden in diesem Langlauf nicht aktiv ausgeloest. Validiert wurde der aktuelle ruhige Basiszustand, nicht jeder moegliche Eingangspfad.
+- Der vierte serverseitige `state` liegt kurz nach dem Ende des Live-MQTT-/Serial-Fensters. Das ist zusaetzliche Serversicht, aber kein vierter voll paralleler Capture-Zyklus.
+
+7. Teststatus
+- Ausgefuehrt:
+  - `python tools\serial_log_parser\dual_serial_capture.py --port master=COM3 --port bat_sen=COM7 --duration 980 --output-root tmp\bat_sen_longrun\20260312_162120\serial_capture --reset-mode none`
+  - Live-MQTT-Subscribe ohne retained Altlasten auf `smarthome/node/bat_sen_01/state` bis `3` neue Publishes
+  - SQLite-Abfragen auf `audit_log`, `device_last_state` und `online:false`-Vorkommen
+  - Influx-Query fuer `node_id = bat_sen_01` ab Laufstart
+- Nicht ausgefuehrt:
+  - Reset-/Offline-Test
+  - Deep-Sleep-Rueckkehr
+  - Mehrgeraetebetrieb
+  - aktive Reed-/Button-/Rain-Ereignisse
+- Ergebnis:
+  - fokussierte Langzeitvalidierung fuer `bat_sen_01` auf dem aktuellen Realpfad bestanden
+
+8. Lehrerblick
+- Welche Eigenleistung steckt in diesem Stand?
+  - den Langlauf auf die real erreichbare Aussage begrenzt statt ihn kuenstlich aufzublasen
+  - serielle Sicht, Live-MQTT, SQLite und Influx sauber auf denselben Zeitfilter gezogen
+  - negative Evidenz aktiv geprueft: keine `online:false`, keine HELLO-Schleifen, keine Warnungen im Capture
+- Was wurde nur als Referenz genutzt?
+  - der in `beta40` bereits belegte offizielle Serverpfad
+  - die bekannten `5 min`-Intervalle aus dem aktuellen `bat_sen`-Stand
+- Warum ist der Stand fachlich nachvollziehbar?
+  - weil die wiederholten Zyklen nicht nur auf einer Ebene sichtbar sind, sondern gleichzeitig in Funk/Serial, MQTT und der serverseitigen Persistenz zusammenpassen

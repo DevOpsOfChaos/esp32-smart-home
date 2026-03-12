@@ -24,7 +24,7 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `03_protokoll.md`: ESP-NOW-Protokoll und Paketregeln
 - `04_mqtt_topics.md`: MQTT-Vertrag
 - `05_hardware_geraete.md`: Basisgeraete und Sondergeraete
-- `BAT_SEN_ADC_FACT_GAP.md`: aktueller `bat_sen`-ADC-Stand, offene Hardwarefakten und naechster Realnachweis
+- `BAT_SEN_ADC_FACT_GAP.md`: aktueller `bat_sen`-ADC-Stand, erledigte Realnachweise und ehrliche Restpunkte
 - `15_hardware_pinstandard.md`: verbindlicher Pinstandard
 
 ## Test und Nachweis
@@ -48,7 +48,7 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `../firmware/test/*/README.md`: Testordner-Rollen
 
 ## Offene Doku-Luecken
-- reale `bat_sen`-Hardwarevalidierung am echten Geraet inklusive ADC-/Batterieprofil-Plausibilisierung
-- weitere offizielle Nachweise ausserhalb der belegten `net_erl_01`-/`net_zrl_01`-Pilotpfade, des belegten `net_sen_01`-Serverpfads und der getrennten `sim_*`-Servervalidierung
+- endgueltige reale Batterieprofilwahl fuer `bat_sen_01` und spaetere Deep-Sleep-Rueckkehrvalidierung erst bei implementiertem Sleep-Pfad
+- weitere offizielle Nachweise jenseits der belegten Einzelpfade `net_erl_01`, `net_zrl_01`, `net_sen_01`, `bat_sen_01` und der getrennten `sim_*`-Servervalidierung
 - vollstaendiger Gesamtprojektnachweis ueber die bisherigen realen Pilotpfade und die getrennte Simulation hinaus
 - Hardware-README-Dateien enthalten bisher nur Platzhalter
