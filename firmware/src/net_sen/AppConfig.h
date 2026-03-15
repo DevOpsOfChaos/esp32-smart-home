@@ -39,6 +39,19 @@ constexpr uint32_t PRESSURE_DELTA_PA = 150UL;
 constexpr uint16_t AQI_DELTA = 1U;
 constexpr uint16_t TVOC_DELTA_PPB = 25U;
 constexpr uint16_t ECO2_DELTA_PPM = 50U;
+constexpr uint32_t SENSOR_I2C_CLOCK_HZ = 100000UL;
+constexpr uint16_t SENSOR_I2C_TIMEOUT_MS = 50U;
+constexpr bool SENSOR_I2C_SCAN_ON_BEGIN = true;
+constexpr unsigned long SENSOR_I2C_RECOVER_COOLDOWN_MS = 5000UL;
+constexpr unsigned long DHT_WARMUP_MS = 2500UL;
+constexpr unsigned long DHT_READ_INTERVAL_MS = 2500UL;
+constexpr unsigned long DHT_DIAG_HINT_INTERVAL_MS = 15000UL;
+constexpr unsigned long I2C_ENV_WARMUP_MS = 1000UL;
+constexpr unsigned long I2C_ENV_READ_INTERVAL_MS = 5000UL;
+constexpr unsigned long I2C_DIAG_HINT_INTERVAL_MS = 15000UL;
+constexpr unsigned long LIGHT_READ_INTERVAL_MS = 2500UL;
+constexpr unsigned long AIR_READ_INTERVAL_MS = 5000UL;
+constexpr unsigned long AIR_WARMUP_MS = 120000UL;
 
 // LD2410 nutzt spaeter typischerweise 256000 Baud.
 // In diesem Stand reserviert der Wert nur die gemeinsame Presence-Konfiguration;
@@ -53,12 +66,17 @@ constexpr unsigned long PRESENCE_UART_BAUD = 256000UL;
 #define NET_SEN_AIR_PROVIDER SH_NET_SEN_AIR_PROVIDER_NONE
 #endif
 
+#ifndef NET_SEN_LIGHT_PROVIDER
+#define NET_SEN_LIGHT_PROVIDER SH_NET_SEN_LIGHT_PROVIDER_NONE
+#endif
+
 #ifndef NET_SEN_MOTION_PROVIDER
 #define NET_SEN_MOTION_PROVIDER SH_NET_SEN_MOTION_PROVIDER_NONE
 #endif
 
 constexpr uint8_t NET_SEN_ENV_PROVIDER_KIND = NET_SEN_ENV_PROVIDER;
 constexpr uint8_t NET_SEN_AIR_PROVIDER_KIND = NET_SEN_AIR_PROVIDER;
+constexpr uint8_t NET_SEN_LIGHT_PROVIDER_KIND = NET_SEN_LIGHT_PROVIDER;
 constexpr uint8_t NET_SEN_MOTION_PROVIDER_KIND = NET_SEN_MOTION_PROVIDER;
 
 constexpr unsigned long LOOP_INTERVAL_MS = 50UL;

@@ -7,12 +7,22 @@
 // net_sen environment providers
 #define SH_NET_SEN_ENV_PROVIDER_NONE          0U
 #define SH_NET_SEN_ENV_PROVIDER_DHT22         1U
+#define SH_NET_SEN_ENV_PROVIDER_BMP280        2U
+#define SH_NET_SEN_ENV_PROVIDER_BME280        3U
+#define SH_NET_SEN_ENV_PROVIDER_SHT41         4U
 #define SH_NET_SEN_ENV_PROVIDER_BMP280_STUB   101U
 #define SH_NET_SEN_ENV_PROVIDER_BME280_STUB   102U
+#define SH_NET_SEN_ENV_PROVIDER_SHT41_STUB    103U
 
 // net_sen air-quality providers
 #define SH_NET_SEN_AIR_PROVIDER_NONE          0U
+#define SH_NET_SEN_AIR_PROVIDER_ENS160        1U
 #define SH_NET_SEN_AIR_PROVIDER_ENS160_STUB   101U
+
+// net_sen light providers
+#define SH_NET_SEN_LIGHT_PROVIDER_NONE            0U
+#define SH_NET_SEN_LIGHT_PROVIDER_VEML7700        1U
+#define SH_NET_SEN_LIGHT_PROVIDER_VEML7700_STUB   101U
 
 // shared presence providers
 #define SH_PRESENCE_PROVIDER_NONE             0U

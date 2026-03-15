@@ -43,18 +43,35 @@
 #include "../../lib/ShSensors/src/NetSenModules.h"
 #include <ShNodeProvisioning.h>
 
+#if NET_SEN_ENV_PROVIDER == SH_NET_SEN_ENV_PROVIDER_BMP280 && !SHSENSORS_HAS_ADAFRUIT_BMP280
+  #error "NET_SEN_ENV_PROVIDER=BMP280 braucht Adafruit_BMP280."
+#endif
+
+#if NET_SEN_ENV_PROVIDER == SH_NET_SEN_ENV_PROVIDER_BME280 && !SHSENSORS_HAS_ADAFRUIT_BME280
+  #error "NET_SEN_ENV_PROVIDER=BME280 braucht Adafruit_BME280."
+#endif
+
+#if NET_SEN_ENV_PROVIDER == SH_NET_SEN_ENV_PROVIDER_SHT41 && !SHSENSORS_HAS_ADAFRUIT_SHT4X
+  #error "NET_SEN_ENV_PROVIDER=SHT41 braucht Adafruit_SHT4x."
+#endif
+
+#if NET_SEN_AIR_PROVIDER == SH_NET_SEN_AIR_PROVIDER_ENS160 && !SHSENSORS_HAS_SCIOSENSE_ENS160
+  #error "NET_SEN_AIR_PROVIDER=ENS160 braucht ScioSense_ENS160."
+#endif
+
+#if NET_SEN_LIGHT_PROVIDER == SH_NET_SEN_LIGHT_PROVIDER_VEML7700 && !SHSENSORS_HAS_ADAFRUIT_VEML7700
+  #error "NET_SEN_LIGHT_PROVIDER=VEML7700 braucht Adafruit_VEML7700."
+#endif
+
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "NET-SEN";
 constexpr char DATEI_VERSION[] = "0.3.0";
 const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-constexpr unsigned long DHT_WARMUP_MS = 2500UL;
-constexpr unsigned long DHT_READ_INTERVAL_MS = 2500UL;
-constexpr unsigned long DHT_DIAG_HINT_INTERVAL_MS = 15000UL;
-constexpr unsigned long AIR_READ_INTERVAL_MS = 5000UL;
 SmartHome::ShNodeBase::NodeProvisioning provisioning;
 
 using EnvironmentProvider = SmartHome::ShSensors::EnvironmentProvider<NET_SEN_ENV_PROVIDER_KIND>;
 using AirQualityProvider = SmartHome::ShSensors::AirQualityProvider<NET_SEN_AIR_PROVIDER_KIND>;
+using LightProvider = SmartHome::ShSensors::LightProvider<NET_SEN_LIGHT_PROVIDER_KIND>;
 using PresenceProvider = SmartHome::ShSensors::PresenceProvider<NET_SEN_MOTION_PROVIDER_KIND>;
 
 constexpr bool NET_SEN_ERWEITERTER_STATE =
@@ -63,19 +80,46 @@ constexpr uint16_t NET_SEN_CAPS =
     SmartHome::ShSensors::buildNetSenCaps<
         NET_SEN_ENV_PROVIDER_KIND,
         NET_SEN_AIR_PROVIDER_KIND,
+        NET_SEN_LIGHT_PROVIDER_KIND,
         NET_SEN_MOTION_PROVIDER_KIND>();
+
+constexpr bool NET_SEN_ENV_IS_DHT22 =
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_DHT22;
+constexpr bool NET_SEN_REQUIRES_I2C_PINS =
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BMP280 ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BME280 ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_SHT41 ||
+    NET_SEN_AIR_PROVIDER_KIND == SH_NET_SEN_AIR_PROVIDER_ENS160 ||
+    NET_SEN_LIGHT_PROVIDER_KIND == SH_NET_SEN_LIGHT_PROVIDER_VEML7700;
+constexpr unsigned long NET_SEN_ENV_WARMUP_MS =
+    NET_SEN_ENV_IS_DHT22 ? DHT_WARMUP_MS : I2C_ENV_WARMUP_MS;
+constexpr unsigned long NET_SEN_ENV_READ_INTERVAL_MS =
+    NET_SEN_ENV_IS_DHT22 ? DHT_READ_INTERVAL_MS : I2C_ENV_READ_INTERVAL_MS;
+constexpr unsigned long NET_SEN_ENV_DIAG_HINT_INTERVAL_MS =
+    NET_SEN_ENV_IS_DHT22 ? DHT_DIAG_HINT_INTERVAL_MS : I2C_DIAG_HINT_INTERVAL_MS;
 
 static_assert(
     NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_DHT22 ||
     NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_NONE ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BMP280 ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BME280 ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_SHT41 ||
     NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BMP280_STUB ||
-    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BME280_STUB,
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BME280_STUB ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_SHT41_STUB,
     "NET-SEN env provider unbekannt.");
 
 static_assert(
     NET_SEN_AIR_PROVIDER_KIND == SH_NET_SEN_AIR_PROVIDER_NONE ||
+    NET_SEN_AIR_PROVIDER_KIND == SH_NET_SEN_AIR_PROVIDER_ENS160 ||
     NET_SEN_AIR_PROVIDER_KIND == SH_NET_SEN_AIR_PROVIDER_ENS160_STUB,
     "NET-SEN air provider unbekannt.");
+
+static_assert(
+    NET_SEN_LIGHT_PROVIDER_KIND == SH_NET_SEN_LIGHT_PROVIDER_NONE ||
+    NET_SEN_LIGHT_PROVIDER_KIND == SH_NET_SEN_LIGHT_PROVIDER_VEML7700 ||
+    NET_SEN_LIGHT_PROVIDER_KIND == SH_NET_SEN_LIGHT_PROVIDER_VEML7700_STUB,
+    "NET-SEN light provider unbekannt.");
 
 static_assert(
     NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_NONE ||
@@ -88,6 +132,10 @@ static_assert(
 static_assert(
     NET_SEN_ENV_PROVIDER_KIND != SH_NET_SEN_ENV_PROVIDER_DHT22 || PIN_DHT22_DATA >= 0,
     "NET-SEN DHT22 provider braucht PIN_DHT22_DATA.");
+
+static_assert(
+    !NET_SEN_REQUIRES_I2C_PINS || (PIN_SENSOR_SDA >= 0 && PIN_SENSOR_SCL >= 0),
+    "NET-SEN I2C-Sensorpfade brauchen gueltige SDA/SCL-Pins.");
 
 static_assert(
     NET_SEN_MOTION_PROVIDER_KIND != SH_NET_SEN_MOTION_PROVIDER_PIR_PIN || PIN_PRESENCE_OUT >= 0,
@@ -108,17 +156,35 @@ struct NodeState {
 
 NodeState nodeStatus = {};
 
+constexpr SmartHome::ShSensors::I2cBusConfig NET_SEN_I2C_CONFIG = {
+    PIN_SENSOR_SDA,
+    PIN_SENSOR_SCL,
+    SENSOR_I2C_CLOCK_HZ,
+    SENSOR_I2C_TIMEOUT_MS,
+    SENSOR_I2C_SCAN_ON_BEGIN,
+    SENSOR_I2C_RECOVER_COOLDOWN_MS};
+
 const SmartHome::ShSensors::EnvironmentProviderConfig ENVIRONMENT_CONFIG = {
     PIN_DHT22_DATA,
-    DHT_WARMUP_MS,
-    DHT_READ_INTERVAL_MS,
-    DHT_DIAG_HINT_INTERVAL_MS,
+    NET_SEN_I2C_CONFIG,
+    NET_SEN_ENV_WARMUP_MS,
+    NET_SEN_ENV_READ_INTERVAL_MS,
+    NET_SEN_ENV_DIAG_HINT_INTERVAL_MS,
     TEMP_DELTA_01C,
     HUM_DELTA_01PCT,
     PRESSURE_DELTA_PA};
 
+const SmartHome::ShSensors::LightProviderConfig LIGHT_CONFIG = {
+    NET_SEN_I2C_CONFIG,
+    LIGHT_READ_INTERVAL_MS,
+    I2C_DIAG_HINT_INTERVAL_MS,
+    LUX_DELTA};
+
 const SmartHome::ShSensors::AirQualityProviderConfig AIR_CONFIG = {
+    NET_SEN_I2C_CONFIG,
+    AIR_WARMUP_MS,
     AIR_READ_INTERVAL_MS,
+    I2C_DIAG_HINT_INTERVAL_MS,
     AQI_DELTA,
     TVOC_DELTA_PPB,
     ECO2_DELTA_PPM};
@@ -131,6 +197,7 @@ const SmartHome::ShSensors::PresenceProviderConfig PRESENCE_CONFIG = {
 
 EnvironmentProvider environmentProvider(ENVIRONMENT_CONFIG);
 AirQualityProvider airQualityProvider(AIR_CONFIG);
+LightProvider lightProvider(LIGHT_CONFIG);
 PresenceProvider presenceProvider(PRESENCE_CONFIG);
 
 bool istBroadcastMac(const uint8_t* mac) {
@@ -333,6 +400,7 @@ bool sendeEvent(uint8_t eventType, uint8_t trigger, uint8_t param1, uint16_t par
 bool sensorStateBereit() {
     return environmentProvider.isReady() &&
            airQualityProvider.isReady() &&
+           lightProvider.isReady() &&
            presenceProvider.isReady();
 }
 
@@ -348,6 +416,7 @@ void initialisiereHardware() {
     const unsigned long bootMs = millis();
     environmentProvider.begin(bootMs, logf);
     airQualityProvider.begin(bootMs, logf);
+    lightProvider.begin(bootMs, logf);
     presenceProvider.begin(logf);
 }
 
@@ -390,6 +459,8 @@ void gibStartmeldungAus() {
     Serial.println(environmentProvider.name());
     Serial.print("Luftqualitaet: ");
     Serial.println(airQualityProvider.name());
+    Serial.print("Lux: ");
+    Serial.println(lightProvider.name());
     Serial.print("Presence: ");
     Serial.println(presenceProvider.name());
     Serial.print("State-Format: ");
@@ -407,6 +478,8 @@ void aktualisiereSensoren() {
 
     const SmartHome::ShSensors::ProviderUpdate envUpdate =
         environmentProvider.poll(jetzt, nodeStatus.sensor, logf);
+    const SmartHome::ShSensors::ProviderUpdate lightUpdate =
+        lightProvider.poll(jetzt, nodeStatus.sensor, logf);
     const SmartHome::ShSensors::ProviderUpdate airUpdate =
         airQualityProvider.poll(jetzt, nodeStatus.sensor, logf);
     const SmartHome::ShSensors::ProviderUpdate presenceUpdate =
@@ -414,10 +487,15 @@ void aktualisiereSensoren() {
     const bool motionChanged =
         SmartHome::ShSensors::syncNetSenMotionFromPresence(nodeStatus.sensor);
 
-    const bool faultJetzt = envUpdate.fault || airUpdate.fault;
+    const bool faultJetzt = envUpdate.fault || lightUpdate.fault || airUpdate.fault;
     nodeStatus.sensor.fault = faultJetzt;
 
-    if (envUpdate.changed || airUpdate.changed || presenceUpdate.changed || motionChanged || faultVorher != faultJetzt) {
+    if (envUpdate.changed ||
+        lightUpdate.changed ||
+        airUpdate.changed ||
+        presenceUpdate.changed ||
+        motionChanged ||
+        faultVorher != faultJetzt) {
         nodeStatus.state_report_offen = true;
     }
 
