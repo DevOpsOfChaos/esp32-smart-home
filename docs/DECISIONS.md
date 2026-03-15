@@ -128,5 +128,35 @@ Grund:
 Weitere Mikrotests auf halbfertiger Firmware fragmentieren die Codebasis und verwischen, was wirklich belegt ist. Die robustere Reihenfolge ist:
 bestehende Referenzpfade stabil halten, Erweiterungen code-seitig ehrlich vorbereiten, Stub- und Realpfade trennen und erst dann Hardware gebuendelt pruefen.
 
+## D-019 Sondermodule wachsen aus den vorhandenen Basisfamilien
+Entscheidung:
+Sondermodule entstehen aus `master`, `net_erl`, `net_zrl`, `net_sen` und `bat_sen` ueber Feature-Auswahl, Pin-Mapping und Profile. Es gibt keine neue Basisklasse fuer jedes Spezialgeraet. Nicht jedes Feature gehoert auf jeden Basistyp.
+
+Grund:
+Wer fuer jede Variante einen neuen Geraetetyp erfindet, bekommt wieder Namensvielfalt statt Architektur. Die Basisfamilien bleiben nur dann wiederverwendbar, wenn Sondergeraete als disziplinierte Ableitungen wachsen und unpassende Sensorik nicht auf jede Plattform gekippt wird.
+
+## D-020 Reifestufen muessen explizit getrennt bleiben
+Entscheidung:
+Im Repo werden mindestens diese Zustaende sauber unterschieden:
+`nicht vorgesehen`, `architekturvorbereitet`, `compile/stub vorbereitet` und `real hardware belegt`.
+Build- oder Stub-Support ist kein Hardware-Nachweis.
+
+Grund:
+Ohne diese Trennung werden vorbereitete Pfade schnell als `eigentlich schon fertig` verkauft. Das ist fachlich unserioes und zerstoert die Aussagekraft von Doku, Review und spaeteren Nachweisen.
+
+## D-021 Nodes bekommen einen einheitlichen Setup-, Provisionierungs- und Resetvertrag
+Entscheidung:
+Wenn auf einem Node keine Master-MAC persistent gespeichert ist, muss er automatisch in einen lokalen Setup-Modus starten. Dieser besteht aus gehostetem WLAN und einfachem lokalem Webserver. Die Setup-Seite darf per QR-/GET-Parameter eine Master-MAC uebernehmen, muss sie aber vor dem Speichern sichtbar zur Bestaetigung anzeigen. Relevante Felder duerfen mit Defaults oder gespeicherten Werten vorbefuellt sein. Ein 5-Sekunden-Halten des Boot-Tasters oeffnet den Setup-Modus erneut, ein 10-Sekunden-Halten loescht die gespeicherte Bindung und startet in den Setup-Modus zurueck. `bat_sen`-Sleep-Werte werden dabei benutzerseitig in Minuten/Stunden gefuehrt, nicht in Millisekunden.
+
+Grund:
+Node-Inbetriebnahme darf nicht an hart einkompilierten Einzelwerten oder seriellem Gefrickel haengen. Gleichzeitig darf der Setup-Pfad nicht zum zweiten Konfigurationssystem auswuchern. Ein einfacher, einheitlicher Vertrag ist robuster und spaeter besser wartbar.
+
+## D-022 Server-Autoritaet bleibt ueber lokaler Bequemlichkeitslogik
+Entscheidung:
+Der Server hat beim fachlichen Zielzustand das letzte Wort. Lokale Automationen wie PIR-/Radar-getriggerte Relaislogik sind erlaubt, bleiben aber uebersteuerbar. Ein lokal automatisch eingeschaltetes Licht muss serverseitig wieder ausschaltbar bleiben. Relaisgeraete behalten trotzdem eine lokale manuelle Tasterfunktion.
+
+Grund:
+Ohne klare Autoritaet entstehen widerspruechliche Schaltquellen und unerklaerbare Zustaende. Rein lokale Automationshoheit waere genauso falsch wie das Weglassen lokaler Bedienbarkeit am Geraet.
+
 ## Pflegehinweis
 Neue Architektur- oder Arbeitsentscheidungen hier kurz mit Entscheidung und Grund ergaenzen. Keine langen Rechtfertigungen, nur belastbare Regeln.

@@ -23,9 +23,12 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `01_architektur.md`: Zielarchitektur und harte Grenzen
 - `03_protokoll.md`: ESP-NOW-Protokoll und Paketregeln
 - `04_mqtt_topics.md`: MQTT-Vertrag
-- `05_hardware_geraete.md`: Basisgeraete und Sondergeraete
+- `05_hardware_geraete.md`: Basisgeraete und Verweis auf die aktuelle Sondermodul-Doku
 - `BAT_SEN_ADC_FACT_GAP.md`: aktueller `bat_sen`-ADC-Stand, erledigte Realnachweise und ehrliche Restpunkte
 - `15_hardware_pinstandard.md`: verbindlicher Pinstandard
+- `17_firmware_featurematrix.md`: Basistyp-Zustaendigkeit, Feature-Suitability und ehrliche Reifestufen
+- `18_setup_provisioning_reset.md`: verbindlicher Setup-, Provisionierungs- und Resetvertrag fuer Nodes
+- `19_sondermodule_roadmap.md`: aktuelle Sondermodule, ihre Basistyp-Ableitung und offene Reifepunkte
 
 ## Test und Nachweis
 - `06_testplan.md`: Soll-Pruefplan, keine Ist-Aussagen

@@ -1,6 +1,6 @@
 # Smart-Home-Projekt – Verbindliche Code-Vorgabe
 
-Stand: 2026-03-09  
+Stand: 2026-03-15
 Projekt: Dezentrales Smart-Home-System mit ESP32, ESP-NOW, MQTT und Node-RED  
 Geltungsbereich: **alle** Firmware-Dateien, Libraries, Testprogramme und Master-Programme des Projekts
 
@@ -789,3 +789,61 @@ Für dieses Projekt gilt:
 - **kein individuell verwachsener Stil pro Gerät**.
 
 Diese Vorgabe ist die Grundlage für alle weiteren Firmware-Dateien.
+
+---
+
+## 21. Stil-Addendum für den aktuellen modularen Firmware-Stand
+
+Der ältere Firmwarebestand hatte zwei brauchbare Stärken:
+
+- stark sichtbare Dateiköpfe
+- klar erkennbare Hardware-, Pin- und Timing-Blöcke am Dateianfang
+
+Diese Stärken bleiben gewollt. Nicht gewollt ist die alte Schattenseite:
+Copy-Paste-Ableger, vermischte Gerätestrukturen, wachsende `main.cpp`-Monolithen und Sonderarchitektur pro Einzelgerät.
+
+### 21.1 Sichtbarkeit bleibt Pflicht
+- Der Dateikopf bleibt groß, sofort erkennbar und projektweit ähnlich.
+- Abschnittstrenner müssen den Leser schnell zu Konfiguration, Pinout, Timing und Laufverhalten führen.
+- Wer erst tief im File erkennt, welche Hardware ein Gerät wirklich hat, hat die Vorgabe verfehlt.
+
+### 21.2 Frühe Leseblöcke bleiben früh
+Direkt am Anfang jeder relevanten Datei müssen klar sichtbar bleiben:
+
+- Geräteprofil / Variante / Device-Config
+- Pinout
+- Zeitwerte, Retries, Debounce-, Polling- und Timeout-Parameter
+- kurze Beschreibung des lokalen Hardwareverhaltens
+
+Der Leser muss oben im File verstehen können, was das Gerät tut und warum es so verdrahtet ist.
+
+### 21.3 Schwellen, Retries und Zeitwerte brauchen ein Warum
+Gerade bei Sensorik, Funk und Relais gilt:
+
+- Schwellwerte nicht nur nennen, sondern begründen
+- Retry-Zahlen nicht als Magiewerte stehen lassen
+- Debounce-, Hold-, Polling- und Timeout-Werte mit der realen Hardwarelogik erklären
+
+Die alte Gewohnheit „Wert steht halt da und wurde irgendwann mal probiert“ ist fachlich wertlos.
+
+### 21.4 Gute Lesbarkeit rechtfertigt keinen strukturellen Rückfall
+- Keine neue `main.cpp` nur deshalb, weil ein Sondergerät einen anderen Namen bekommt.
+- Keine Copy-Paste-Forks zwischen `master`, `net_erl`, `net_zrl`, `net_sen` und `bat_sen`.
+- Wiederverwendbare Sensor-, Eingangs- und Aktorpfade gehören in Shared-Libs oder klar markierte Helper, nicht in halbgelenkte Dateiduplikate.
+- Sichtbarkeit am Dateianfang ist Pflicht, aber sie ersetzt keine saubere Architekturtrennung.
+
+### 21.5 Sondergeräte wachsen aus Basistypen
+Wenn ein Sondergerät entsteht, dann aus:
+
+- bestehendem Basistyp
+- Feature-Auswahl
+- Pin-Mapping
+- Profil-/Variantenwahl
+
+Nicht aus:
+
+- neuer Gerätegrundklasse
+- stiller Sonderarchitektur
+- unkontrolliertem Mischstil pro Gerät
+
+Lesbarkeit oben im File und Disziplin in der Struktur sind kein Widerspruch. Beides ist gleichzeitig Pflicht.

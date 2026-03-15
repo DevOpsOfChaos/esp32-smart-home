@@ -1,0 +1,59 @@
+Stand: beta46
+Datei: beta46_docs_sensormatrix_setup_regeln_und_sondermodule.txt
+Datum: 2026-03-15
+Autor: Codex
+Status: Strategie- und Doku-Stand nachgezogen; kein neuer Hardware-Nachweis
+
+1. Anlass
+- Der Repo-Stand hatte bereits reale Referenzpfade fuer `master`, `net_erl`, `net_zrl`, `net_sen` mit DHT22 und `bat_sen`-Batteriemessung.
+- Die modulare Firmware-Vorbereitung fuer optionale `net_sen`-/`bat_sen`-Module war bereits erfolgt und build-validiert.
+- Was noch fehlte, war die harte strategische Einordnung:
+  welche Features auf welche Basisfamilie gehoeren, wie Sondermodule sauber abgeleitet werden, welche Setup-/Reset-Regeln kuenftig verbindlich sind und wie Reifestufen ehrlich benannt werden.
+
+2. Aenderung
+- `docs/DECISIONS.md` wurde um dauerhafte Architekturregeln erweitert:
+  - Sondermodule wachsen aus den vorhandenen Basisfamilien
+  - Reifestufen bleiben explizit getrennt
+  - Nodes bekommen einen einheitlichen Setup-/Provisionierungs-/Resetvertrag
+  - Server-Autoritaet bleibt ueber lokaler Komfortlogik
+- `docs/CURRENT_SPRINT.md` und `docs/TASK_QUEUE.md` wurden auf die code-first-Strategie mit spaeteren groesseren Hardwarewellen nachgezogen.
+- `docs/02_codevorgabe.md` bekam ein Stil-Addendum:
+  sichtbare Dateikoepe, klare Trenner, fruehe Config-/Pin-/Timing-Bloecke und begruendete Grenzwerte bleiben gewollt, aber ohne Rueckfall in Copy-Paste- und Sonderarchitektur-Chaos.
+- Neue fokussierte Docs wurden angelegt:
+  - `docs/17_firmware_featurematrix.md`
+  - `docs/18_setup_provisioning_reset.md`
+  - `docs/19_sondermodule_roadmap.md`
+- `docs/README.md` und `docs/05_hardware_geraete.md` wurden nachgezogen, damit die neuen Regeln auffindbar und nicht von aelteren Uebersichten unterlaufen werden.
+
+3. Begruendung
+- Ohne Feature-Matrix und ehrliche Reifestufen wird aus vorbereiteter Firmware schnell gedanklich `fast fertig`. Das ist Unsinn.
+- Ohne klare Setup-/Reset-Regeln wird spaetere Node-Inbetriebnahme wieder in ad-hoc Serial-Gefrickel oder pro-Geraet-Sonderpfade kippen.
+- Ohne Sondermodul-Roadmap droht erneut die falsche Richtung:
+  neue Namensklassen statt disziplinierter Ableitung aus `net_erl`, `net_zrl`, `net_sen`, `bat_sen` und `master`.
+
+4. Verbesserungseffekt
+- Die geplanten Sensor-, Eingangs- und Aktorpfade sind jetzt sauber auf Basisfamilien verteilt.
+- Der Unterschied zwischen `nicht vorgesehen`, `architekturvorbereitet`, `compile/stub vorbereitet` und `real hardware belegt` ist jetzt repo-offiziell.
+- Setup-/Provisionierung ist als Zielverhalten definiert, ohne so zu tun, als sei die Firmware dafuer schon fertig.
+- Kuechenlicht, Rolladen, Flurlicht, Fenster/Tuerkontakt, Regensensor, Wandschalter, zweiter Master und breiterer `net_sen`-Umweltknoten sind jetzt als abgeleitete Sondermodule benannt statt als lose Wunschliste.
+
+5. Risiken / Trade-offs
+- Die neuen Docs erzeugen absichtlich keine neuen Realbelege.
+- Touch-Buttons, Radar, `SHT41`, `VEML7700`, tiefere Rolladenlogik und der Setup-Webpfad bleiben technisch offen.
+- `compile/stub vorbereitet` fuer `BMP280`/`BME280`, `ENS160`, `reed`, `button`, `rain` ist weiterhin nur Build-/Scaffold-Status.
+- Aeltere breite Architekturtexte im Repo sind nicht komplett umgeschrieben; der aktuelle verbindliche Detailstand lebt jetzt bewusst in den neuen fokussierten Docs und den Memory-Dateien.
+
+6. Validation
+- `git diff --check`
+- `powershell -ExecutionPolicy Bypass -File .\tools\check_public_repo.ps1`
+- manuelle Gegenpruefung der neuen Docs gegen `docs/14_test_und_nachweisstand.md`, damit kein Stub- oder Architekturpfad still zum Hardwarebeleg hochgestuft wird
+
+7. Offener Rest
+- minimale Firmware-Umsetzung des dokumentierten Setup-/Provisionierungsvertrags
+- integrierte Realhardware-Wellen fuer die in der Matrix vorgesehenen Sensor- und Eingabepfade
+- `bat_sen`-Deep-Sleep-Rueckkehr und saubere boardkonkrete `battery_pct`-Profilwahl
+- mehr als einen `master` oder breiteren Mehrgeraetebetrieb erst mit ehrlicher Realvalidierung
+
+8. Lehrerblick
+- Der Wert dieses Schritts liegt nicht in neuer Hardware-Show, sondern in Disziplin:
+  vorhandene reale Pfade bleiben sauber, vorbereitete Pfade werden nicht ueberverkauft, und kuenftige Sondermodule bekommen eine nachvollziehbare Heimat in den bestehenden Basisfamilien.
