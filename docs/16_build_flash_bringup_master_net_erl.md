@@ -239,4 +239,4 @@ cd C:\Users\mries\Documents\Playground\smarthome-esp32\firmware
 - Kein Nachweis fuer `net_zrl`, `net_sen` oder `bat_sen`
 - Kein vollstaendiger Offline-/Langzeittest
 - Keine Komfortfunktionen, lokale Tasterlogik oder Cover-Sonderfaelle
-- Hardware-README-Dateien fuer `master` und `net_erl` sind weiterhin Platzhalter und ersetzen keine reale Hardware-Dokumentation.
+- Hardware-README-Dateien fuer `master` und `net_erl` liefern inzwischen die kompakte Mindestdoku, ersetzen aber weiterhin weder Schaltplan noch Fotos oder echten Realnachweis.

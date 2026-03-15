@@ -1,13 +1,12 @@
 # TASK_QUEUE
 
 ## Prioritaet jetzt
-1. Hardware-README-Dateien der Basisgeraete von Platzhaltern auf reale Mindestinformationen heben
-2. `bat_sen`-Restpunkt ehrlich ziehen: reale Chemie/Profilwahl nur mit Fakten festziehen; Deep-Sleep-Rueckkehr erst nach implementiertem Sleep-Pfad real pruefen
-3. Weitere offizielle Nachweise jenseits der belegten Einzelpfade `net_erl_01`, `net_zrl_01`, `net_sen_01`, `bat_sen_01` und der getrennten `sim_*`-Servervalidierung real aufbauen
+1. `bat_sen`-Restpunkt sauber halten: der reale Spannungspfad ueber `GPIO4` gilt als belegt; offen ist nur die boardkonkrete Profilwahl fuer `battery_pct` sowie spaetere Deep-Sleep-Rueckkehr nach bewusst implementiertem Sleep-Pfad
+2. Weitere offizielle Nachweise jenseits der belegten Einzelpfade `net_erl_01`, `net_zrl_01`, `net_sen_01`, `bat_sen_01` und der getrennten `sim_*`-Servervalidierung real aufbauen
 
 ## Danach
-4. Test- und Nachweisdoku nur gegen neue reale Belege oder klar getrennte `simulation`-Laeufe nachziehen
-5. Erst danach wieder Feature-Ausbau
+3. Test- und Nachweisdoku nur gegen neue reale Belege oder klar getrennte `simulation`-Laeufe nachziehen
+4. Erst danach wieder Feature-Ausbau
 
 ## Arbeitsregel fuer die Queue
 - Nur reale Luecken aufnehmen.

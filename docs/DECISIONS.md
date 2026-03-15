@@ -112,5 +112,12 @@ Das offizielle Projektgedaechtnis fuer neue Chats lebt in `AGENTS.md`, `docs/PRO
 Grund:
 Ohne diese Trennung verwischen Arbeitsauftrag, Architekturwissen, Testabsicht und echte Nachweise. Dann behauptet das Repo frueher oder spaeter Dinge, die es nicht belastbar belegen kann.
 
+## D-017 bat_sen trennt Messpfad, Prozentinterpretation und Profilwahl
+Entscheidung:
+Bei `bat_sen` gilt der reale Spannungspfad ueber `GPIO4` als eigener Kernpfad. `battery_pct` bleibt davon getrennt eine profilabhaengige Interpretation des gemessenen Spannungswerts. Die Profilwahl erfolgt bewusst ueber `BATTERY_PROFILE` in `firmware/src/bat_sen/AppConfig.h` und ist keine versteckte Defektstelle.
+
+Grund:
+Die Realnachweise belegen den lokalen ADC-Pfad sowie den offiziellen Serverpfad fuer `battery_mv` bereits. Offen ist nur, welches explizite Profil das konkrete reale Board fuer `battery_pct` am ehrlichsten abbildet. Wer beides vermischt, beschreibt einen funktionierenden Messpfad faelschlich als ungeklaert.
+
 ## Pflegehinweis
 Neue Architektur- oder Arbeitsentscheidungen hier kurz mit Entscheidung und Grund ergaenzen. Keine langen Rechtfertigungen, nur belastbare Regeln.

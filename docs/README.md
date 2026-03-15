@@ -48,7 +48,7 @@ Zentraler Index fuer die Projektdoku. Diese Datei ordnet die Dokumente ein, erse
 - `../firmware/test/*/README.md`: Testordner-Rollen
 
 ## Offene Doku-Luecken
-- endgueltige reale Batterieprofilwahl fuer `bat_sen_01` und spaetere Deep-Sleep-Rueckkehrvalidierung erst bei implementiertem Sleep-Pfad
+- bewusste Board-Profilwahl fuer `bat_sen_01`-`battery_pct` und spaetere Deep-Sleep-Rueckkehrvalidierung erst bei implementiertem Sleep-Pfad; der `battery_mv`-Messpfad ist bereits real belegt
 - weitere offizielle Nachweise jenseits der belegten Einzelpfade `net_erl_01`, `net_zrl_01`, `net_sen_01`, `bat_sen_01` und der getrennten `sim_*`-Servervalidierung
 - vollstaendiger Gesamtprojektnachweis ueber die bisherigen realen Pilotpfade und die getrennte Simulation hinaus
-- Hardware-README-Dateien enthalten bisher nur Platzhalter
+- Fotos, Schaltplaene und variantenspezifische Verdrahtungsdetails sind weiterhin nicht als eigene Hardware-Doku im Repo nachgezogen
