@@ -38,11 +38,13 @@
 #include "../../include/DebugConfig.h"
 #include "../../lib/ShProtocol/src/Protocol.h"
 #include "../../lib/ShProtocol/src/DeviceTypes.h"
+#include <ShNodeProvisioning.h>
 
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "NET-ZRL";
 constexpr char DATEI_VERSION[] = "0.2.2";
 const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+SmartHome::ShNodeBase::NodeProvisioning provisioning;
 
 struct NodeState {
     bool master_bekannt;
@@ -71,6 +73,10 @@ bool istBroadcastMac(const uint8_t* mac) {
     return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
 }
 
+const uint8_t* holeHelloZielMac() {
+    return nodeStatus.master_mac_gueltig ? nodeStatus.master_mac : BROADCAST_MAC;
+}
+
 void logf(const char* level, const char* format, ...) {
     if (!DEBUG_LOKAL_AKTIV) return;
 
@@ -84,6 +90,10 @@ void logf(const char* level, const char* format, ...) {
     Serial.print(level);
     Serial.print("] ");
     Serial.println(message);
+}
+
+void logProvisioning(const char* level, const char* message) {
+    logf(level, "%s", message);
 }
 
 void copyText(char* target, size_t targetSize, const char* source) {
@@ -101,6 +111,21 @@ void logMac(const char* prefix, const uint8_t* mac) {
     char macText[18] = {0};
     SmartHome::macToString(mac, macText);
     logf("INFO", "%s%s", prefix, macText);
+}
+
+void uebernehmeProvisionierteMasterMac() {
+    if (!provisioning.hasStoredMasterMac()) {
+        nodeStatus.master_bekannt = false;
+        nodeStatus.master_mac_gueltig = false;
+        memset(nodeStatus.master_mac, 0, sizeof(nodeStatus.master_mac));
+        return;
+    }
+
+    memcpy(nodeStatus.master_mac, provisioning.masterMac(), sizeof(nodeStatus.master_mac));
+    nodeStatus.master_bekannt = false;
+    nodeStatus.master_mac_gueltig = true;
+    nodeStatus.state_report_offen = true;
+    logMac("Persistierte Master-MAC: ", nodeStatus.master_mac);
 }
 
 bool stellePeerSicher(const uint8_t* mac) {
@@ -161,7 +186,7 @@ bool sendeAck(const uint8_t* zielMac, uint8_t ackSeq, uint8_t ackMsgType, uint8_
 bool sendeHello() {
     SmartHome::HelloPayload payload = {};
     copyText(payload.device_id, sizeof(payload.device_id), DEVICE_ID);
-    copyText(payload.device_name, sizeof(payload.device_name), DEVICE_NAME);
+    copyText(payload.device_name, sizeof(payload.device_name), provisioning.deviceName());
     payload.device_class = SH_CLASS_NET_ZRL;
 
     uint16_t caps = SH_CAP_RELAY | SH_CAP_RELAY2;
@@ -173,7 +198,7 @@ bool sendeHello() {
     payload.boot_counter = 1U;
 
     nodeStatus.letztes_hello_ms = millis();
-    return sendePaket(BROADCAST_MAC, SH_MSG_HELLO, &payload, sizeof(payload), "HELLO");
+    return sendePaket(holeHelloZielMac(), SH_MSG_HELLO, &payload, sizeof(payload), "HELLO");
 }
 
 bool sendeHeartbeat() {
@@ -356,6 +381,8 @@ void gibStartmeldungAus() {
     Serial.println(DATEI_VERSION);
     Serial.print("Node-ID: ");
     Serial.println(DEVICE_ID);
+    Serial.print("Name: ");
+    Serial.println(provisioning.deviceName());
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
     Serial.print("Cover-Modus: ");
@@ -372,6 +399,7 @@ void verarbeiteHelloAck(const uint8_t* senderMac, const SmartHome::HelloAckPaylo
     memcpy(nodeStatus.master_mac, senderMac, 6);
     nodeStatus.master_mac_gueltig = true;
     nodeStatus.master_bekannt = true;
+    provisioning.persistMasterMac(senderMac);
     stellePeerSicher(nodeStatus.master_mac);
     logf("INFO", "HELLO_ACK empfangen, Master-Kanal=%u", payload.channel);
     logMac("Master-MAC: ", senderMac);
@@ -538,8 +566,30 @@ void setup() {
     }
 
     nodeStatus = {};
-    gibStartmeldungAus();
     initialisiereHardware();
+    provisioning.begin(
+        {
+            DEVICE_ID,
+            DEVICE_NAME,
+            STATE_INTERVAL_MS / 1000UL,
+            STATE_INTERVAL_MS / 1000UL,
+            false,
+            false,
+            WLAN_KANAL,
+            PIN_BOOT_BUTTON,
+            true,
+            SETUP_REENTRY_HOLD_MS,
+            FACTORY_RESET_HOLD_MS,
+        },
+        logProvisioning);
+    uebernehmeProvisionierteMasterMac();
+    gibStartmeldungAus();
+
+    if (provisioning.isSetupModeActive()) {
+        logf("WARN", "Setup-Modus aktiv. Funkpfad wartet auf lokale Provisionierung.");
+        return;
+    }
+
     initialisiereFunk();
 
     esp_now_register_send_cb(onEspNowSent);
@@ -549,6 +599,12 @@ void setup() {
 }
 
 void loop() {
+    provisioning.update();
+    if (provisioning.isSetupModeActive()) {
+        delay(LOOP_INTERVAL_MS);
+        return;
+    }
+
     unsigned long jetzt = millis();
 
     if (!nodeStatus.master_bekannt) {

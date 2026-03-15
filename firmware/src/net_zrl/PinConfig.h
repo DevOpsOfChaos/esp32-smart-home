@@ -7,6 +7,7 @@
 // ============================================================
 
 constexpr int PIN_STATUS_LED   = -1;
+constexpr int PIN_BOOT_BUTTON  = SmartHome::HardwarePinStandard::PIN_BOOT_BUTTON;
 constexpr int PIN_BUTTON_1     = -1; // Taster für Relais 0 / Rolladen Auf
 constexpr int PIN_BUTTON_2     = -1; // Taster für Relais 1 / Rolladen Ab
 constexpr int PIN_BUTTON_3     = -1; // Stop-Taster (Rolladen)

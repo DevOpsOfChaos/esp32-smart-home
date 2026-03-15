@@ -12,6 +12,9 @@
 // Separate Status-LED aktuell nicht bestueckt.
 constexpr int PIN_STATUS_LED   = -1;
 
+// Boot-/Setup-Taster des ESP32-C3-Boards.
+constexpr int PIN_BOOT_BUTTON  = SmartHome::HardwarePinStandard::PIN_BOOT_BUTTON;
+
 // Lokaler Taster (INPUT_PULLUP, LOW bei Betätigung).
 constexpr int PIN_BUTTON_1     = -1;
 

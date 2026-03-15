@@ -1,0 +1,58 @@
+Stand: 2026-03-15
+Datei: beta47_node_setup_provisioning_reset_grundgeruest.txt
+Autor: Manuel Ries
+
+1. Anlass
+- Nach dem bereinigten Recovery-Stand fehlte weiterhin die echte gemeinsame Grundlage fuer Node-Setup, Provisionierung und Reset.
+- Der dokumentierte Vertrag in `docs/18_setup_provisioning_reset.md` war bisher nur Architekturansage, aber noch kein realer Buildpfad.
+
+2. Aenderung
+- Neue Shared-Library `firmware/lib/ShStorage/src/ShStorage.*` fuer persistente Node-Basisdaten in NVS:
+  - Master-MAC-Bindung
+  - Anzeigename
+  - Report-Intervall-Basiswert
+  - Wake-/Sleep-Intervall-Basiswert
+- Neue Shared-Library `firmware/lib/ShNodeBase/src/ShNodeProvisioning.*` fuer:
+  - Boot-Taster-Haltezeiten
+  - Setup-Reentry nach `5 s`
+  - Factory Reset nach `10 s`
+  - kleinen lokalen Setup-AP mit schlichter Webform
+  - GET-Prefill fuer `master_mac`, aber Speicherung erst nach sichtbarer Bestaetigung
+- `net_erl`, `net_zrl`, `net_sen` und `bat_sen` binden dieses Shared-Grundgeruest jetzt direkt ein, statt je ein eigenes Setup-/Reset-Sonderleben zu bekommen.
+- Die Node-Mains nutzen den gespeicherten Anzeigenamen bereits fuer `HELLO` und persistieren bestaetigte Master-MACs erneut in NVS.
+- `HardwarePinStandard.h` fuehrt den gemeinsamen Board-Boot-Taster jetzt sichtbar als `GPIO9`; die Haltezeiten liegen sichtbar in den jeweiligen `AppConfig.h`.
+
+3. Begruendung
+- Ohne gemeinsame Storage- und Setup-Basis waere als naechster Schritt fast sicher Copy-Paste-Logik pro Node-Familie entstanden.
+- Genau das waere die alte Falle: vier halbgleiche Sonderpfade statt einer wartbaren Infrastruktur.
+- Der jetzige Stand schafft absichtlich nur das gemeinsame Fundament und behauptet nicht die fertige Provisionierungsreife.
+
+4. Verbesserungseffekt
+- Nodes koennen jetzt einen fehlenden Master-Binding-Stand sauber erkennen und in einen lokalen Setup-Pfad wechseln.
+- Re-Entry und Factory Reset laufen ueber denselben Shared-Pfad fuer alle vier Node-Baselines.
+- Die spaetere Web-Setup-Erweiterung hat jetzt einen realen Ort im Repo statt einer losen Doku-Behauptung.
+- Die Main-Dateien bleiben trotz neuer Funktionalitaet kontrolliert und bekommen keine grosse per-Geraet-Portal-Logik.
+
+5. Risiken / Trade-offs
+- Der Setup-Pfad ist bewusst minimal:
+  - kein Captive Portal
+  - kein DNS-Hijack
+  - keine breite Sonder-UI
+- Report- und Wake-/Sleep-Werte werden schon gespeichert, aber bewusst noch nicht komplett als Runtime-Konfiguration genutzt.
+- Der Stand ist build-validiert, aber noch nicht als Realhardware-Nachweis des Setup-Pfads fuehrbar.
+
+6. Teststatus
+- `git diff --check`
+- `powershell -ExecutionPolicy Bypass -File .\tools\check_public_repo.ps1`
+- `cd firmware && & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e net_erl`
+- `cd firmware && & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e net_zrl`
+- `cd firmware && & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e net_sen`
+- `cd firmware && & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -e bat_sen`
+
+7. Lehrerblick
+- Welche Eigenleistung steckt in diesem Stand?
+- Die neue Shared-Storage- und Shared-Provisioning-Library sowie ihre Integration in vier Node-Baselines wurden fuer dieses Repo konkret umgesetzt.
+- Was wurde nur als Referenz genutzt?
+- Genutzt wurde nur die alte Architekturidee, Setup-Portal und Config-Store als Shared-Bausteine zu trennen; kein alter Implementierungscode wurde blind uebernommen.
+- Warum ist der Stand fachlich nachvollziehbar?
+- Weil er den dokumentierten Vertrag jetzt in einen realen, compile-validierten Shared-Pfad uebersetzt, ohne faelschlich ein fertiges Endprodukt oder Realhardware-Reife zu behaupten.

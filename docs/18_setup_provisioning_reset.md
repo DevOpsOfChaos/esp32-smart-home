@@ -16,9 +16,25 @@ Nicht diese Datei:
 
 | Ausloeser | Pflichtverhalten | Datenwirkung | Reifestand jetzt |
 |---|---|---|---|
-| keine gespeicherte Master-MAC | automatischer Setup-Modus | noch nichts gespeichert | architekturvorbereitet |
-| Boot-Taster 5 Sekunden halten | Setup-Modus erneut oeffnen | gespeicherte Daten bleiben vorerst erhalten und werden vorbefuellt angezeigt | architekturvorbereitet |
-| Boot-Taster 10 Sekunden halten | Factory Reset und danach Setup-Modus | gespeicherte Master-Bindung und relevante lokale Einstellungen werden geloescht | architekturvorbereitet |
+| keine gespeicherte Master-MAC | automatischer Setup-Modus | noch nichts gespeichert | build-validiertes Grundgeruest |
+| Boot-Taster 5 Sekunden halten | Setup-Modus erneut oeffnen | gespeicherte Daten bleiben erhalten und werden in der kleinen Setup-Form vorbefuellt angezeigt | build-validiertes Grundgeruest |
+| Boot-Taster 10 Sekunden halten | Factory Reset und danach Setup-Modus | gespeicherte Master-Bindung und relevante lokale Einstellungen werden geloescht | build-validiertes Grundgeruest |
+
+## Aktueller Repo-Stand
+- Das gemeinsame Grundgeruest liegt jetzt in `firmware/lib/ShNodeBase/` und `firmware/lib/ShStorage/`.
+- Persistiert werden aktuell:
+  - Master-MAC-Bindung
+  - Anzeigename des Nodes
+  - einfacher Report-Intervall-Basiswert
+  - einfacher Wake-/Sleep-Intervall-Basiswert
+- Der Setup-Pfad startet einen kleinen lokalen AP mit schlichter Webform.
+- `master_mac` kann per GET-Parameter vorbefuellt werden, wird aber erst nach sichtbarer Pruefung und Speichern uebernommen.
+- Die Boot-Taster-Haltezeiten sind in den betroffenen `AppConfig.h`-Dateien sichtbar auf `5 s` bzw. `10 s` festgelegt.
+- Der Stand ist bewusst nur `build`-/Groundwork-Niveau:
+  - kein Captive-Portal oder DNS-Hijack
+  - keine ausgebauten per-Geraet-Sonderseiten
+  - keine reale Hardwarevalidierung dieses Setup-Pfads im Repo
+  - Report-/Wake-Werte werden schon gespeichert, aber noch nicht vollstaendig als Laufzeitkonfiguration genutzt
 
 ## Setup-Modus
 - Setup-Modus bedeutet: gehostetes lokales WLAN plus einfacher lokaler Webserver.
@@ -45,6 +61,7 @@ Der Setup-Pfad dient der Inbetriebnahme und Grundwartung, nicht dem Nachbauen de
 - Die Setup-Seite muss mindestens das Deep-Sleep-Intervall editierbar machen.
 - Falls spaeter Zwischen-Wakeups nur fuer `HELLO`/Keepalive zulaessig sind, duerfen sie als optionale Einstellung erscheinen.
 - Benutzerseitige Einheiten sind Minuten und Stunden, nicht Millisekunden.
+- Die aktuelle Grundform speichert den Wake-/Sleep-Wert bereits in Minuten/Stunden-Eingabe, nutzt ihn aber noch nicht als fertigen Deep-Sleep-Runtime-Pfad.
 - Deep-Sleep selbst ist damit nicht automatisch als implementiert oder belegt zu betrachten.
 
 ## Lokale Bedienung und Server-Autoritaet

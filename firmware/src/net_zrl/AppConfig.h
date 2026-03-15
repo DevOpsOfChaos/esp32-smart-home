@@ -29,6 +29,15 @@ constexpr unsigned long HELLO_RETRY_INTERVAL_MS = 5000UL;
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000UL;
 constexpr unsigned long STATE_INTERVAL_MS = 30000UL;
 constexpr int WLAN_KANAL = 6;
+
+// 5 s halten oeffnet den lokalen Setup-Modus erneut,
+// ohne die persistierten Basiswerte sofort zu loeschen.
+constexpr unsigned long SETUP_REENTRY_HOLD_MS = 5000UL;
+
+// 10 s halten fuehrt den gemeinsamen Factory Reset aus
+// und startet danach wieder im Setup-Modus.
+constexpr unsigned long FACTORY_RESET_HOLD_MS = 10000UL;
+
 constexpr bool RELAY_1_DEFAULT_ON_BOOT = false;
 constexpr bool RELAY_2_DEFAULT_ON_BOOT = false;
 

@@ -8,6 +8,7 @@
 // Reed-Kontakt und Taster mit INPUT_PULLUP, LOW-aktiv.
 // ============================================================
 constexpr int PIN_STATUS_LED    = -1;
+constexpr int PIN_BOOT_BUTTON   = SmartHome::HardwarePinStandard::PIN_BOOT_BUTTON;
 constexpr int PIN_RELAY_1       = -1; // nicht bestückt
 constexpr int PIN_RELAY_2       = -1; // nicht bestückt
 constexpr int PIN_SENSOR_SDA    = SmartHome::HardwarePinStandard::PIN_I2C_SDA; // I2C für optionale Sensoren

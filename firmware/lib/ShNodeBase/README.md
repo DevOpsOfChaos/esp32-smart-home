@@ -1,5 +1,13 @@
 # ShNodeBase
 
-Gemeinsame Node-Basislogik für Setup, Kommunikation und Zustandsmeldungen.
+Gemeinsame Node-Basislogik fuer Setup, Provisionierung und Boot-Taster-Reset.
 
-Noch nicht final implementiert. Erst Architektur, dann echter Code.
+Aktueller Stand:
+- lokaler Setup-AP mit kleiner Webform
+- gemeinsamer Boot-Taster-Pfad fuer Setup-Reentry und Factory Reset
+- Nutzung der persistierten Shared-Settings aus `ShStorage`
+
+Bewusst noch nicht enthalten:
+- grosse Captive-Portal-Komfortlogik
+- per-Geraet-Sonderseiten
+- vollstaendige Runtime-Nutzung aller gespeicherten Basiswerte

@@ -21,6 +21,14 @@ constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000UL;
 constexpr unsigned long STATE_INTERVAL_MS = 60000UL;
 constexpr int WLAN_KANAL = 6;
 
+// 5 s halten oeffnet den lokalen Setup-Modus erneut,
+// ohne die persistierten Basiswerte sofort zu loeschen.
+constexpr unsigned long SETUP_REENTRY_HOLD_MS = 5000UL;
+
+// 10 s halten fuehrt den gemeinsamen Factory Reset aus
+// und startet danach wieder im Setup-Modus.
+constexpr unsigned long FACTORY_RESET_HOLD_MS = 10000UL;
+
 // Sofort-Meldeschwellen (Differenz zum letzten gemeldeten Wert):
 // Begründung: Deutliche Änderungen (1 °C, 5 % rF) sofort senden,
 // damit der Server nicht auf das nächste Intervall warten muss.

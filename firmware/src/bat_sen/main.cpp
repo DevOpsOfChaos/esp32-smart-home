@@ -44,11 +44,13 @@
 #include "../../lib/ShProtocol/src/Protocol.h"
 #include "../../lib/ShProtocol/src/DeviceTypes.h"
 #include "../../lib/ShSensors/src/BatSenModules.h"
+#include <ShNodeProvisioning.h>
 
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "BAT-SEN";
 constexpr char DATEI_VERSION[] = "0.3.0";
 const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+SmartHome::ShNodeBase::NodeProvisioning provisioning;
 
 using ReedProvider = SmartHome::ShSensors::ReedProvider<BAT_SEN_REED_PROVIDER_KIND>;
 using ButtonProvider = SmartHome::ShSensors::ButtonProvider<BAT_SEN_BUTTON_PROVIDER_KIND>;
@@ -187,6 +189,10 @@ uint16_t leseBatterieMillivolt(uint16_t* adcEingangMvOut) {
 
 void logf(const char* level, const char* format, ...);
 
+void logProvisioning(const char* level, const char* message) {
+    logf(level, "%s", message);
+}
+
 void logBatterieKonfiguration() {
     if (!DEBUG_LOKAL_AKTIV) return;
 
@@ -263,8 +269,27 @@ void logMac(const char* prefix, const uint8_t* mac) {
     logf("INFO", "%s%s", prefix, macText);
 }
 
+void uebernehmeProvisionierteMasterMac() {
+    if (!provisioning.hasStoredMasterMac()) {
+        nodeStatus.master_bekannt = false;
+        nodeStatus.master_mac_gueltig = false;
+        memset(nodeStatus.master_mac, 0, sizeof(nodeStatus.master_mac));
+        return;
+    }
+
+    memcpy(nodeStatus.master_mac, provisioning.masterMac(), sizeof(nodeStatus.master_mac));
+    nodeStatus.master_bekannt = false;
+    nodeStatus.master_mac_gueltig = true;
+    nodeStatus.state_report_offen = true;
+    logMac("Persistierte Master-MAC: ", nodeStatus.master_mac);
+}
+
 bool istBroadcastMac(const uint8_t* mac) {
     return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
+}
+
+const uint8_t* holeHelloZielMac() {
+    return nodeStatus.master_mac_gueltig ? nodeStatus.master_mac : BROADCAST_MAC;
 }
 
 bool stellePeerSicher(const uint8_t* mac) {
@@ -316,7 +341,7 @@ bool sendePaket(const uint8_t* zielMac, uint8_t msgType, const void* payload, si
 bool sendeHello() {
     SmartHome::HelloPayload payload = {};
     copyText(payload.device_id, sizeof(payload.device_id), DEVICE_ID);
-    copyText(payload.device_name, sizeof(payload.device_name), DEVICE_NAME);
+    copyText(payload.device_name, sizeof(payload.device_name), provisioning.deviceName());
     payload.device_class = SH_CLASS_BAT_SEN;
     payload.caps_hi = (uint8_t)((BAT_SEN_CAPS >> 8) & 0xFFU);
     payload.caps_lo = (uint8_t)(BAT_SEN_CAPS & 0xFFU);
@@ -325,7 +350,7 @@ bool sendeHello() {
     payload.boot_counter = 1U;
 
     nodeStatus.letztes_hello_ms = millis();
-    return sendePaket(BROADCAST_MAC, SH_MSG_HELLO, &payload, sizeof(payload), "HELLO");
+    return sendePaket(holeHelloZielMac(), SH_MSG_HELLO, &payload, sizeof(payload), "HELLO");
 }
 
 bool sendeHeartbeat() {
@@ -453,11 +478,16 @@ void gibStartmeldungAus() {
     Serial.println(DATEI_VERSION);
     Serial.print("Node-ID: ");
     Serial.println(DEVICE_ID);
+    Serial.print("Name: ");
+    Serial.println(provisioning.deviceName());
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
-    Serial.print("Sleep-Intervall reserviert: ");
-    Serial.print(SLEEP_INTERVAL_S);
-    Serial.println(" s");
+    Serial.print("Setup-Sleep-Intervall: ");
+    Serial.print(provisioning.wakeIntervalSeconds());
+    Serial.println(" s (persistiert)");
+    Serial.print("Setup-Report-Intervall: ");
+    Serial.print(provisioning.reportIntervalSeconds());
+    Serial.println(" s (persistiert)");
     BatteryProfileConfig profil = holeBatterieProfil();
     Serial.print("Batterieprofil: ");
     Serial.println(profil.name);
@@ -544,6 +574,7 @@ void verarbeiteHelloAck(const uint8_t* senderMac, const SmartHome::HelloAckPaylo
     memcpy(nodeStatus.master_mac, senderMac, 6);
     nodeStatus.master_mac_gueltig = true;
     nodeStatus.master_bekannt = true;
+    provisioning.persistMasterMac(senderMac);
     stellePeerSicher(nodeStatus.master_mac);
     logf("INFO", "HELLO_ACK empfangen, Master-Kanal=%u", payload.channel);
     logMac("Master-MAC: ", senderMac);
@@ -625,11 +656,33 @@ void setup() {
     }
 
     nodeStatus = {};
+    provisioning.begin(
+        {
+            DEVICE_ID,
+            DEVICE_NAME,
+            STATE_INTERVAL_MS / 1000UL,
+            SLEEP_INTERVAL_S,
+            true,
+            true,
+            WLAN_KANAL,
+            PIN_BOOT_BUTTON,
+            true,
+            SETUP_REENTRY_HOLD_MS,
+            FACTORY_RESET_HOLD_MS,
+        },
+        logProvisioning);
+    uebernehmeProvisionierteMasterMac();
     logf("INFO", "setup() gestartet");
     initialisiereHardware();
     gibStartmeldungAus();
     logProviderHinweise();
     logBatterieKonfiguration();
+
+    if (provisioning.isSetupModeActive()) {
+        logf("WARN", "Setup-Modus aktiv. Funkpfad wartet auf lokale Provisionierung.");
+        return;
+    }
+
     logf("INFO", "Initialisiere Funk");
     initialisiereFunk();
     messeBatterie();
@@ -644,6 +697,12 @@ void setup() {
 }
 
 void loop() {
+    provisioning.update();
+    if (provisioning.isSetupModeActive()) {
+        delay(LOOP_INTERVAL_MS);
+        return;
+    }
+
     unsigned long jetzt = millis();
 
     messeBatterie();

@@ -5,6 +5,7 @@
 // NET-SEN – Pinbelegung
 // ============================================================
 constexpr int PIN_STATUS_LED   = -1;
+constexpr int PIN_BOOT_BUTTON  = SmartHome::HardwarePinStandard::PIN_BOOT_BUTTON;
 constexpr int PIN_BUTTON_1     = -1; // optionaler Reset-Taster
 constexpr int PIN_RELAY_1      = -1; // nicht bestückt
 constexpr int PIN_RELAY_2      = -1; // nicht bestückt
