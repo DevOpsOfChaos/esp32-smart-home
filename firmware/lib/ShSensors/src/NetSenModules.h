@@ -6,13 +6,13 @@
 #include <math.h>
 #include <stdlib.h>
 
+#include "ProviderCommon.h"
 #include "ProviderIds.h"
+#include "PresenceProviders.h"
 #include "../../ShProtocol/src/DeviceTypes.h"
 
 namespace SmartHome {
 namespace ShSensors {
-
-using LogFn = void (*)(const char* level, const char* format, ...);
 
 constexpr int16_t NET_SEN_TEMP_UNGUELTIG = INT16_MIN;
 constexpr uint16_t NET_SEN_HUM_UNGUELTIG = 0xFFFFU;
@@ -25,6 +25,7 @@ constexpr uint16_t NET_SEN_ECO2_UNGUELTIG = 0xFFFFU;
 struct NetSenState {
     bool motion;
     bool fault;
+    PresenceState presence;
     int16_t temp_01c;
     uint16_t hum_01pct;
     uint16_t lux;
@@ -32,11 +33,6 @@ struct NetSenState {
     uint16_t aqi;
     uint16_t tvoc_ppb;
     uint16_t eco2_ppm;
-};
-
-struct ProviderUpdate {
-    bool changed;
-    bool fault;
 };
 
 struct EnvironmentProviderConfig {
@@ -56,13 +52,10 @@ struct AirQualityProviderConfig {
     uint16_t eco2_delta_ppm;
 };
 
-struct MotionProviderConfig {
-    int pin;
-};
-
 inline void resetNetSenState(NetSenState& state) {
     state.motion = false;
     state.fault = false;
+    resetPresenceState(state.presence);
     state.temp_01c = NET_SEN_TEMP_UNGUELTIG;
     state.hum_01pct = NET_SEN_HUM_UNGUELTIG;
     state.lux = NET_SEN_LUX_UNGUELTIG;
@@ -159,8 +152,14 @@ constexpr bool netSenAirProvidesMetrics(uint8_t providerKind) {
 }
 
 constexpr bool netSenMotionProvidesSignal(uint8_t providerKind) {
-    return providerKind == SH_NET_SEN_MOTION_PROVIDER_PIR_PIN ||
-           providerKind == SH_NET_SEN_MOTION_PROVIDER_PIR_STUB;
+    return presenceProviderProvidesSignal(providerKind);
+}
+
+inline bool syncNetSenMotionFromPresence(NetSenState& state) {
+    const bool nextMotion = presenceIsActive(state.presence);
+    const bool changed = (state.motion != nextMotion);
+    state.motion = nextMotion;
+    return changed;
 }
 
 template<uint8_t ENV_PROVIDER_KIND, uint8_t AIR_PROVIDER_KIND, uint8_t MOTION_PROVIDER_KIND>
@@ -458,87 +457,6 @@ public:
 
 private:
     AirQualityProviderConfig config_;
-    bool ready_ = false;
-};
-
-template<uint8_t ProviderKind>
-class MotionProvider;
-
-template<>
-class MotionProvider<SH_NET_SEN_MOTION_PROVIDER_NONE> {
-public:
-    explicit MotionProvider(const MotionProviderConfig&) {}
-
-    void begin(LogFn) {
-        ready_ = true;
-    }
-
-    const char* name() const { return "none"; }
-    bool isReady() const { return ready_; }
-
-    ProviderUpdate poll(NetSenState&, LogFn) {
-        return {false, false};
-    }
-
-private:
-    bool ready_ = false;
-};
-
-template<>
-class MotionProvider<SH_NET_SEN_MOTION_PROVIDER_PIR_PIN> {
-public:
-    explicit MotionProvider(const MotionProviderConfig& config) : pin_(config.pin) {}
-
-    void begin(LogFn) {
-        if (pin_ >= 0) {
-            pinMode(pin_, INPUT);
-        }
-        ready_ = true;
-    }
-
-    const char* name() const { return "pir_pin"; }
-    bool isReady() const { return ready_; }
-
-    ProviderUpdate poll(NetSenState& state, LogFn) {
-        if (pin_ < 0) {
-            const bool changed = state.motion;
-            state.motion = false;
-            return {changed, false};
-        }
-
-        const bool jetzt = (digitalRead(pin_) == HIGH);
-        const bool changed = (jetzt != state.motion);
-        state.motion = jetzt;
-        return {changed, false};
-    }
-
-private:
-    int pin_ = -1;
-    bool ready_ = false;
-};
-
-template<>
-class MotionProvider<SH_NET_SEN_MOTION_PROVIDER_PIR_STUB> {
-public:
-    explicit MotionProvider(const MotionProviderConfig&) {}
-
-    void begin(LogFn log) {
-        ready_ = true;
-        if (log) {
-            log("WARN", "NET-SEN stub provider aktiv: pir_stub (kein Hardware-Nachweis)");
-        }
-    }
-
-    const char* name() const { return "pir_stub"; }
-    bool isReady() const { return ready_; }
-
-    ProviderUpdate poll(NetSenState& state, LogFn) {
-        const bool changed = state.motion;
-        state.motion = false;
-        return {changed, false};
-    }
-
-private:
     bool ready_ = false;
 };
 

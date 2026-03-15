@@ -39,9 +39,9 @@ Legende:
 | `ENS160` | `P` | `N` | `O` | `N` | `N` | `net_sen`-Stubpfad compile-validiert; kein Hardwarebeleg |
 | `SHT41` | `P` | `N` | `O` | `O` | `N` | nur architekturvorbereitet |
 | `VEML7700` | `P` | `N` | `O` | `O` | `N` | nur architekturvorbereitet |
-| Standard High-PIR | `P` | `N` | `O` | `N` | `N` | `net_sen` hat einen Pin-Providerpfad plus Stubvorbereitung, aber keinen PIR-Hardwarebeleg; `net_erl` nur architekturvorbereitet |
-| `HLK-LD2410C` Radar | `P` | `N` | `O` | `N` | `N` | nur architekturvorbereitet; bevorzugte spaetere Radarlinie |
-| `HLK-LD2410B` Radar als Alt/Test | `O` | `N` | `O` | `N` | `N` | nur architekturvorbereitet; Test-/Alternativvariante, kein zweiter Defaultpfad |
+| Standard High-PIR | `P` | `N` | `O` | `N` | `N` | `net_sen` laeuft jetzt ueber einen gemeinsamen Presence-Provider mit Pinpfad und Stubvorbereitung; kein PIR-Hardwarebeleg, `net_erl` weiter nur architekturvorbereitet |
+| `HLK-LD2410C` Radar | `P` | `N` | `O` | `N` | `N` | gemeinsamer Presence-Provider compile-vorbereitet; OUT- und spaeterer UART-Zustand sind konzeptionell getrennt, aber kein UART-Parser und kein Hardwarebeleg |
+| `HLK-LD2410B` Radar als Alt/Test | `O` | `N` | `O` | `N` | `N` | gemeinsamer Presence-Provider compile-vorbereitet; Test-/Alternativvariante ohne behaupteten UART-Fix und ohne Hardwarebeleg |
 | Standard analoger Regensensor | `N` | `P` | `N` | `N` | `N` | `bat_sen`-Stubpfad compile-validiert; kein Hardwarebeleg |
 | Reed-Fenster-/Tuersignal | `N` | `P` | `N` | `N` | `N` | `bat_sen`-Stubpfad compile-validiert; kein Hardwarebeleg |
 | 17er NeoPixel-Ring | `N` | `N` | `O` | `N` | `N` | nur architekturvorbereitet; aktuell nur fuer spaeteres Kuechenlicht gedacht |

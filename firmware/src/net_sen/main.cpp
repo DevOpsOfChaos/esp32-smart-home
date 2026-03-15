@@ -55,7 +55,7 @@ SmartHome::ShNodeBase::NodeProvisioning provisioning;
 
 using EnvironmentProvider = SmartHome::ShSensors::EnvironmentProvider<NET_SEN_ENV_PROVIDER_KIND>;
 using AirQualityProvider = SmartHome::ShSensors::AirQualityProvider<NET_SEN_AIR_PROVIDER_KIND>;
-using MotionProvider = SmartHome::ShSensors::MotionProvider<NET_SEN_MOTION_PROVIDER_KIND>;
+using PresenceProvider = SmartHome::ShSensors::PresenceProvider<NET_SEN_MOTION_PROVIDER_KIND>;
 
 constexpr bool NET_SEN_ERWEITERTER_STATE =
     SmartHome::ShSensors::usesExtendedNetSenState<NET_SEN_ENV_PROVIDER_KIND, NET_SEN_AIR_PROVIDER_KIND>();
@@ -80,6 +80,8 @@ static_assert(
 static_assert(
     NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_NONE ||
     NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_PIR_PIN ||
+    NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_LD2410C ||
+    NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_LD2410B ||
     NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_PIR_STUB,
     "NET-SEN motion provider unbekannt.");
 
@@ -88,7 +90,7 @@ static_assert(
     "NET-SEN DHT22 provider braucht PIN_DHT22_DATA.");
 
 static_assert(
-    NET_SEN_MOTION_PROVIDER_KIND != SH_NET_SEN_MOTION_PROVIDER_PIR_PIN || PIN_PIR >= 0,
+    NET_SEN_MOTION_PROVIDER_KIND != SH_NET_SEN_MOTION_PROVIDER_PIR_PIN || PIN_PRESENCE_OUT >= 0,
     "NET-SEN PIR provider braucht einen gueltigen PIR-Pin.");
 
 struct NodeState {
@@ -121,12 +123,15 @@ const SmartHome::ShSensors::AirQualityProviderConfig AIR_CONFIG = {
     TVOC_DELTA_PPB,
     ECO2_DELTA_PPM};
 
-const SmartHome::ShSensors::MotionProviderConfig MOTION_CONFIG = {
-    PIN_PIR};
+const SmartHome::ShSensors::PresenceProviderConfig PRESENCE_CONFIG = {
+    PIN_PRESENCE_OUT,
+    PIN_PRESENCE_UART_RX,
+    PIN_PRESENCE_UART_TX,
+    PRESENCE_UART_BAUD};
 
 EnvironmentProvider environmentProvider(ENVIRONMENT_CONFIG);
 AirQualityProvider airQualityProvider(AIR_CONFIG);
-MotionProvider motionProvider(MOTION_CONFIG);
+PresenceProvider presenceProvider(PRESENCE_CONFIG);
 
 bool istBroadcastMac(const uint8_t* mac) {
     return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
@@ -328,7 +333,7 @@ bool sendeEvent(uint8_t eventType, uint8_t trigger, uint8_t param1, uint16_t par
 bool sensorStateBereit() {
     return environmentProvider.isReady() &&
            airQualityProvider.isReady() &&
-           motionProvider.isReady();
+           presenceProvider.isReady();
 }
 
 void initialisiereHardware() {
@@ -343,7 +348,7 @@ void initialisiereHardware() {
     const unsigned long bootMs = millis();
     environmentProvider.begin(bootMs, logf);
     airQualityProvider.begin(bootMs, logf);
-    motionProvider.begin(logf);
+    presenceProvider.begin(logf);
 }
 
 void initialisiereFunk() {
@@ -385,8 +390,8 @@ void gibStartmeldungAus() {
     Serial.println(environmentProvider.name());
     Serial.print("Luftqualitaet: ");
     Serial.println(airQualityProvider.name());
-    Serial.print("Motion: ");
-    Serial.println(motionProvider.name());
+    Serial.print("Presence: ");
+    Serial.println(presenceProvider.name());
     Serial.print("State-Format: ");
     Serial.println(NET_SEN_ERWEITERTER_STATE ? "extended" : "baseline");
     Serial.print("Setup-Report-Intervall: ");
@@ -404,13 +409,15 @@ void aktualisiereSensoren() {
         environmentProvider.poll(jetzt, nodeStatus.sensor, logf);
     const SmartHome::ShSensors::ProviderUpdate airUpdate =
         airQualityProvider.poll(jetzt, nodeStatus.sensor, logf);
-    const SmartHome::ShSensors::ProviderUpdate motionUpdate =
-        motionProvider.poll(nodeStatus.sensor, logf);
+    const SmartHome::ShSensors::ProviderUpdate presenceUpdate =
+        presenceProvider.poll(nodeStatus.sensor.presence, logf);
+    const bool motionChanged =
+        SmartHome::ShSensors::syncNetSenMotionFromPresence(nodeStatus.sensor);
 
     const bool faultJetzt = envUpdate.fault || airUpdate.fault;
     nodeStatus.sensor.fault = faultJetzt;
 
-    if (envUpdate.changed || airUpdate.changed || motionUpdate.changed || faultVorher != faultJetzt) {
+    if (envUpdate.changed || airUpdate.changed || presenceUpdate.changed || motionChanged || faultVorher != faultJetzt) {
         nodeStatus.state_report_offen = true;
     }
 

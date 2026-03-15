@@ -1,0 +1,74 @@
+Stand: beta48
+Datei: beta48_presence_provider_grundlage_pir_ld2410.txt
+Datum: 2026-03-15
+Autor: Projektdokumentation
+Status: Gemeinsame Presence-Provider-Grundlage fuer PIR und LD2410 compile-validiert; kein neuer Hardware- oder UART-Nachweis
+
+1. Anlass
+- Die aktuelle `net_sen`-Basis hatte bisher nur einen einfachen Motion-Pfad mit nacktem `bool motion` und einem PIR-Pin-Provider. Fuer kommende Sondermodule mit Radar war das zu duenn.
+- Ziel dieses Schritts war deshalb nicht ein weiterer Monolith oder ein hektischer Radar-Fix, sondern eine gemeinsame Presence-Grundlage fuer:
+  PIR, `HLK-LD2410C`, `HLK-LD2410B`.
+- Die in der Night-Stage genannten Altquellen `NET-ERL-THLAP-001/main.cpp` und `NET-ERL-THMXX-001/main.cpp` waren lokal in Repo und naheliegendem Playground nicht verfuegbar; direkte Funktions-Migration war daher nicht moeglich.
+
+2. Aenderung
+- Unter `firmware/lib/ShSensors/src/` wurde eine gemeinsame Presence-Schicht eingefuehrt:
+  - `ProviderCommon.h`
+  - `PresenceProviders.h`
+- Die Presence-Schicht trennt jetzt konzeptionell:
+  - `motion`
+  - `presence`
+  - `out_pin_active`
+  - `uart_motion_active`
+  - `uart_presence_active`
+- `net_sen` nutzt fuer den bisherigen Motion-Pfad jetzt diesen gemeinsamen Presence-Provider statt eigener PIR-Sonderlogik.
+- Fuer `LD2410C` und `LD2410B` existieren jetzt eigene Provider-Kennungen unter derselben gemeinsamen Schnittstelle.
+- Der aktuelle LD2410-Stand bleibt absichtlich ehrlich:
+  OUT-Pin kann als Presence-Quelle gelesen werden, UART-Zustaende sind strukturell vorbereitet, aber ein Parser ist noch nicht implementiert.
+- `firmware/platformio.ini` bekam neue Build-Environments:
+  - `net_sen_ld2410c`
+  - `net_sen_ld2410b`
+- Reifestufen-Doku und Sondermodul-Doku wurden auf den neuen Stand nachgezogen.
+
+3. Begruendung
+- Ein Radar-Pfad braucht mehr als `digitalRead == presence`. Wer das nicht trennt, baut denselben Designfehler nur mit neuer Modulbezeichnung nach.
+- Gleichzeitig war ein kompletter UART-/Automation-Umbau fuer diese Stage unnoetig und riskant.
+- Die saubere Mitte war:
+  gemeinsame Presence-Schnittstelle jetzt,
+  ehrlicher UART-Restpunkt spaeter.
+
+4. Verbesserungseffekt
+- PIR und beide LD2410-Varianten haengen jetzt an derselben fachlichen Provider-Idee statt an spaeteren Sonderzweigen in `main.cpp`.
+- OUT-Pin- und UART-Zustaende koennen kuenftig gemeinsam modelliert werden, ohne schon heute kaputte UART-Annahmen zu behaupten.
+- Der bisherige MQTT-/Protocol-Vertrag bleibt intakt:
+  `motion` wird weiterhin publiziert, intern aber jetzt aus dem Presence-Zustand abgeleitet.
+- Die Radarlinie ist damit nicht mehr nur Fliesstext in der Roadmap, sondern compile-validierte Firmware-Grundlage.
+
+5. Risiken / Trade-offs
+- Kein UART-Parser, kein behobener LD2410-Serial-Pfad, kein behaupteter Radar-Fix.
+- Keine lokale Relais-Automation, kein Presence-Timeout und keine Auto-Control-Logik in dieser Stage umgesetzt.
+- Kein Realhardware-Beleg fuer PIR oder LD2410.
+- Die gewuenschten Altfunktionen wie `serviceRadarFast` oder `handlePresenceAutomation` konnten mangels lokaler Altquellen nicht direkt gemined werden.
+
+6. Teststatus
+- Erfolgreich build-validiert:
+  - `platformio run -e net_sen`
+  - `platformio run -e net_sen_bmp280_stub`
+  - `platformio run -e net_sen_bme280_ens160_stub`
+  - `platformio run -e net_sen_ld2410c`
+  - `platformio run -e net_sen_ld2410b`
+- Session-Hinweis:
+  die lokale Sandbox blockierte PlatformIO-Lock- und State-Dateien. Die Builds liefen deshalb nur ueber einen lokalen Session-Workaround, der Lock-/State-Schreiben neutralisierte. Compiler, Build-Flags und Quellen blieben dabei unveraendert.
+- Nicht durchgefuehrt:
+  - Realhardware-Test fuer PIR oder LD2410
+  - UART-Parsing-Test
+  - `net_erl`-Integration des neuen Presence-Unterbaus
+  - irgendein Nachweis fuer Presence-Automation oder Timeout-Verhalten
+
+7. Lehrerblick
+- Die Eigenleistung liegt hier nicht in einem vorgetaeuschten Radar-Feature, sondern in einer saubereren technischen Trennlinie:
+  Presence-Modell, Provider-Schnittstelle und kompatibler Legacy-Output wurden bewusst auseinandergezogen.
+- Als Referenz wurde nur der Projektkontext genutzt; konkrete Altfunktionen aus den genannten THLAP-/THMXX-Dateien konnten mangels lokaler Verfuegbarkeit nicht uebernommen werden.
+- Fachlich nachvollziehbar bleibt der Stand, weil er genau nicht luegt:
+  gemeinsame Presence-Basis ja,
+  Radar-UART-Fix nein,
+  Hardware-Nachweis nein.

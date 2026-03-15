@@ -40,6 +40,11 @@ constexpr uint16_t AQI_DELTA = 1U;
 constexpr uint16_t TVOC_DELTA_PPB = 25U;
 constexpr uint16_t ECO2_DELTA_PPM = 50U;
 
+// LD2410 nutzt spaeter typischerweise 256000 Baud.
+// In diesem Stand reserviert der Wert nur die gemeinsame Presence-Konfiguration;
+// ein UART-Parser wird damit noch nicht behauptet.
+constexpr unsigned long PRESENCE_UART_BAUD = 256000UL;
+
 #ifndef NET_SEN_ENV_PROVIDER
 #define NET_SEN_ENV_PROVIDER SH_NET_SEN_ENV_PROVIDER_DHT22
 #endif
