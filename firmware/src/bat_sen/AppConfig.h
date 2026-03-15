@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "../../lib/ShSensors/src/ProviderIds.h"
+
 // ============================================================
 // BAT-SEN – Gerätekonfiguration vor dem Upload
 // ============================================================
@@ -71,6 +73,7 @@ constexpr BatteryProfileV1 BATTERY_PROFILE = BAT_PROFILE_COIN_3V_PRIMARY;
 constexpr uint32_t BATTERY_DIVIDER_TOP_OHM = 100000UL;
 constexpr uint32_t BATTERY_DIVIDER_BOTTOM_OHM = 100000UL;
 constexpr uint8_t BATTERY_ADC_SAMPLE_COUNT = 4U;
+constexpr uint16_t RAIN_DELTA_RAW = 32U;
 
 constexpr BatteryProfileVoltageRange BATTERY_PROFILE_COIN_3V_PRIMARY_RANGE = {2000U, 3000U};
 constexpr BatteryProfileVoltageRange BATTERY_PROFILE_ALKALINE_2X_RANGE = {2000U, 3200U};
@@ -81,5 +84,26 @@ static_assert(
     BATTERY_PROFILE == BAT_PROFILE_ALKALINE_2X ||
     BATTERY_PROFILE == BAT_PROFILE_LIION_1S,
     "BAT-SEN V1 supports only the explicit coin/alcaline/liion battery profiles.");
+
+#ifndef BAT_SEN_REED_PROVIDER
+#define BAT_SEN_REED_PROVIDER SH_BAT_SEN_REED_PROVIDER_NONE
+#endif
+
+#ifndef BAT_SEN_BUTTON_PROVIDER
+#define BAT_SEN_BUTTON_PROVIDER SH_BAT_SEN_BUTTON_PROVIDER_NONE
+#endif
+
+#ifndef BAT_SEN_RAIN_PROVIDER
+#define BAT_SEN_RAIN_PROVIDER SH_BAT_SEN_RAIN_PROVIDER_NONE
+#endif
+
+#ifndef BAT_SEN_BUTTON_CHANNELS
+#define BAT_SEN_BUTTON_CHANNELS 1U
+#endif
+
+constexpr uint8_t BAT_SEN_REED_PROVIDER_KIND = BAT_SEN_REED_PROVIDER;
+constexpr uint8_t BAT_SEN_BUTTON_PROVIDER_KIND = BAT_SEN_BUTTON_PROVIDER;
+constexpr uint8_t BAT_SEN_RAIN_PROVIDER_KIND = BAT_SEN_RAIN_PROVIDER;
+constexpr uint8_t BAT_SEN_BUTTON_CHANNEL_COUNT = BAT_SEN_BUTTON_CHANNELS;
 
 constexpr unsigned long LOOP_INTERVAL_MS = 25UL;

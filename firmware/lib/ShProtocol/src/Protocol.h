@@ -692,6 +692,32 @@ static_assert(sizeof(SensorStateReportPayload) == 24,
     "SensorStateReportPayload muss 24 Bytes groß sein");
 
 // ───────────────────────────────────────────────────────────────
+// Erweiterter NET-SEN STATE_REPORT-Payload (feste Struktur, 34 Bytes)
+// ───────────────────────────────────────────────────────────────
+//
+// Additive Erweiterung für optionale Umgebungs- und Luftqualitätsmodule.
+// Der Basispfad mit DHT22 bleibt auf dem kleineren Payload gültig.
+// Nicht bestückte Werte bleiben auf ihren Sentinel-Werten:
+//   pressure_pa = 0xFFFFFFFF
+//   aqi/tvoc_ppb/eco2_ppm = 0xFFFF
+
+typedef struct __attribute__((packed)) {
+    char     node_id[SH_DEVICE_ID_LEN];
+    int16_t  temp_01c;
+    uint16_t hum_01pct;
+    uint16_t lux;
+    uint32_t pressure_pa;
+    uint16_t aqi;
+    uint16_t tvoc_ppb;
+    uint16_t eco2_ppm;
+    uint8_t  motion;
+    uint8_t  fault;
+} ExtendedSensorStateReportPayload;
+
+static_assert(sizeof(ExtendedSensorStateReportPayload) == 34,
+    "ExtendedSensorStateReportPayload muss 34 Bytes gross sein");
+
+// ───────────────────────────────────────────────────────────────
 // BAT-SEN STATE_REPORT-Payload (feste Struktur, 24 Bytes)
 // ───────────────────────────────────────────────────────────────
 //

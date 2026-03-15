@@ -1,0 +1,76 @@
+Stand: beta45
+Datei: beta45_firmware_modulare_optionale_sensormodule_und_stub_scaffolds.txt
+Datum: 2026-03-15
+Autor: Codex
+Status: Firmware-Struktur und Build-Scaffolding vorbereitet; kein neuer Hardware-Nachweis
+
+1. Anlass
+- Die real belegten Referenzpfade fuer `master`, `net_erl`, `net_zrl`, `net_sen` mit DHT22 und `bat_sen`-Batteriemessung waren vorhanden, aber `net_sen` und `bat_sen` blieben intern noch stark monolithisch.
+- Der naechste sinnvolle Schritt war deshalb nicht noch mehr kleinteiliges Hardware-Stochern, sondern eine saubere Firmware-Vorbereitung fuer kommende optionale Module:
+  `BMP280`/`BME280`, `ENS160`, `PIR`, `reed`, `button`, `rain`.
+- Harte Bedingung dabei:
+  fehlende Hardware darf die Codevorbereitung nicht blockieren, aber Stub-Support darf nie als Realnachweis verkauft werden.
+
+2. Aenderung
+- Unter `firmware/lib/ShSensors/src/` wurde eine kleine gemeinsame Provider-/Feature-Schicht eingefuehrt:
+  - `ProviderIds.h`
+  - `NetSenModules.h`
+  - `BatSenModules.h`
+- `net_sen` nutzt jetzt compile-time Providerwahl statt fest verdrahteter Einzel-Logik:
+  - DHT22 bleibt der Default- und Referenzpfad
+  - optionale Stub-Pfade fuer `BMP280`, `BME280`, `ENS160` und `PIR` sind separat vorbereitet
+  - optionale Zusatzmetriken werden nur dann ueber einen erweiterten `STATE_REPORT` transportiert, wenn diese Pfade wirklich aktiv sind
+- `bat_sen` trennt jetzt den belegten Batteriepfad von optionalen Eingangsmodulen:
+  - Batterie-Messpfad blieb als eigener Kernpfad erhalten
+  - `reed`, `button` und `rain` laufen ueber eigene optionale Providerpfade
+  - Stub-Pfade fuer diese Eingangsarten sind getrennt vorbereitet
+- `master` akzeptiert fuer `net_sen` jetzt sowohl den bisherigen Basis-`STATE_REPORT` als auch den erweiterten Payload und publiziert optionale Felder nur dann, wenn sie wirklich vorhanden sind.
+- `firmware/platformio.ini` bekam zusaetzliche Build-Environments fuer gezielte Stub-Validierung:
+  - `net_sen_bmp280_stub`
+  - `net_sen_bme280_ens160_stub`
+  - `bat_sen_input_stub`
+
+3. Begruendung
+- Der bisherige Zustand haette bei jedem weiteren Sensor wieder neue Spezialzweige in `main.cpp` produziert. Das ist genau die Art von stiller Architekturverwahrlosung, die spaeter bei kombinierten Hardwaretests Zeit frisst.
+- Die eingefuehrte Struktur bleibt absichtlich klein:
+  keine neue Geraeteklasse, kein neuer Serverzweig, keine per-sensor Sonderarchitektur.
+- Der erweiterte `net_sen`-Payload ist additiv und laesst den belegten DHT22-Basispfad unangetastet.
+
+4. Verbesserungseffekt
+- Optionale Module koennen jetzt ueber klare compile-time Providerpfade vorbereitet und gebaut werden, statt jedes Mal transportnahe Node-Logik aufzureissen.
+- Die real belegten Defaults bleiben erkennbar:
+  DHT22 fuer `net_sen`, Batteriepfad fuer `bat_sen`, bestehende `master`-/`net_erl`-/`net_zrl`-Linie.
+- Spaetere integrierte Hardware-Wellen werden deutlich einfacher, weil folgende Punkte schon sauber vorbereitet sind:
+  - Featureflags und Providerwahl
+  - Faehigkeitsbits
+  - State-Assembly
+  - optionale Metric-Publikation fuer `net_sen`
+  - getrennte Stub- und Referenzpfade
+
+5. Risiken / Trade-offs
+- `BMP280`/`BME280`/`ENS160` sowie `reed`/`button`/`rain` sind in diesem Stand nicht hardwarevalidiert.
+- Stub-Provider sind absichtlich compile-/dev-tauglich, aber sie sind kein Realbeweis und kein Ersatz fuer echte Sensoren.
+- Fuer `net_sen` wurde der Transportpfad erweitert, aber nicht real nachgewiesen; real belegt bleibt weiterhin nur der DHT22-Basispfad.
+- Es wurde bewusst kein breiter Server- oder Dashboard-Umbau begonnen.
+
+6. Teststatus
+- Erfolgreich build-validiert:
+  - `platformio run -e master -e net_erl -e net_zrl -e net_sen -e bat_sen`
+  - `platformio run -e net_sen_bmp280_stub -e net_sen_bme280_ens160_stub -e bat_sen_input_stub`
+- Nicht durchgefuehrt:
+  - Flash auf Hardware fuer die neuen optionalen/stub Pfade
+  - Realtests fuer `BMP280`/`BME280`/`ENS160`/`PIR`
+  - Realtests fuer `reed`/`button`/`rain`
+  - neuer Server- oder Influx-Nachweis fuer die optionalen Zusatzmetriken
+
+7. Offener Rest
+- Reale Hardwarewelle fuer die vorbereiteten optionalen Module
+- bewusste `bat_sen`-Profilwahl fuer `battery_pct`
+- spaetere Deep-Sleep-Rueckkehr fuer `bat_sen`
+- Mehrgeraetebetrieb und weitere kombinierte Realnachweise
+
+8. Lehrerblick
+- Die Eigenleistung liegt hier nicht in einer neuen Feature-Show, sondern in einer saubereren Firmware-Basis:
+  derselbe ESP-NOW-Rahmen bleibt stehen, waehrend die kommende Sensorvielfalt nicht mehr als chaotische Sonderlogik in den Node-Mains endet.
+- Fachlich sauber bleibt der Stand, weil klar getrennt ist:
+  was real belegt ist, was nur build-validiert ist und was fuer echte Hardware weiter offen bleibt.

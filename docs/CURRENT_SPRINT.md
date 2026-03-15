@@ -1,31 +1,34 @@
 # CURRENT_SPRINT
 
 ## Sprintziel
-Gemeinsame Doku nach dem Fake-Master-Serverlauf, der getrennten `[SIM]`-Dashboard-Sicht und dem jetzt belegten `bat_sen`-Server-/Langlaufstand repo-weit widerspruchsfrei halten, ohne Restluecken zu verschweigen oder funktionierende Pfade wieder kuenstlich offen zu reden.
+Die Firmware-Basis fuer die fuenf Basisgeraete additiv so vorbereiten, dass optionale `net_sen`-/`bat_sen`-Module sauber anschliessbar sind, ohne die belegten Referenzpfade oder die Architekturgrenzen zu verwischen. Stub- und Scaffold-Pfade bleiben ausdruecklich Build-/Dev-Hilfen; der naechste groessere Realnachweis folgt spaeter als integrierte Hardware-Welle.
 
 ## Im Fokus
-- offizielles Projektgedaechtnis fuer neue Chats eindeutig machen
-- Hardware-README-Dateien der fuenf Basisgeraete als kompakte Mindestdoku konsistent halten
-- `simulation` fuer `sim_*` oberhalb der MQTT-Grenze explizit von `real hardware` trennen
-- den `bat_sen`-Stand sauber trennen: realer `battery_mv`-Pfad ueber `GPIO4`, offizieller Serverpfad und fokussierter Langlauf sind belegt; offen bleiben die boardkonkrete Profilwahl fuer `battery_pct`, spaeterer Deep-Sleep und Mehrgeraetebetrieb
-- die naechsten echten Blocker nach dem `bat_sen`-Grundnachweis sichtbar halten
+- additive Provider-/Feature-Struktur in `firmware/` fuer `net_sen` und `bat_sen` statt weiterer Monolith-Hacks
+- compile-time Auswahl fuer optionale Module und Sonderpfade:
+  `BMP280`/`BME280`, `ENS160`, `PIR`, `reed`, `button`, `rain`
+- reale Referenzpfade stabil halten:
+  `master`, `net_erl`, `net_zrl`, `net_sen` mit DHT22 auf `GPIO6`, `bat_sen`-Batteriemessung auf `GPIO4`
+- Build-Validierung fuer Basis-Targets und ausgewaehlte Stub-Kombinationen
+- Doku sauber halten:
+  scaffolding und Stub-Support sind kein Hardware-Nachweis
 
 ## Aktuell nicht im Fokus
-- Ausbau der `sim_*`-Serverpfade ueber die bestehende Ingest-/Dashboard-Validierung hinaus
-- neue Firmware-Features ausserhalb des bereits implementierten `bat_sen`-Pfads
-- neue Server-Features
-- MQTT-Vertragsaenderungen
-- Architekturumbauten
+- Dashboard-Politur
+- breiter Server-/Schema-Umbau
+- neue per-device/per-sensor Sonderarchitekturen
+- zerlegte Mikrotests auf halbfertiger Firmware
+- grosse kombinierte Realhardware-Wellen vor sauber vorbereiteter Codebasis
 
 ## Belegter Projektstand, auf dem dieser Sprint aufsetzt
 - `master <-> net_erl_01` und `master <-> net_zrl_01` sind mit offiziellem Node-RED-Rueckweg, ACK/Retry, Offline-Timeout und Langzeitstabilitaet im Repo belegt
 - `net_sen_01` ist mit realem DHT22 auf `GPIO6` bis MQTT `meta/status/state`, SQLite und Influx offiziell belegt
 - die Server-V1 hat reale lokale Nachweise fuer MQTT-Ingest, SQLite-Ablage, Influx-Schreibpfad und `cmd/set`-Egress-Audit
 - der Fake-Master-Harness und die getrennte `[SIM]`-Dashboard-Seite sind fuer `sim_*` lokal belegt, bleiben aber ausdruecklich `simulation` und kein Hardware-Nachweis
-- `bat_sen_01` ist auf realem Board jetzt lokal bis ADC-/Handshake-Basis, offiziell bis Broker/SQLite/Influx und zusaetzlich in einem fokussierten Langlauf belegt; der offene Restpunkt liegt bei der Profildeutung von `battery_pct`, nicht beim Spannungsmesspfad
-- offen bleiben vor allem bewusste `bat_sen`-Profilwahl fuer das konkrete Board, Deep-Sleep-/Mehrgeraetebetrieb, weitere offizielle Pfade jenseits der belegten Einzelgeraete und ein vollstaendiger Gesamtprojektnachweis
+- `bat_sen_01` ist auf realem Board jetzt lokal bis ADC-/Handshake-Basis, offiziell bis Broker/SQLite/Influx und zusaetzlich in einem fokussierten Langlauf belegt; offen bleiben die bewusste Profildeutung von `battery_pct`, spaeterer Deep-Sleep und Mehrgeraetebetrieb
+- optionale `net_sen`-/`bat_sen`-Module jenseits dieser Referenzpfade koennen code- und build-seitig vorbereitet sein, sind ohne separate Realbelege aber weiterhin offen
 
 ## Sprint-Abnahme
-1. Ein neuer Chat findet Einstieg und Projektgedaechtnis ohne Rueckfragen.
-2. Shared Docs und `docs/14_test_und_nachweisstand.md` trennen `simulation`, Implementierungsstand und `real hardware` ohne Widerspruch.
-3. Die echten Restpunkte nach dem belegten `bat_sen`-Pfad sind explizit benannt: Profilwahl fuer `battery_pct`, spaeterer Deep-Sleep und Mehrgeraetebetrieb statt einer faelschlich offenen Messgrundlage.
+1. `net_sen`- und `bat_sen`-Erweiterungen bauen ueber klare Provider-/Featurepfade, ohne die belegten Defaults zu brechen.
+2. Shared Docs und `docs/14_test_und_nachweisstand.md` trennen weiter sauber zwischen `build`, `simulation` und `real hardware`.
+3. Die naechste Realprioritaet ist klar: integrierte Hardware-Wellen fuer optionale Module und Mehrgeraetebetrieb, nicht neuer Serverballast oder weitere Monolith-Hacks.

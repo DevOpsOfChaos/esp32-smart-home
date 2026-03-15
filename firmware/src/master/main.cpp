@@ -66,6 +66,8 @@ constexpr char DATEI_VERSION[] = "0.2.2";
 constexpr char MQTT_TOPIC_CMD_SET_SUB[] = "smarthome/node/+/cmd/set";
 constexpr char MQTT_TOPIC_CMD_GET_SUB[] = "smarthome/node/+/cmd/get";
 constexpr uint8_t WINDOW_STATE_UNKNOWN = 0xFFU;
+constexpr uint32_t PRESSURE_UNKNOWN = 0xFFFFFFFFUL;
+constexpr uint16_t SENSOR_EXTRA_UNKNOWN = 0xFFFFU;
 constexpr size_t REQUEST_ID_LEN = 96U;
 
 struct NodeDefinition {
@@ -90,6 +92,10 @@ struct NodeRuntime {
     int16_t temp_01c;
     uint16_t hum_01pct;
     uint16_t lux;
+    uint32_t pressure_pa;
+    uint16_t aqi;
+    uint16_t tvoc_ppb;
+    uint16_t eco2_ppm;
     bool motion;
     uint8_t battery_pct;
     uint16_t battery_mv;
@@ -242,6 +248,10 @@ void initialisiereNodeStates() {
         nodeStates[i].temp_01c = INT16_MIN;
         nodeStates[i].hum_01pct = 0xFFFFU;
         nodeStates[i].lux = 0xFFFFU;
+        nodeStates[i].pressure_pa = PRESSURE_UNKNOWN;
+        nodeStates[i].aqi = SENSOR_EXTRA_UNKNOWN;
+        nodeStates[i].tvoc_ppb = SENSOR_EXTRA_UNKNOWN;
+        nodeStates[i].eco2_ppm = SENSOR_EXTRA_UNKNOWN;
         nodeStates[i].battery_pct = 0xFFU;
         nodeStates[i].window_open = WINDOW_STATE_UNKNOWN;
         nodeStates[i].rain_raw = 0xFFFFU;
@@ -431,11 +441,19 @@ void baueNodeStateJson(size_t nodeIndex, char* buffer, size_t bufferSize) {
     char tempText[16] = {0};
     char humText[16] = {0};
     char luxText[16] = {0};
+    char pressureText[16] = {0};
+    char aqiText[16] = {0};
+    char tvocText[16] = {0};
+    char eco2Text[16] = {0};
     char batteryPctText[16] = {0};
     char batteryMvText[16] = {0};
     char windowText[16] = {0};
     char rainText[16] = {0};
     char coverPositionText[16] = {0};
+    char pressureField[40] = {0};
+    char aqiField[28] = {0};
+    char tvocField[36] = {0};
+    char eco2Field[36] = {0};
 
     switch (NODE_DEFINITIONS[nodeIndex].device_class) {
         case SH_CLASS_NET_ERL:
@@ -467,15 +485,35 @@ void baueNodeStateJson(size_t nodeIndex, char* buffer, size_t bufferSize) {
             schreibeIntOrNull(tempText, sizeof(tempText), nodeStates[nodeIndex].temp_01c, INT16_MIN);
             schreibeUIntOrNull(humText, sizeof(humText), nodeStates[nodeIndex].hum_01pct, 0xFFFFU);
             schreibeUIntOrNull(luxText, sizeof(luxText), nodeStates[nodeIndex].lux, 0xFFFFU);
+            schreibeUIntOrNull(pressureText, sizeof(pressureText), nodeStates[nodeIndex].pressure_pa, PRESSURE_UNKNOWN);
+            schreibeUIntOrNull(aqiText, sizeof(aqiText), nodeStates[nodeIndex].aqi, SENSOR_EXTRA_UNKNOWN);
+            schreibeUIntOrNull(tvocText, sizeof(tvocText), nodeStates[nodeIndex].tvoc_ppb, SENSOR_EXTRA_UNKNOWN);
+            schreibeUIntOrNull(eco2Text, sizeof(eco2Text), nodeStates[nodeIndex].eco2_ppm, SENSOR_EXTRA_UNKNOWN);
+            if (nodeStates[nodeIndex].pressure_pa != PRESSURE_UNKNOWN) {
+                snprintf(pressureField, sizeof(pressureField), ",\"pressure_pa\":%s", pressureText);
+            }
+            if (nodeStates[nodeIndex].aqi != SENSOR_EXTRA_UNKNOWN) {
+                snprintf(aqiField, sizeof(aqiField), ",\"aqi\":%s", aqiText);
+            }
+            if (nodeStates[nodeIndex].tvoc_ppb != SENSOR_EXTRA_UNKNOWN) {
+                snprintf(tvocField, sizeof(tvocField), ",\"tvoc_ppb\":%s", tvocText);
+            }
+            if (nodeStates[nodeIndex].eco2_ppm != SENSOR_EXTRA_UNKNOWN) {
+                snprintf(eco2Field, sizeof(eco2Field), ",\"eco2_ppm\":%s", eco2Text);
+            }
             snprintf(
                 buffer,
                 bufferSize,
-                "{\"node_id\":\"%s\",\"temp_01c\":%s,\"hum_01pct\":%s,\"lux\":%s,\"motion\":%s,\"fault\":%s}",
+                "{\"node_id\":\"%s\",\"temp_01c\":%s,\"hum_01pct\":%s,\"lux\":%s,\"motion\":%s%s%s%s%s,\"fault\":%s}",
                 NODE_DEFINITIONS[nodeIndex].node_id,
                 tempText,
                 humText,
                 luxText,
                 nodeStates[nodeIndex].motion ? "true" : "false",
+                pressureField,
+                aqiField,
+                tvocField,
+                eco2Field,
                 nodeStates[nodeIndex].fault ? "true" : "false");
             return;
 
@@ -576,7 +614,7 @@ void publishNodeState(size_t nodeIndex) {
     if (!nodeStates[nodeIndex].state_bekannt) return;
 
     char topic[96] = {0};
-    char payload[224] = {0};
+    char payload[320] = {0};
     baueNodeTopic(nodeIndex, "state", topic, sizeof(topic));
     baueNodeStateJson(nodeIndex, payload, sizeof(payload));
     publishRetained(topic, payload);
@@ -954,15 +992,33 @@ void verarbeiteStateReport(const uint8_t* senderMac, const uint8_t* payload, uin
             break;
 
         case SH_CLASS_NET_SEN:
-            if (payloadLen != sizeof(SmartHome::SensorStateReportPayload)) {
+            if (payloadLen != sizeof(SmartHome::SensorStateReportPayload) &&
+                payloadLen != sizeof(SmartHome::ExtendedSensorStateReportPayload)) {
                 logf("WARN", "STATE_REPORT Laenge ungueltig fuer %s", nodeId);
                 return;
             }
-            {
+
+            if (payloadLen == sizeof(SmartHome::SensorStateReportPayload)) {
                 const SmartHome::SensorStateReportPayload& state = *reinterpret_cast<const SmartHome::SensorStateReportPayload*>(payload);
                 nodeStates[nodeIndex].temp_01c = state.temp_01c;
                 nodeStates[nodeIndex].hum_01pct = state.hum_01pct;
                 nodeStates[nodeIndex].lux = state.lux;
+                nodeStates[nodeIndex].pressure_pa = PRESSURE_UNKNOWN;
+                nodeStates[nodeIndex].aqi = SENSOR_EXTRA_UNKNOWN;
+                nodeStates[nodeIndex].tvoc_ppb = SENSOR_EXTRA_UNKNOWN;
+                nodeStates[nodeIndex].eco2_ppm = SENSOR_EXTRA_UNKNOWN;
+                nodeStates[nodeIndex].motion = (state.motion != 0U);
+                nodeStates[nodeIndex].fault = (state.fault != 0U);
+            } else {
+                const SmartHome::ExtendedSensorStateReportPayload& state =
+                    *reinterpret_cast<const SmartHome::ExtendedSensorStateReportPayload*>(payload);
+                nodeStates[nodeIndex].temp_01c = state.temp_01c;
+                nodeStates[nodeIndex].hum_01pct = state.hum_01pct;
+                nodeStates[nodeIndex].lux = state.lux;
+                nodeStates[nodeIndex].pressure_pa = state.pressure_pa;
+                nodeStates[nodeIndex].aqi = state.aqi;
+                nodeStates[nodeIndex].tvoc_ppb = state.tvoc_ppb;
+                nodeStates[nodeIndex].eco2_ppm = state.eco2_ppm;
                 nodeStates[nodeIndex].motion = (state.motion != 0U);
                 nodeStates[nodeIndex].fault = (state.fault != 0U);
             }

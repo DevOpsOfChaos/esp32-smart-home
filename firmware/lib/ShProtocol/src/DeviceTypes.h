@@ -112,5 +112,5 @@
 // Setup-Portal aktiv (nur für Diagnosezwecke im HELLO mitgeteilt).
 #define SH_CAP_SETUP_PORTAL 0x4000U
 
-// Reserviert für spätere Nutzung.
-#define SH_CAP_RESERVED     0x8000U
+// Luftdrucksensor vorhanden.
+#define SH_CAP_PRESSURE     0x8000U

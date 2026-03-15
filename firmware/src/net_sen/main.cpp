@@ -3,8 +3,8 @@
  Projekt   : SmartHome ESP32
  Geraet    : NET-SEN (Netzbetrieben, Sensor-Basis)
  Datei     : main.cpp
- Version   : 0.2.3
- Stand     : 2026-03-11
+ Version   : 0.3.0
+ Stand     : 2026-03-15
 
  Funktion:
  Allgemeine netzbetriebene Sensor-Basis in derselben ESP-NOW-Linie
@@ -12,8 +12,10 @@
  - feste node_id net_sen_01
  - HELLO beim Start
  - HEARTBEAT zyklisch
- - STATE_REPORT mit generischen Sensorfeldern
- - optionales Motion-EVENT bei konfiguriertem PIR-Pin
+ - STATE_REPORT mit modularen Sensor-Providern
+ - DHT22 bleibt der real belegte Standardpfad
+ - optionale Stub-Provider fuer kommende Module bleiben explizit
+   getrennt von echten Hardwarepfaden
 ====================================================================
 */
 
@@ -23,10 +25,6 @@
 #include <esp_wifi.h>
 #include <stdarg.h>
 #include <string.h>
-#include <limits.h>
-#include <math.h>
-
-#include <DHT.h>
 
 #if __has_include(<esp_arduino_version.h>)
   #include <esp_arduino_version.h>
@@ -42,50 +40,95 @@
 #include "../../include/DebugConfig.h"
 #include "../../lib/ShProtocol/src/Protocol.h"
 #include "../../lib/ShProtocol/src/DeviceTypes.h"
+#include "../../lib/ShSensors/src/NetSenModules.h"
 
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "NET-SEN";
-constexpr char DATEI_VERSION[] = "0.2.3";
+constexpr char DATEI_VERSION[] = "0.3.0";
 const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-constexpr uint8_t DHT_SENSOR_TYP = DHT22;
 constexpr unsigned long DHT_WARMUP_MS = 2500UL;
 constexpr unsigned long DHT_READ_INTERVAL_MS = 2500UL;
 constexpr unsigned long DHT_DIAG_HINT_INTERVAL_MS = 15000UL;
-constexpr int16_t SENSOR_TEMP_UNGUELTIG = INT16_MIN;
-constexpr uint16_t SENSOR_HUM_UNGUELTIG = 0xFFFFU;
-constexpr uint16_t SENSOR_LUX_UNGUELTIG = 0xFFFFU;
+constexpr unsigned long AIR_READ_INTERVAL_MS = 5000UL;
 
-DHT dht(PIN_DHT22_DATA, DHT_SENSOR_TYP);
+using EnvironmentProvider = SmartHome::ShSensors::EnvironmentProvider<NET_SEN_ENV_PROVIDER_KIND>;
+using AirQualityProvider = SmartHome::ShSensors::AirQualityProvider<NET_SEN_AIR_PROVIDER_KIND>;
+using MotionProvider = SmartHome::ShSensors::MotionProvider<NET_SEN_MOTION_PROVIDER_KIND>;
+
+constexpr bool NET_SEN_ERWEITERTER_STATE =
+    SmartHome::ShSensors::usesExtendedNetSenState<NET_SEN_ENV_PROVIDER_KIND, NET_SEN_AIR_PROVIDER_KIND>();
+constexpr uint16_t NET_SEN_CAPS =
+    SmartHome::ShSensors::buildNetSenCaps<
+        NET_SEN_ENV_PROVIDER_KIND,
+        NET_SEN_AIR_PROVIDER_KIND,
+        NET_SEN_MOTION_PROVIDER_KIND>();
+
+static_assert(
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_DHT22 ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_NONE ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BMP280_STUB ||
+    NET_SEN_ENV_PROVIDER_KIND == SH_NET_SEN_ENV_PROVIDER_BME280_STUB,
+    "NET-SEN env provider unbekannt.");
+
+static_assert(
+    NET_SEN_AIR_PROVIDER_KIND == SH_NET_SEN_AIR_PROVIDER_NONE ||
+    NET_SEN_AIR_PROVIDER_KIND == SH_NET_SEN_AIR_PROVIDER_ENS160_STUB,
+    "NET-SEN air provider unbekannt.");
+
+static_assert(
+    NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_NONE ||
+    NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_PIR_PIN ||
+    NET_SEN_MOTION_PROVIDER_KIND == SH_NET_SEN_MOTION_PROVIDER_PIR_STUB,
+    "NET-SEN motion provider unbekannt.");
+
+static_assert(
+    NET_SEN_ENV_PROVIDER_KIND != SH_NET_SEN_ENV_PROVIDER_DHT22 || PIN_DHT22_DATA >= 0,
+    "NET-SEN DHT22 provider braucht PIN_DHT22_DATA.");
+
+static_assert(
+    NET_SEN_MOTION_PROVIDER_KIND != SH_NET_SEN_MOTION_PROVIDER_PIR_PIN || PIN_PIR >= 0,
+    "NET-SEN PIR provider braucht einen gueltigen PIR-Pin.");
 
 struct NodeState {
     bool master_bekannt;
     bool master_mac_gueltig;
-    bool fault;
-    bool motion;
     bool state_report_offen;
-    int16_t temp_01c;
-    uint16_t hum_01pct;
-    uint16_t lux;
     unsigned long letztes_hello_ms;
     unsigned long letzter_heartbeat_ms;
     unsigned long letzter_state_ms;
     unsigned long letzter_state_wait_log_ms;
     uint8_t master_mac[6];
     uint8_t naechste_seq;
-};
-
-struct SensorRuntime {
-    unsigned long boot_ms;
-    unsigned long letzter_read_ms;
-    unsigned long letzte_gueltige_messung_ms;
-    unsigned long letzter_diag_hinweis_ms;
-    uint32_t leseversuche;
-    uint32_t fehler_in_folge;
-    bool erster_read_abgeschlossen;
+    SmartHome::ShSensors::NetSenState sensor;
 };
 
 NodeState nodeStatus = {};
-SensorRuntime sensorStatus = {};
+
+const SmartHome::ShSensors::EnvironmentProviderConfig ENVIRONMENT_CONFIG = {
+    PIN_DHT22_DATA,
+    DHT_WARMUP_MS,
+    DHT_READ_INTERVAL_MS,
+    DHT_DIAG_HINT_INTERVAL_MS,
+    TEMP_DELTA_01C,
+    HUM_DELTA_01PCT,
+    PRESSURE_DELTA_PA};
+
+const SmartHome::ShSensors::AirQualityProviderConfig AIR_CONFIG = {
+    AIR_READ_INTERVAL_MS,
+    AQI_DELTA,
+    TVOC_DELTA_PPB,
+    ECO2_DELTA_PPM};
+
+const SmartHome::ShSensors::MotionProviderConfig MOTION_CONFIG = {
+    PIN_PIR};
+
+EnvironmentProvider environmentProvider(ENVIRONMENT_CONFIG);
+AirQualityProvider airQualityProvider(AIR_CONFIG);
+MotionProvider motionProvider(MOTION_CONFIG);
+
+bool istBroadcastMac(const uint8_t* mac) {
+    return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
+}
 
 void logf(const char* level, const char* format, ...) {
     if (!DEBUG_LOKAL_AKTIV) return;
@@ -117,18 +160,6 @@ void logMac(const char* prefix, const uint8_t* mac) {
     char macText[18] = {0};
     SmartHome::macToString(mac, macText);
     logf("INFO", "%s%s", prefix, macText);
-}
-
-bool istBroadcastMac(const uint8_t* mac) {
-    return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
-}
-
-uint16_t ermittleCaps() {
-    uint16_t caps = SH_CAP_TEMP | SH_CAP_HUM;
-    if (PIN_PIR >= 0) {
-        caps |= SH_CAP_MOTION;
-    }
-    return caps;
 }
 
 bool stellePeerSicher(const uint8_t* mac) {
@@ -182,10 +213,8 @@ bool sendeHello() {
     copyText(payload.device_id, sizeof(payload.device_id), DEVICE_ID);
     copyText(payload.device_name, sizeof(payload.device_name), DEVICE_NAME);
     payload.device_class = SH_CLASS_NET_SEN;
-
-    uint16_t caps = ermittleCaps();
-    payload.caps_hi = (uint8_t)((caps >> 8) & 0xFFU);
-    payload.caps_lo = (uint8_t)(caps & 0xFFU);
+    payload.caps_hi = (uint8_t)((NET_SEN_CAPS >> 8) & 0xFFU);
+    payload.caps_lo = (uint8_t)(NET_SEN_CAPS & 0xFFU);
     payload.power_type = SH_POWER_MAINS;
     payload.fw_version = 0;
     payload.boot_counter = 1U;
@@ -218,13 +247,34 @@ bool sendeStateReport() {
         return false;
     }
 
+    if (NET_SEN_ERWEITERTER_STATE) {
+        SmartHome::ExtendedSensorStateReportPayload payload = {};
+        copyText(payload.node_id, sizeof(payload.node_id), DEVICE_ID);
+        payload.temp_01c = nodeStatus.sensor.temp_01c;
+        payload.hum_01pct = nodeStatus.sensor.hum_01pct;
+        payload.lux = nodeStatus.sensor.lux;
+        payload.pressure_pa = nodeStatus.sensor.pressure_pa;
+        payload.aqi = nodeStatus.sensor.aqi;
+        payload.tvoc_ppb = nodeStatus.sensor.tvoc_ppb;
+        payload.eco2_ppm = nodeStatus.sensor.eco2_ppm;
+        payload.motion = nodeStatus.sensor.motion ? 1U : 0U;
+        payload.fault = nodeStatus.sensor.fault ? 1U : 0U;
+
+        if (sendePaket(nodeStatus.master_mac, SH_MSG_STATE, &payload, sizeof(payload), "STATE_REPORT")) {
+            nodeStatus.state_report_offen = false;
+            nodeStatus.letzter_state_ms = millis();
+            return true;
+        }
+        return false;
+    }
+
     SmartHome::SensorStateReportPayload payload = {};
     copyText(payload.node_id, sizeof(payload.node_id), DEVICE_ID);
-    payload.temp_01c = nodeStatus.temp_01c;
-    payload.hum_01pct = nodeStatus.hum_01pct;
-    payload.lux = nodeStatus.lux;
-    payload.motion = nodeStatus.motion ? 1U : 0U;
-    payload.fault = nodeStatus.fault ? 1U : 0U;
+    payload.temp_01c = nodeStatus.sensor.temp_01c;
+    payload.hum_01pct = nodeStatus.sensor.hum_01pct;
+    payload.lux = nodeStatus.sensor.lux;
+    payload.motion = nodeStatus.sensor.motion ? 1U : 0U;
+    payload.fault = nodeStatus.sensor.fault ? 1U : 0U;
 
     if (sendePaket(nodeStatus.master_mac, SH_MSG_STATE, &payload, sizeof(payload), "STATE_REPORT")) {
         nodeStatus.state_report_offen = false;
@@ -250,30 +300,25 @@ bool sendeEvent(uint8_t eventType, uint8_t trigger, uint8_t param1, uint16_t par
     return sendePaket(nodeStatus.master_mac, SH_MSG_EVENT, &payload, sizeof(payload), "EVENT");
 }
 
+bool sensorStateBereit() {
+    return environmentProvider.isReady() &&
+           airQualityProvider.isReady() &&
+           motionProvider.isReady();
+}
+
 void initialisiereHardware() {
     if (PIN_STATUS_LED >= 0) {
         pinMode(PIN_STATUS_LED, OUTPUT);
         digitalWrite(PIN_STATUS_LED, LOW);
     }
-    if (PIN_PIR >= 0) {
-        pinMode(PIN_PIR, INPUT);
-    }
 
-    nodeStatus.temp_01c = SENSOR_TEMP_UNGUELTIG;
-    nodeStatus.hum_01pct = SENSOR_HUM_UNGUELTIG;
-    nodeStatus.lux = SENSOR_LUX_UNGUELTIG;
-    nodeStatus.motion = false;
-    nodeStatus.fault = false;
+    SmartHome::ShSensors::resetNetSenState(nodeStatus.sensor);
     nodeStatus.state_report_offen = false;
 
-    dht.begin();
-    sensorStatus.boot_ms = millis();
-    sensorStatus.letzter_read_ms = 0UL;
-    sensorStatus.letzte_gueltige_messung_ms = 0UL;
-    sensorStatus.letzter_diag_hinweis_ms = 0UL;
-    sensorStatus.leseversuche = 0UL;
-    sensorStatus.fehler_in_folge = 0UL;
-    sensorStatus.erster_read_abgeschlossen = false;
+    const unsigned long bootMs = millis();
+    environmentProvider.begin(bootMs, logf);
+    airQualityProvider.begin(bootMs, logf);
+    motionProvider.begin(logf);
 }
 
 void initialisiereFunk() {
@@ -309,166 +354,38 @@ void gibStartmeldungAus() {
     Serial.println(DEVICE_ID);
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
-    Serial.print("Minimalpfad: DHT22 an GPIO");
-    Serial.println(PIN_DHT22_DATA);
-    Serial.println("Sensorlogik: keine Fake-Werte, Plausibilitaetspruefung aktiv");
+    Serial.print("Umgebung: ");
+    Serial.println(environmentProvider.name());
+    Serial.print("Luftqualitaet: ");
+    Serial.println(airQualityProvider.name());
+    Serial.print("Motion: ");
+    Serial.println(motionProvider.name());
+    Serial.print("State-Format: ");
+    Serial.println(NET_SEN_ERWEITERTER_STATE ? "extended" : "baseline");
     Serial.println("================================");
 }
 
-int16_t rundeTempZu01C(float temperaturC) {
-    return static_cast<int16_t>(lroundf(temperaturC * 10.0f));
-}
-
-uint16_t rundeHumZu01Pct(float feuchtePct) {
-    long gerundet = lroundf(feuchtePct * 10.0f);
-    if (gerundet < 0L) gerundet = 0L;
-    if (gerundet > 1000L) gerundet = 1000L;
-    return static_cast<uint16_t>(gerundet);
-}
-
-bool dhtStateBereit() {
-    return sensorStatus.erster_read_abgeschlossen;
-}
-
-bool hatJemalsGueltigeDhtMessung() {
-    return sensorStatus.letzte_gueltige_messung_ms != 0UL;
-}
-
-void loggeDhtVerdrahtungshinweis() {
+void aktualisiereSensoren() {
     const unsigned long jetzt = millis();
-    const bool hinweisFaellig =
-        sensorStatus.fehler_in_folge == 1UL ||
-        sensorStatus.fehler_in_folge == 3UL ||
-        (jetzt - sensorStatus.letzter_diag_hinweis_ms) >= DHT_DIAG_HINT_INTERVAL_MS;
+    const bool motionVorher = nodeStatus.sensor.motion;
+    const bool faultVorher = nodeStatus.sensor.fault;
 
-    if (!hinweisFaellig) {
-        return;
-    }
+    const SmartHome::ShSensors::ProviderUpdate envUpdate =
+        environmentProvider.poll(jetzt, nodeStatus.sensor, logf);
+    const SmartHome::ShSensors::ProviderUpdate airUpdate =
+        airQualityProvider.poll(jetzt, nodeStatus.sensor, logf);
+    const SmartHome::ShSensors::ProviderUpdate motionUpdate =
+        motionProvider.poll(nodeStatus.sensor, logf);
 
-    sensorStatus.letzter_diag_hinweis_ms = jetzt;
+    const bool faultJetzt = envUpdate.fault || airUpdate.fault;
+    nodeStatus.sensor.fault = faultJetzt;
 
-    if (!hatJemalsGueltigeDhtMessung()) {
-        logf(
-            "WARN",
-            "DHT22 HINWEIS: seit Boot keine gueltige Messung; GPIO%d/VCC/GND/Pull-up pruefen",
-            PIN_DHT22_DATA);
-        return;
-    }
-
-    logf(
-        "WARN",
-        "DHT22 HINWEIS: letzte gueltige Messung vor %lus; Verdrahtung/Sensor pruefen",
-        (jetzt - sensorStatus.letzte_gueltige_messung_ms) / 1000UL);
-}
-
-void setzeDhtLesefehler(const char* grund) {
-    const bool zustandGeaendert =
-        !nodeStatus.fault ||
-        nodeStatus.temp_01c != SENSOR_TEMP_UNGUELTIG ||
-        nodeStatus.hum_01pct != SENSOR_HUM_UNGUELTIG;
-
-    nodeStatus.temp_01c = SENSOR_TEMP_UNGUELTIG;
-    nodeStatus.hum_01pct = SENSOR_HUM_UNGUELTIG;
-    nodeStatus.fault = true;
-    sensorStatus.erster_read_abgeschlossen = true;
-    sensorStatus.fehler_in_folge++;
-
-    if (zustandGeaendert) {
+    if (envUpdate.changed || airUpdate.changed || motionUpdate.changed || faultVorher != faultJetzt) {
         nodeStatus.state_report_offen = true;
     }
 
-    logf(
-        "WARN",
-        "DHT22 FEHLER GPIO%d: %s (versuch=%lu, fehler_in_folge=%lu)",
-        PIN_DHT22_DATA,
-        grund,
-        sensorStatus.leseversuche,
-        sensorStatus.fehler_in_folge);
-    loggeDhtVerdrahtungshinweis();
-}
-
-const char* pruefeDhtMessung(float temperaturC, float feuchtePct) {
-    if (isnan(feuchtePct) || isnan(temperaturC)) {
-        return "NaN";
-    }
-
-    if (feuchtePct < 0.0f || feuchtePct > 100.0f || temperaturC < -40.0f || temperaturC > 80.0f) {
-        return "ausserhalb DHT22-Bereich";
-    }
-
-    const int16_t gerundeteTemp = rundeTempZu01C(temperaturC);
-    const uint16_t gerundeteHum = rundeHumZu01Pct(feuchtePct);
-    if (gerundeteTemp == 0 && gerundeteHum == 0U) {
-        return "0.0C/0.0% unplausibel (typisches Nullframe-/Verdrahtungsbild)";
-    }
-
-    return nullptr;
-}
-
-void uebernehmeDhtMessung(float temperaturC, float feuchtePct) {
-    const int16_t neueTemp = rundeTempZu01C(temperaturC);
-    const uint16_t neueHum = rundeHumZu01Pct(feuchtePct);
-    const bool tempNeuOderAnders =
-        nodeStatus.temp_01c == SENSOR_TEMP_UNGUELTIG ||
-        abs((int)neueTemp - (int)nodeStatus.temp_01c) >= TEMP_DELTA_01C;
-    const bool humNeuOderAnders =
-        nodeStatus.hum_01pct == SENSOR_HUM_UNGUELTIG ||
-        abs((int)neueHum - (int)nodeStatus.hum_01pct) >= HUM_DELTA_01PCT;
-
-    nodeStatus.temp_01c = neueTemp;
-    nodeStatus.hum_01pct = neueHum;
-    nodeStatus.fault = false;
-    sensorStatus.erster_read_abgeschlossen = true;
-    sensorStatus.letzte_gueltige_messung_ms = millis();
-    sensorStatus.fehler_in_folge = 0UL;
-
-    if (tempNeuOderAnders || humNeuOderAnders) {
-        nodeStatus.state_report_offen = true;
-    }
-
-    logf("INFO", "DHT22 OK temp=%d.%dC hum=%u.%u%%", neueTemp / 10, abs(neueTemp % 10), neueHum / 10, neueHum % 10);
-}
-
-void messeSensoren() {
-    const unsigned long jetzt = millis();
-
-    // DHT22 braucht nach dem Booten und zwischen zwei Messungen echte Ruhe.
-    if ((jetzt - sensorStatus.boot_ms) < DHT_WARMUP_MS) return;
-    if (sensorStatus.letzter_read_ms != 0UL &&
-        (jetzt - sensorStatus.letzter_read_ms) < DHT_READ_INTERVAL_MS) {
-        return;
-    }
-
-    sensorStatus.letzter_read_ms = jetzt;
-    sensorStatus.leseversuche++;
-    logf("INFO", "DHT22 READ GPIO%d versuch=%lu", PIN_DHT22_DATA, sensorStatus.leseversuche);
-
-    if (!dht.read()) {
-        setzeDhtLesefehler("Lib-Read fehlgeschlagen (Timeout/Checksum)");
-        return;
-    }
-
-    const float feuchtePct = dht.readHumidity();
-    const float temperaturC = dht.readTemperature();
-    const char* fehlergrund = pruefeDhtMessung(temperaturC, feuchtePct);
-    if (fehlergrund != nullptr) {
-        setzeDhtLesefehler(fehlergrund);
-        return;
-    }
-
-    uebernehmeDhtMessung(temperaturC, feuchtePct);
-}
-
-void aktualisiereMotion() {
-    if (PIN_PIR < 0) return;
-
-    bool jetzt = (digitalRead(PIN_PIR) == HIGH);
-    if (jetzt != nodeStatus.motion) {
-        nodeStatus.motion = jetzt;
-        nodeStatus.state_report_offen = true;
-        if (jetzt) {
-            sendeEvent(SH_EVENT_MOTION_DETECTED, SH_TRIGGER_AUTO, 0U, 0U);
-        }
+    if (!motionVorher && nodeStatus.sensor.motion) {
+        sendeEvent(SH_EVENT_MOTION_DETECTED, SH_TRIGGER_AUTO, 0U, 0U);
     }
 }
 
@@ -484,7 +401,7 @@ void verarbeiteHelloAck(const uint8_t* senderMac, const SmartHome::HelloAckPaylo
     stellePeerSicher(nodeStatus.master_mac);
     logf("INFO", "HELLO_ACK empfangen, Master-Kanal=%u", payload.channel);
     logMac("Master-MAC: ", senderMac);
-    nodeStatus.state_report_offen = dhtStateBereit();
+    nodeStatus.state_report_offen = sensorStateBereit();
 }
 
 void verarbeiteCmd(const SmartHome::CmdPayload& cmd) {
@@ -563,9 +480,8 @@ void setup() {
 
     nodeStatus = {};
     logf("INFO", "setup() gestartet");
-    gibStartmeldungAus();
-    logf("INFO", "Initialisiere Hardware");
     initialisiereHardware();
+    gibStartmeldungAus();
     logf("INFO", "Initialisiere Funk");
     initialisiereFunk();
 
@@ -578,10 +494,9 @@ void setup() {
 }
 
 void loop() {
-    unsigned long jetzt = millis();
+    const unsigned long jetzt = millis();
 
-    messeSensoren();
-    aktualisiereMotion();
+    aktualisiereSensoren();
 
     if (!nodeStatus.master_bekannt) {
         if ((jetzt - nodeStatus.letztes_hello_ms) >= HELLO_RETRY_INTERVAL_MS) {
@@ -591,7 +506,7 @@ void loop() {
         sendeHeartbeat();
     }
 
-    if (dhtStateBereit() &&
+    if (sensorStateBereit() &&
         !nodeStatus.master_mac_gueltig &&
         nodeStatus.state_report_offen &&
         (jetzt - nodeStatus.letzter_state_wait_log_ms) >= HELLO_RETRY_INTERVAL_MS) {
@@ -600,7 +515,7 @@ void loop() {
     }
 
     if (nodeStatus.master_mac_gueltig &&
-        dhtStateBereit() &&
+        sensorStateBereit() &&
         (nodeStatus.state_report_offen || (jetzt - nodeStatus.letzter_state_ms) >= STATE_INTERVAL_MS)) {
         sendeStateReport();
     }

@@ -3,8 +3,8 @@
  Projekt   : SmartHome ESP32
  Geraet    : BAT-SEN (Batteriebetrieben, Sensor/Event-Basis)
  Datei     : main.cpp
- Version   : 0.2.4
- Stand     : 2026-03-12
+ Version   : 0.3.0
+ Stand     : 2026-03-15
 
  Funktion:
  Allgemeine Batterie-Basis in derselben ESP-NOW-Linie wie die
@@ -13,7 +13,8 @@
  - HELLO beim Start
  - HEARTBEAT im batterievertraeglichen Intervall
  - STATE_REPORT fuer Batterie- und Eingangszustand
- - EVENT fuer Reed/Taster-Aenderungen
+ - optionale Reed-/Button-/Rain-Provider getrennt vom
+   real belegten Batterie-Messpfad
 
  Hinweis:
  Deep-Sleep wird in diesem Stand bewusst nicht aktiviert. Die Basis
@@ -42,11 +43,58 @@
 #include "../../include/DebugConfig.h"
 #include "../../lib/ShProtocol/src/Protocol.h"
 #include "../../lib/ShProtocol/src/DeviceTypes.h"
+#include "../../lib/ShSensors/src/BatSenModules.h"
 
 constexpr bool DEBUG_LOKAL_AKTIV = DEVICE_DEBUG_AKTIV && DEBUG_AKTIV;
 constexpr char DATEI_GERAET[] = "BAT-SEN";
-constexpr char DATEI_VERSION[] = "0.2.4";
+constexpr char DATEI_VERSION[] = "0.3.0";
 const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+using ReedProvider = SmartHome::ShSensors::ReedProvider<BAT_SEN_REED_PROVIDER_KIND>;
+using ButtonProvider = SmartHome::ShSensors::ButtonProvider<BAT_SEN_BUTTON_PROVIDER_KIND>;
+using RainProvider = SmartHome::ShSensors::RainProvider<BAT_SEN_RAIN_PROVIDER_KIND>;
+
+constexpr uint16_t BAT_SEN_CAPS =
+    SmartHome::ShSensors::buildBatSenCaps<
+        BAT_SEN_REED_PROVIDER_KIND,
+        BAT_SEN_BUTTON_PROVIDER_KIND,
+        BAT_SEN_RAIN_PROVIDER_KIND,
+        BAT_SEN_BUTTON_CHANNEL_COUNT>();
+
+static_assert(
+    BAT_SEN_REED_PROVIDER_KIND == SH_BAT_SEN_REED_PROVIDER_NONE ||
+    BAT_SEN_REED_PROVIDER_KIND == SH_BAT_SEN_REED_PROVIDER_PIN ||
+    BAT_SEN_REED_PROVIDER_KIND == SH_BAT_SEN_REED_PROVIDER_STUB,
+    "BAT-SEN reed provider unbekannt.");
+
+static_assert(
+    BAT_SEN_BUTTON_PROVIDER_KIND == SH_BAT_SEN_BUTTON_PROVIDER_NONE ||
+    BAT_SEN_BUTTON_PROVIDER_KIND == SH_BAT_SEN_BUTTON_PROVIDER_PIN ||
+    BAT_SEN_BUTTON_PROVIDER_KIND == SH_BAT_SEN_BUTTON_PROVIDER_STUB,
+    "BAT-SEN button provider unbekannt.");
+
+static_assert(
+    BAT_SEN_RAIN_PROVIDER_KIND == SH_BAT_SEN_RAIN_PROVIDER_NONE ||
+    BAT_SEN_RAIN_PROVIDER_KIND == SH_BAT_SEN_RAIN_PROVIDER_ADC ||
+    BAT_SEN_RAIN_PROVIDER_KIND == SH_BAT_SEN_RAIN_PROVIDER_STUB,
+    "BAT-SEN rain provider unbekannt.");
+
+static_assert(
+    BAT_SEN_REED_PROVIDER_KIND != SH_BAT_SEN_REED_PROVIDER_PIN || PIN_REED >= 0,
+    "BAT-SEN reed provider braucht PIN_REED.");
+
+static_assert(
+    BAT_SEN_BUTTON_PROVIDER_KIND != SH_BAT_SEN_BUTTON_PROVIDER_PIN ||
+    PIN_BUTTON_1 >= 0 || PIN_BUTTON_2 >= 0 || PIN_BUTTON_3 >= 0 || PIN_BUTTON_4 >= 0,
+    "BAT-SEN button provider braucht mindestens einen Button-Pin.");
+
+static_assert(
+    BAT_SEN_RAIN_PROVIDER_KIND != SH_BAT_SEN_RAIN_PROVIDER_ADC || PIN_RAIN_ADC >= 0,
+    "BAT-SEN rain provider braucht PIN_RAIN_ADC.");
+
+static_assert(
+    BAT_SEN_BUTTON_CHANNEL_COUNT <= 4U,
+    "BAT-SEN supports at most four button channels.");
 
 struct BatteryProfileConfig {
     const char* name;
@@ -58,25 +106,36 @@ struct NodeState {
     bool master_bekannt;
     bool master_mac_gueltig;
     bool fault;
-    bool window_offen;
-    bool letzter_button_1;
-    bool letzter_button_2;
-    bool letzter_button_3;
-    bool letzter_button_4;
     bool state_report_offen;
     uint8_t batterie_pct;
     uint16_t batterie_adc_mv;
     uint16_t batterie_mv;
-    uint16_t rain_raw;
-    uint8_t button_flags;
     uint8_t master_mac[6];
     unsigned long letztes_hello_ms;
     unsigned long letzter_heartbeat_ms;
     unsigned long letzter_state_ms;
     uint8_t naechste_seq;
+    SmartHome::ShSensors::BatSenInputState inputs;
 };
 
 NodeState nodeStatus = {};
+
+const SmartHome::ShSensors::ReedProviderConfig REED_CONFIG = {
+    PIN_REED};
+
+const SmartHome::ShSensors::ButtonProviderConfig BUTTON_CONFIG = {
+    PIN_BUTTON_1,
+    PIN_BUTTON_2,
+    PIN_BUTTON_3,
+    PIN_BUTTON_4};
+
+const SmartHome::ShSensors::RainProviderConfig RAIN_CONFIG = {
+    PIN_RAIN_ADC,
+    RAIN_DELTA_RAW};
+
+ReedProvider reedProvider(REED_CONFIG);
+ButtonProvider buttonProvider(BUTTON_CONFIG);
+RainProvider rainProvider(RAIN_CONFIG);
 
 BatteryProfileConfig holeBatterieProfil() {
     switch (BATTERY_PROFILE) {
@@ -103,9 +162,6 @@ uint8_t berechneBatterieProzent(uint16_t batterieMv) {
 }
 
 uint16_t leseBatterieMillivolt(uint16_t* adcEingangMvOut) {
-    // V1 knows only the fixed GPIO4 battery divider: 100k / 100k => ADC sees VBAT / 2.
-    // `analogReadMilliVolts()` uses the Arduino/ESP32 calibration path when available,
-    // but board-specific ADC accuracy is still not hardware-validated for this device.
     uint32_t adcSummeMv = 0UL;
     for (uint8_t i = 0U; i < BATTERY_ADC_SAMPLE_COUNT; ++i) {
         adcSummeMv += analogReadMilliVolts(PIN_BATTERY_ADC);
@@ -119,7 +175,6 @@ uint16_t leseBatterieMillivolt(uint16_t* adcEingangMvOut) {
         return 0U;
     }
 
-    // The 100 uF cap on the divider node keeps the input slow but stable, so a short average is enough here.
     uint32_t batterieMv =
         (adcEingangMv * (BATTERY_DIVIDER_TOP_OHM + BATTERY_DIVIDER_BOTTOM_OHM)) / BATTERY_DIVIDER_BOTTOM_OHM;
 
@@ -212,22 +267,6 @@ bool istBroadcastMac(const uint8_t* mac) {
     return mac != nullptr && memcmp(mac, BROADCAST_MAC, sizeof(BROADCAST_MAC)) == 0;
 }
 
-uint16_t ermittleCaps() {
-    uint16_t caps = SH_CAP_BATTERY;
-
-    uint8_t buttonCount = 0U;
-    if (PIN_BUTTON_1 >= 0) buttonCount++;
-    if (PIN_BUTTON_2 >= 0) buttonCount++;
-    if (PIN_BUTTON_3 >= 0) buttonCount++;
-    if (PIN_BUTTON_4 >= 0) buttonCount++;
-
-    if (buttonCount == 1U) caps |= SH_CAP_BUTTON;
-    if (buttonCount > 1U) caps |= SH_CAP_MULTIBUTTON;
-    if (PIN_REED >= 0) caps |= SH_CAP_WINDOW;
-    if (PIN_RAIN_ADC >= 0) caps |= SH_CAP_RAIN;
-    return caps;
-}
-
 bool stellePeerSicher(const uint8_t* mac) {
     if (mac == nullptr) return false;
     if (!istBroadcastMac(mac) && !SmartHome::isValidMac(mac)) return false;
@@ -279,10 +318,8 @@ bool sendeHello() {
     copyText(payload.device_id, sizeof(payload.device_id), DEVICE_ID);
     copyText(payload.device_name, sizeof(payload.device_name), DEVICE_NAME);
     payload.device_class = SH_CLASS_BAT_SEN;
-
-    uint16_t caps = ermittleCaps();
-    payload.caps_hi = (uint8_t)((caps >> 8) & 0xFFU);
-    payload.caps_lo = (uint8_t)(caps & 0xFFU);
+    payload.caps_hi = (uint8_t)((BAT_SEN_CAPS >> 8) & 0xFFU);
+    payload.caps_lo = (uint8_t)(BAT_SEN_CAPS & 0xFFU);
     payload.power_type = SH_POWER_BATTERY;
     payload.fw_version = 0;
     payload.boot_counter = 1U;
@@ -319,9 +356,15 @@ bool sendeStateReport() {
     copyText(payload.node_id, sizeof(payload.node_id), DEVICE_ID);
     payload.battery_pct = nodeStatus.batterie_pct;
     payload.battery_mv = nodeStatus.batterie_mv;
-    payload.window_open = (PIN_REED >= 0) ? (nodeStatus.window_offen ? 1U : 0U) : 0xFFU;
-    payload.rain_raw = (PIN_RAIN_ADC >= 0) ? nodeStatus.rain_raw : 0xFFFFU;
-    payload.button_flags = nodeStatus.button_flags;
+    payload.window_open = (BAT_SEN_REED_PROVIDER_KIND == SH_BAT_SEN_REED_PROVIDER_NONE)
+        ? SmartHome::ShSensors::BAT_SEN_WINDOW_UNGUELTIG
+        : (nodeStatus.inputs.window_open ? 1U : 0U);
+    payload.rain_raw = (BAT_SEN_RAIN_PROVIDER_KIND == SH_BAT_SEN_RAIN_PROVIDER_NONE)
+        ? SmartHome::ShSensors::BAT_SEN_RAIN_UNGUELTIG
+        : nodeStatus.inputs.rain_raw;
+    payload.button_flags = (BAT_SEN_BUTTON_PROVIDER_KIND == SH_BAT_SEN_BUTTON_PROVIDER_NONE)
+        ? 0U
+        : nodeStatus.inputs.button_flags;
     payload.fault = nodeStatus.fault ? 1U : 0U;
     logBatterieMessung("state_report");
 
@@ -350,26 +393,21 @@ bool sendeEvent(uint8_t eventType, uint8_t trigger, uint8_t param1, uint16_t par
 }
 
 void initialisiereHardware() {
-    if (PIN_BUTTON_1 >= 0) pinMode(PIN_BUTTON_1, INPUT_PULLUP);
-    if (PIN_BUTTON_2 >= 0) pinMode(PIN_BUTTON_2, INPUT_PULLUP);
-    if (PIN_BUTTON_3 >= 0) pinMode(PIN_BUTTON_3, INPUT_PULLUP);
-    if (PIN_BUTTON_4 >= 0) pinMode(PIN_BUTTON_4, INPUT_PULLUP);
-    if (PIN_REED >= 0) pinMode(PIN_REED, INPUT_PULLUP);
     if (PIN_BATTERY_ADC >= 0) {
         adcAttachPin(PIN_BATTERY_ADC);
-        // 11 dB is the safest minimal V1 choice until the exact board attenuation
-        // and calibration are proven on real bat_sen hardware.
         analogSetPinAttenuation(PIN_BATTERY_ADC, ADC_11db);
     }
 
     nodeStatus.batterie_pct = 0xFFU;
     nodeStatus.batterie_adc_mv = 0U;
     nodeStatus.batterie_mv = 0U;
-    nodeStatus.rain_raw = 0xFFFFU;
-    nodeStatus.button_flags = 0U;
-    nodeStatus.window_offen = false;
     nodeStatus.fault = false;
     nodeStatus.state_report_offen = false;
+    SmartHome::ShSensors::resetBatSenInputs(nodeStatus.inputs);
+
+    reedProvider.begin();
+    buttonProvider.begin();
+    rainProvider.begin();
 }
 
 void initialisiereFunk() {
@@ -393,6 +431,18 @@ void initialisiereFunk() {
     logf("INFO", "ESP-NOW bereit auf Kanal %d", WLAN_KANAL);
 }
 
+void logProviderHinweise() {
+    if (BAT_SEN_REED_PROVIDER_KIND == SH_BAT_SEN_REED_PROVIDER_STUB) {
+        logf("WARN", "BAT-SEN stub provider aktiv: reed_stub (kein Hardware-Nachweis)");
+    }
+    if (BAT_SEN_BUTTON_PROVIDER_KIND == SH_BAT_SEN_BUTTON_PROVIDER_STUB) {
+        logf("WARN", "BAT-SEN stub provider aktiv: button_stub (kein Hardware-Nachweis)");
+    }
+    if (BAT_SEN_RAIN_PROVIDER_KIND == SH_BAT_SEN_RAIN_PROVIDER_STUB) {
+        logf("WARN", "BAT-SEN stub provider aktiv: rain_stub (kein Hardware-Nachweis)");
+    }
+}
+
 void gibStartmeldungAus() {
     if (!DEBUG_LOKAL_AKTIV) return;
 
@@ -411,11 +461,12 @@ void gibStartmeldungAus() {
     BatteryProfileConfig profil = holeBatterieProfil();
     Serial.print("Batterieprofil: ");
     Serial.println(profil.name);
-    Serial.print("Batterieprofil-Fenster: ");
-    Serial.print(profil.leer_mv);
-    Serial.print("..");
-    Serial.print(profil.voll_mv);
-    Serial.println(" mV");
+    Serial.print("Reed: ");
+    Serial.println(reedProvider.name());
+    Serial.print("Buttons: ");
+    Serial.println(buttonProvider.name());
+    Serial.print("Rain: ");
+    Serial.println(rainProvider.name());
     Serial.println("================================");
 }
 
@@ -440,45 +491,48 @@ void messeBatterie() {
     nodeStatus.batterie_pct = berechneBatterieProzent(batterieMv);
 }
 
-uint8_t liesButtonFlags() {
-    uint8_t flags = 0U;
-    if (PIN_BUTTON_1 >= 0 && digitalRead(PIN_BUTTON_1) == LOW) flags |= 0x01U;
-    if (PIN_BUTTON_2 >= 0 && digitalRead(PIN_BUTTON_2) == LOW) flags |= 0x02U;
-    if (PIN_BUTTON_3 >= 0 && digitalRead(PIN_BUTTON_3) == LOW) flags |= 0x04U;
-    if (PIN_BUTTON_4 >= 0 && digitalRead(PIN_BUTTON_4) == LOW) flags |= 0x08U;
-    return flags;
-}
-
-void aktualisiereFensterKontakt() {
-    if (PIN_REED < 0) return;
-
-    bool jetztOffen = (digitalRead(PIN_REED) == LOW);
-    if (jetztOffen != nodeStatus.window_offen) {
-        nodeStatus.window_offen = jetztOffen;
-        nodeStatus.state_report_offen = true;
-        sendeEvent(
-            jetztOffen ? SH_EVENT_WINDOW_OPENED : SH_EVENT_WINDOW_CLOSED,
-            SH_TRIGGER_UNKNOWN,
-            0U,
-            0U);
+void aktualisiereOptionaleEingaenge() {
+    if (BAT_SEN_REED_PROVIDER_KIND != SH_BAT_SEN_REED_PROVIDER_NONE) {
+        const SmartHome::ShSensors::ReedUpdate reedUpdate = reedProvider.poll();
+        if (nodeStatus.inputs.window_open != reedUpdate.window_open) {
+            nodeStatus.inputs.window_open = reedUpdate.window_open;
+            nodeStatus.state_report_offen = true;
+            sendeEvent(
+                reedUpdate.window_open ? SH_EVENT_WINDOW_OPENED : SH_EVENT_WINDOW_CLOSED,
+                SH_TRIGGER_UNKNOWN,
+                0U,
+                0U);
+        } else if (reedUpdate.changed) {
+            nodeStatus.state_report_offen = true;
+        }
     }
-}
 
-void verarbeiteButton(bool jetztGedrueckt, bool* letzterZustand, uint8_t buttonIndex) {
-    if (jetztGedrueckt && !*letzterZustand) {
-        sendeEvent(SH_EVENT_BUTTON_PRESS, SH_TRIGGER_MANUAL_BUTTON, buttonIndex, 0U);
-        nodeStatus.state_report_offen = true;
+    if (BAT_SEN_BUTTON_PROVIDER_KIND != SH_BAT_SEN_BUTTON_PROVIDER_NONE) {
+        const SmartHome::ShSensors::ButtonUpdate buttonUpdate = buttonProvider.poll();
+        if (nodeStatus.inputs.button_flags != buttonUpdate.button_flags) {
+            nodeStatus.inputs.button_flags = buttonUpdate.button_flags;
+            nodeStatus.state_report_offen = true;
+        } else if (buttonUpdate.changed) {
+            nodeStatus.state_report_offen = true;
+        }
+
+        for (uint8_t buttonIndex = 0U; buttonIndex < 4U; ++buttonIndex) {
+            const uint8_t bit = (uint8_t)(1U << buttonIndex);
+            if (buttonUpdate.press_mask & bit) {
+                sendeEvent(SH_EVENT_BUTTON_PRESS, SH_TRIGGER_MANUAL_BUTTON, (uint8_t)(buttonIndex + 1U), 0U);
+            }
+        }
     }
-    *letzterZustand = jetztGedrueckt;
-}
 
-void aktualisiereTaster() {
-    if (PIN_BUTTON_1 >= 0) verarbeiteButton(digitalRead(PIN_BUTTON_1) == LOW, &nodeStatus.letzter_button_1, 1U);
-    if (PIN_BUTTON_2 >= 0) verarbeiteButton(digitalRead(PIN_BUTTON_2) == LOW, &nodeStatus.letzter_button_2, 2U);
-    if (PIN_BUTTON_3 >= 0) verarbeiteButton(digitalRead(PIN_BUTTON_3) == LOW, &nodeStatus.letzter_button_3, 3U);
-    if (PIN_BUTTON_4 >= 0) verarbeiteButton(digitalRead(PIN_BUTTON_4) == LOW, &nodeStatus.letzter_button_4, 4U);
-
-    nodeStatus.button_flags = liesButtonFlags();
+    if (BAT_SEN_RAIN_PROVIDER_KIND != SH_BAT_SEN_RAIN_PROVIDER_NONE) {
+        const SmartHome::ShSensors::RainUpdate rainUpdate = rainProvider.poll();
+        if (nodeStatus.inputs.rain_raw != rainUpdate.rain_raw) {
+            nodeStatus.inputs.rain_raw = rainUpdate.rain_raw;
+            nodeStatus.state_report_offen = true;
+        } else if (rainUpdate.changed) {
+            nodeStatus.state_report_offen = true;
+        }
+    }
 }
 
 void verarbeiteHelloAck(const uint8_t* senderMac, const SmartHome::HelloAckPayload& payload) {
@@ -572,9 +626,9 @@ void setup() {
 
     nodeStatus = {};
     logf("INFO", "setup() gestartet");
-    gibStartmeldungAus();
-    logf("INFO", "Initialisiere Hardware");
     initialisiereHardware();
+    gibStartmeldungAus();
+    logProviderHinweise();
     logBatterieKonfiguration();
     logf("INFO", "Initialisiere Funk");
     initialisiereFunk();
@@ -593,8 +647,7 @@ void loop() {
     unsigned long jetzt = millis();
 
     messeBatterie();
-    aktualisiereFensterKontakt();
-    aktualisiereTaster();
+    aktualisiereOptionaleEingaenge();
 
     if (!nodeStatus.master_bekannt) {
         if ((jetzt - nodeStatus.letztes_hello_ms) >= HELLO_RETRY_INTERVAL_MS) {

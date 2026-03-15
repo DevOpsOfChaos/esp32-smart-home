@@ -119,5 +119,14 @@ Bei `bat_sen` gilt der reale Spannungspfad ueber `GPIO4` als eigener Kernpfad. `
 Grund:
 Die Realnachweise belegen den lokalen ADC-Pfad sowie den offiziellen Serverpfad fuer `battery_mv` bereits. Offen ist nur, welches explizite Profil das konkrete reale Board fuer `battery_pct` am ehrlichsten abbildet. Wer beides vermischt, beschreibt einen funktionierenden Messpfad faelschlich als ungeklaert.
 
+## D-018 Firmware-Vorbereitung vor der naechsten integrierten Hardware-Welle
+Entscheidung:
+Kommende `net_sen`-/`bat_sen`-Optionen werden zuerst additiv in der Firmware vorbereitet:
+compile-time Featurepfade, klare Providerwahl, gemeinsame State-Assembly und explizit getrennte Stub-Scaffolds. Reale Nachweise folgen spaeter in groesseren integrierten Hardware-Wellen.
+
+Grund:
+Weitere Mikrotests auf halbfertiger Firmware fragmentieren die Codebasis und verwischen, was wirklich belegt ist. Die robustere Reihenfolge ist:
+bestehende Referenzpfade stabil halten, Erweiterungen code-seitig ehrlich vorbereiten, Stub- und Realpfade trennen und erst dann Hardware gebuendelt pruefen.
+
 ## Pflegehinweis
 Neue Architektur- oder Arbeitsentscheidungen hier kurz mit Entscheidung und Grund ergaenzen. Keine langen Rechtfertigungen, nur belastbare Regeln.

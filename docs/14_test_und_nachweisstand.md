@@ -12,6 +12,7 @@ Nicht diese Datei:
 - `real lokal`: mit echten lokalen Containern, MQTT, DB oder Tools ausgefuehrt
 - `simulation`: isolierter lokaler Testlauf mit Fake-Master und `sim_*`-IDs an der MQTT-Grenze; kein Hardwarebeleg
 - `build`: Kompilier- oder Syntaxnachweis ohne Realbetrieb
+- compile-validierte Stub-/Scaffold-Pfade bleiben `build` und werden ohne separaten Realnachweis nie zu `real hardware`
 - `offen`: vorbereitet oder behauptet, aber nicht sauber als Nachweis gebuendelt
 
 ## Belegter Stand per 2026-03-12
