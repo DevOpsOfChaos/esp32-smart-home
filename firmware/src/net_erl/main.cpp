@@ -468,6 +468,8 @@ void gibStartmeldungAus() {
     Serial.println(provisioning.deviceName());
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
+    Serial.print("Variante: ");
+    Serial.println(FW_VARIANT);
     Serial.print("Relay1 GPIO: ");
     Serial.println(PIN_RELAY_1);
     Serial.print("I2C: SDA=GPIO");

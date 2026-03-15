@@ -1,0 +1,82 @@
+Stand: beta50
+Datei: beta50_profilepfade_sondergeraete_aus_basistypen.txt
+Datum: 2026-03-15
+Autor: Projektdokumentation
+Status: Sondergeraete jetzt als Profile und Config-Pfade aus den vorhandenen Basistypen compile-validiert; kein neuer Hardware- oder Mehrgeraete-Nachweis
+
+1. Anlass
+- Die Stage verlangte explizite Sondergeraete-Pfade aus den vorhandenen Basistypen statt weiterer Kommentarversprechen.
+- Im Repo waren fuer `net_sen` und `bat_sen` bereits einige Provider-Stubs vorhanden, aber `net_erl`, `net_zrl` und `master` hatten weiter nur einen harten Einzelstand.
+- Die in der Stage genannten Altdateien (`NET-ERL-THLAP-001`, `BAT_WSW_TEMPLATE_v6_0`, `NET-ZRL-THXXX-001`, `BatConfigStore.h`, `RollerConfigStore.h`, `NET-ERL-THMXX-001`) existieren weder im aktiven Repo noch im gesamten lokalen `Documents\\Playground`.
+  Der Schritt musste also auf Basis des aktuellen Repos und der vorhandenen Doku sauber gelandet werden statt auf nicht vorhandenen Altcode zu warten.
+
+2. Aenderung
+- `firmware/src/master/AppConfig.h` bekam ein explizites Profilmodell fuer primaeren und zweiten Master, ohne neue Bridge-Familie zu erfinden.
+- `firmware/src/net_erl/AppConfig.h` und `firmware/src/net_erl/PinConfig.h` tragen jetzt benannte Profile fuer Pilot, Flurlicht und Kuechenlicht samt ueberschreibbaren Pin-/Ring-Pfaden.
+- `firmware/src/net_zrl/AppConfig.h` und `firmware/src/net_zrl/PinConfig.h` fuehren jetzt ein eigenes Rolladen-Profil mit aktivem Cover-Modus sowie vorbereitete LED-/Button-Pfade, ohne die allgemeine Zwei-Relais-Basis aufzugeben.
+- `firmware/src/net_sen/AppConfig.h` und `firmware/src/net_sen/PinConfig.h` fuehren jetzt ein explizites Umweltknoten-Profil ein, das konservativ ueber `BME280`-/`ENS160`-Stubpfade aus der bestehenden Sensorbasis abgeleitet wird.
+- `firmware/src/bat_sen/AppConfig.h` und `firmware/src/bat_sen/PinConfig.h` fuehren jetzt benannte Profile fuer Fensterkontakt, Tuerkontakt, Regen-Node und Wandschalter ein; die Profile bleiben absichtlich bei Stub-/Config-Pfaden und behaupten weder Deep-Sleep-Rueckkehr noch echte Pinreife.
+- `firmware/platformio.ini` bekam neue benannte Environments fuer diese Profile.
+- Die serielle Startausgabe der Basistypen zeigt jetzt zusaetzlich `FW_VARIANT`, damit Profile im realen Flash-/Bring-up ueberhaupt sichtbar werden.
+- `docs/19_sondermodule_roadmap.md` wurde auf den ehrlichen neuen Stand gezogen:
+  Profilpfade ja,
+  Hardwarebeleg nein.
+
+3. Begruendung
+- Der richtige Schritt war hier nicht, alte per-device-Monolithe zu imitieren, sondern den vorhandenen Basistypen endlich sichtbare Profilgrenzen zu geben.
+- Ohne benannte Profile bleiben Sondermodule nur Doku-Rhetorik.
+- Ohne ueberschreibbare Pin-/Provider-Makros landet jede kuenftige Variante wieder als eigener Fork im Code.
+- Gleichzeitig waere es unserioes gewesen, unbekannte alte Pins oder tiefere Sleep-/Rolladenlogik zu erfinden. Deshalb bleiben ungeklaerte reale Pins absichtlich offen und mehrere Sondermodule vorerst auf `compile/stub vorbereitet`.
+
+4. Verbesserungseffekt
+- `master`, `net_erl`, `net_zrl`, `net_sen` und `bat_sen` koennen jetzt benannte Sondergeraete-Profile bauen, ohne neue Basisklassen einzufuehren.
+- Die Sondermodule aus der Roadmap haben damit erstmals echte Build-Ziele und nicht nur Tabellenzeilen.
+- Pinbelegung und Profilidentitaet sind jetzt ueberschreibbar, ohne die Basistypen still umzubauen.
+- `FW_VARIANT` ist im Bootlog sichtbar und damit im Bring-up nicht mehr totes Konfigurationsgerede.
+
+5. Risiken / Trade-offs
+- Kein einziger neuer Hardwarebeleg.
+- `net_erl`-Kuechenlicht und Flurlicht haben jetzt Profilpfade, aber noch keine echte Sensor-/Praesenzintegration.
+- Rolladenprofil bedeutet nicht:
+  fertige Touch-Zuverlaessigkeit,
+  Positionslogik,
+  Kalibrierung
+  oder reale LED-/Tasterbelegung.
+- `bat_sen`-Profile liefern weiter keine Deep-Sleep-Rueckkehr, keine Wake-Source-Validierung und keine ehrliche Batterieprofil-Entscheidung fuer ein konkretes Serienboard.
+- Der zweite Master ist nur ein Profilpfad, nicht ploetzlich ein belegter Mehrgeraetebetrieb.
+
+6. Teststatus
+- `git diff --check`
+- Firmware-Builds mit repo-lokalem `PLATFORMIO_CORE_DIR=.piohome` wegen defekter Rechte auf `C:\\Users\\mries\\.platformio\\platforms.lock`
+- Erfolgreich gebaut:
+  - `master`
+  - `master_secondary`
+  - `net_erl`
+  - `net_erl_hall_light`
+  - `net_erl_kitchen_light`
+  - `net_zrl`
+  - `net_zrl_roller_shutter`
+  - `net_sen`
+  - `net_sen_environment_stub`
+  - `bat_sen`
+  - `bat_sen_window_contact`
+  - `bat_sen_door_contact`
+  - `bat_sen_rain_node`
+  - `bat_sen_wall_switch`
+- Fuer `master_secondary` sowie `net_sen_environment_stub` war lokal ein Build-Workaround noetig:
+  temporaere Nutzung bereits vorhandener Bibliotheken ausserhalb des finalen Repo-Diffs.
+- Nicht durchgefuehrt:
+  - Realhardware-Tests fuer eines der neuen Profile
+  - Mehrgeraetebetrieb mit zweitem Master
+  - Deep-Sleep-/Wakeup-Validierung fuer `bat_sen`
+
+7. Lehrerblick
+- Die Eigenleistung dieses Schritts liegt nicht in neuen Features, sondern in technischer Disziplin:
+  bestehende Basistypen wurden profilfaehig gemacht,
+  ohne wieder pro Geraet neue Firmwarefamilien zu zuechten.
+- Dass die in der Stage genannten Altdateien fehlten, war kein valider Grund, die Arbeit stehen zu lassen.
+  Wer an nicht vorhandenen Referenzen haengt, will oft nur die eigentliche Strukturarbeit vermeiden.
+- Der neue Stand ist fachlich sauberer, weil er bewusst nur das behauptet, was jetzt wirklich da ist:
+  benannte Profile,
+  compile-validierte Buildpfade,
+  ehrliche Offenheit bei Pins, Sleep und Hardware.

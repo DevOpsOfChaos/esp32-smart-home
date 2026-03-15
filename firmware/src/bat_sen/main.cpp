@@ -489,6 +489,8 @@ void gibStartmeldungAus() {
     Serial.println(provisioning.deviceName());
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
+    Serial.print("Variante: ");
+    Serial.println(FW_VARIANT);
     Serial.print("Setup-Sleep-Intervall: ");
     Serial.print(provisioning.wakeIntervalSeconds());
     Serial.println(" s (persistiert)");

@@ -1464,6 +1464,8 @@ void gibStartmeldungAus() {
     Serial.println(DATEI_VERSION);
     Serial.print("FW: ");
     Serial.println(PROJECT_VERSION);
+    Serial.print("Variante: ");
+    Serial.println(FW_VARIANT);
     Serial.println("Bekannte Basisnodes:");
     for (size_t i = 0; i < NODE_COUNT; ++i) {
         Serial.print(" - ");
